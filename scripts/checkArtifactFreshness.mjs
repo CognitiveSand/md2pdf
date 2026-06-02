@@ -23,8 +23,31 @@ async function exists(path) {
   }
 }
 
-function normalizeLock(lock) {
-  return JSON.stringify(lock, null, 2);
+/**
+ * Project a lockfile down to the fields that determine version eligibility:
+ * each package's resolved version, source URL, and integrity hash.
+ *
+ * Everything else npm records per package (cpu / os / libc discriminators,
+ * license, bin, dependency ranges, ...) is manifest-derived metadata whose
+ * mere *presence* in the lockfile varies by npm CLI version — for example npm
+ * 11+ writes a `libc` field that npm 10 omits. Comparing the whole serialized
+ * lockfile therefore fails the freshness gate on cosmetic format drift between
+ * npm versions, not on an actual change of selected version. The policy
+ * (ARTIFACT_FRESHNESS_POLICY.md) is defined over versions and publication
+ * timestamps, so the comparison must be too.
+ */
+function lockVersionSignature(lock) {
+  const packages = lock.packages ?? {};
+  const signature = {};
+  for (const path of Object.keys(packages).sort()) {
+    const entry = packages[path];
+    signature[path] = {
+      version: entry.version ?? null,
+      resolved: entry.resolved ?? null,
+      integrity: entry.integrity ?? null,
+    };
+  }
+  return JSON.stringify(signature);
 }
 
 function assert(condition, message) {
@@ -87,8 +110,8 @@ async function checkNpmLockFreshness() {
       { cwd: temp, stdio: "pipe" },
     );
 
-    const original = normalizeLock(readJson(lockPath));
-    const regenerated = normalizeLock(readJson(join(temp, "package-lock.json")));
+    const original = lockVersionSignature(readJson(lockPath));
+    const regenerated = lockVersionSignature(readJson(join(temp, "package-lock.json")));
 
     if (original !== regenerated) {
       failures.push(
