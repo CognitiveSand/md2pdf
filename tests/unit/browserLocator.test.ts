@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { join } from 'node:path';
-import { homedir } from 'node:os';
+import { homedir, platform } from 'node:os';
 
 vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs')>();
@@ -10,6 +10,11 @@ vi.mock('node:fs', async (importOriginal) => {
 vi.mock('node:child_process', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:child_process')>();
   return { ...actual, execFileSync: vi.fn(), execSync: vi.fn() };
+});
+
+vi.mock('node:os', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:os')>();
+  return { ...actual, platform: vi.fn() };
 });
 
 import { existsSync } from 'node:fs';
@@ -26,6 +31,12 @@ import { BrowserNotFoundError, DriverNotFoundError } from '../../src/errors.js';
 const mockExistsSync = existsSync as unknown as ReturnType<typeof vi.fn>;
 const mockExecFileSync = execFileSync as unknown as ReturnType<typeof vi.fn>;
 const mockExecSync = execSync as unknown as ReturnType<typeof vi.fn>;
+const mockPlatform = platform as unknown as ReturnType<typeof vi.fn>;
+
+beforeEach(() => {
+  // Default to the real host platform; individual tests override as needed.
+  mockPlatform.mockReturnValue(process.platform);
+});
 
 afterEach(() => {
   vi.resetAllMocks();
@@ -85,6 +96,7 @@ describe('locateBrowser', () => {
   });
 
   it('returns the first existing candidate in priority order', () => {
+    mockPlatform.mockReturnValue('darwin');
     const chromePath =
       '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
     mockExistsSync.mockImplementation((p: string) => p === chromePath);
