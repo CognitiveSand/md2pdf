@@ -1,6 +1,7 @@
 #!/usr/bin/env node
+import { realpathSync } from 'node:fs';
 import { parseArgs } from 'node:util';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import type { Readable, Writable } from 'node:stream';
 import { UsageError } from './errors.js';
 import {
@@ -98,7 +99,16 @@ export async function main(
   }
 }
 
-if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
+export function isDirectInvocation(importMetaUrl: string, argv1: string | undefined): boolean {
+  if (argv1 === undefined) return false;
+  try {
+    return realpathSync(fileURLToPath(importMetaUrl)) === realpathSync(argv1);
+  } catch {
+    return false;
+  }
+}
+
+if (isDirectInvocation(import.meta.url, process.argv[1])) {
   main().then(code => {
     process.exitCode = code;
   }, err => {

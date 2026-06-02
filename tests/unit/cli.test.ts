@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { Writable } from 'node:stream';
-import { main } from '../../src/cli.js';
+import { isDirectInvocation, main } from '../../src/cli.js';
 import type { PipelineOptions, PipelineResult } from '../../src/pipeline.js';
 
 class MemoryWritable extends Writable {
@@ -103,5 +107,27 @@ describe('cli main', () => {
     });
 
     expect(code).toBe(1);
+  });
+});
+
+describe('isDirectInvocation', () => {
+  it('recognizes execution through an npm-style symlink', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'md2pdf-cli-'));
+    try {
+      const realPath = join(dir, 'dist', 'cli.js');
+      const linkPath = join(dir, 'bin', 'md2pdf');
+      mkdirSync(join(dir, 'dist'));
+      mkdirSync(join(dir, 'bin'));
+      writeFileSync(realPath, '');
+      symlinkSync(realPath, linkPath);
+
+      expect(isDirectInvocation(pathToFileURL(realPath).href, linkPath)).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('returns false when argv[1] is absent', () => {
+    expect(isDirectInvocation(pathToFileURL(resolve('dist/cli.js')).href, undefined)).toBe(false);
   });
 });
