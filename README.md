@@ -52,6 +52,10 @@ md2pdf --help
 ```
 md2pdf/
   README.md                      this file
+  ARTIFACT_FRESHNESS_POLICY.md   project-wide artifact version rule
+  AGENTS.md                      instructions for LLMs and automation
+  artifacts.json                 inventory for non-npm and provisioned artifacts
+  renovate.json                  dependency automation quarantine policy
   docs/
     project_description.md       what md2pdf is and why (objectives, scope)
     project_requirements.md      functional + non-functional requirements (EARS/INCOSE)
@@ -61,6 +65,18 @@ md2pdf/
   assets/                        bundled CSS, fonts (to be added)
   tests/                         unit / integration / contract tests (to be added)
 ```
+
+## Artifact freshness policy
+
+Every artifact in md2pdf must be the newest eligible version available after a
+7-day quarantine period. The policy applies to npm dependencies, transitive
+lockfile entries, bundled assets, drivers, browser fallback builds, generated
+vendor files, runtime provisioning paths, and any future external artifact.
+
+The rule is actor-independent: humans, LLMs, automation, dependency bots,
+scripts, local Git hooks, and runtime code must all preserve it. There is no
+exception or override. See
+[`ARTIFACT_FRESHNESS_POLICY.md`](ARTIFACT_FRESHNESS_POLICY.md).
 
 ## How to install / set up
 

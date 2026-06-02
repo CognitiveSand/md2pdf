@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "quarantineDays": 7,
+  "policy": "ARTIFACT_FRESHNESS_POLICY.md",
+  "artifacts": [],
+  "trackedLocations": [
+    {
+      "path": "package.json",
+      "kind": "npm-manifest"
+    },
+    {
+      "path": "package-lock.json",
+      "kind": "npm-lockfile"
+    },
+    {
+      "path": "assets/",
+      "kind": "bundled-assets"
+    },
+    {
+      "path": "src/browserLocator.ts",
+      "kind": "runtime-provisioning"
+    }
+  ],
+  "plannedArtifactClasses": [
+    "npm direct dependencies",
+    "npm transitive dependencies",
+    "bundled Mermaid engine",
+    "bundled highlight.js stylesheet",
+    "bundled fonts",
+    "chromedriver",
+    "geckodriver",
+    "Chromium-for-Testing fallback build"
+  ]
+}
+
