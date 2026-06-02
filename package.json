@@ -1,0 +1,35 @@
+{
+  "name": "md2pdf",
+  "version": "0.1.0",
+  "description": "Convert Markdown to PDF locally, without TeX/LaTeX",
+  "type": "module",
+  "bin": {
+    "md2pdf": "./dist/cli.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run --reporter=verbose",
+    "test:watch": "vitest",
+    "test:browser": "vitest run --config vitest.browser.config.ts",
+    "check:artifacts": "node scripts/checkArtifactFreshness.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "fflate": "0.8.3",
+    "highlight.js": "11.11.1",
+    "markdown-it": "14.2.0",
+    "markdown-it-footnote": "4.0.0",
+    "markdown-it-task-lists": "2.1.1",
+    "mermaid": "11.15.0"
+  },
+  "devDependencies": {
+    "@types/markdown-it": "14.1.2",
+    "@types/markdown-it-footnote": "3.0.4",
+    "@types/node": "25.9.1",
+    "typescript": "6.0.3",
+    "vitest": "4.1.7"
+  }
+}
