@@ -3,14 +3,38 @@
   "version": "0.1.0",
   "description": "Convert Markdown to PDF locally, without TeX/LaTeX",
   "type": "module",
+  "license": "MIT",
+  "homepage": "https://github.com/CognitiveSand/md2pdf#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CognitiveSand/md2pdf.git"
+  },
+  "bugs": {
+    "url": "https://github.com/CognitiveSand/md2pdf/issues"
+  },
+  "keywords": [
+    "markdown",
+    "pdf",
+    "mermaid",
+    "webdriver",
+    "cli"
+  ],
   "bin": {
     "md2pdf": "./dist/cli.js"
   },
+  "files": [
+    "dist/",
+    "assets/",
+    "README.md",
+    "ARTIFACT_FRESHNESS_POLICY.md",
+    "artifacts.json"
+  ],
   "engines": {
     "node": ">=20.0.0"
   },
   "scripts": {
     "build": "tsc",
+    "prepack": "npm run build && npm run check:artifacts",
     "test": "vitest run --reporter=verbose",
     "test:watch": "vitest",
     "test:browser": "vitest run --config vitest.browser.config.ts",
