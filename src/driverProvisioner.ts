@@ -117,15 +117,6 @@ interface NpmTimeResponse {
   time: Record<string, string>;
 }
 
-interface CftLastKnownGood {
-  channels: {
-    Stable?: {
-      version: string;
-      downloads?: { chromedriver?: Array<{ platform: string; url: string }> };
-    };
-  };
-}
-
 interface GithubRelease {
   tag_name: string;
   published_at: string;
@@ -135,32 +126,22 @@ interface GithubRelease {
 export async function fetchChromedriverReleases(
   browserMajorVersion: number,
 ): Promise<DriverRelease[]> {
-  const [npmData, cftData] = await Promise.all([
-    fetchJson('https://registry.npmjs.org/chromedriver') as Promise<NpmTimeResponse>,
-    fetchJson(
-      'https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json',
-    ) as Promise<CftLastKnownGood>,
-  ]);
-
   const platformId = chromePlatformId();
-  const stableVersion = cftData.channels.Stable?.version;
-  const stableDownloads = cftData.channels.Stable?.downloads?.chromedriver ?? [];
-  const stableUrl = stableDownloads.find(d => d.platform === platformId)?.url;
+  const npmData = await fetchJson(
+    'https://registry.npmjs.org/chromedriver',
+  ) as NpmTimeResponse;
 
   const releases: DriverRelease[] = [];
-
   for (const [version, dateStr] of Object.entries(npmData.time ?? {})) {
     if (version === 'created' || version === 'modified') continue;
     const major = parseInt(version.split('.')[0] ?? '0', 10);
     if (major !== browserMajorVersion) continue;
 
-    // Build the Chrome for Testing download URL for this version
-    const url =
-      version === stableVersion && stableUrl
-        ? stableUrl
-        : `https://storage.googleapis.com/chrome-for-testing-public/${version}/${platformId}/chromedriver-${platformId}.zip`;
-
-    releases.push({ version, publishedAt: new Date(dateStr), downloadUrl: url });
+    releases.push({
+      version,
+      publishedAt: new Date(dateStr),
+      downloadUrl: `https://storage.googleapis.com/chrome-for-testing-public/${version}/${platformId}/chromedriver-${platformId}.zip`,
+    });
   }
 
   return releases;
