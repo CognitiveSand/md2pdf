@@ -25,7 +25,7 @@ Key design decisions, validated by hands-on spikes:
 
 - **Implemented in TypeScript on Node.js 20+.** The Markdown and Mermaid
   ecosystem is JavaScript-native.
-- **Renders through the user's own installed browser** (Chrome/Edge/Brave/
+- **Renders through the user's OS default browser** (Chrome/Edge/Brave/
   Chromium via `chromedriver`, or Firefox via `geckodriver`) using the browser's
   WebDriver Print command. No multi-hundred-MB browser download in the common
   case, and no `sudo`.
@@ -105,9 +105,8 @@ npx md2pdf file.md      # zero-install
 npm i -g md2pdf         # per-user global
 ```
 
-It will use a browser already installed on the host; if none is found, it will
-report clearly and can provision one into a per-user cache. Set `MD2PDF_BROWSER`
-to pin a specific browser binary.
+It will use the OS default browser when that browser is supported; if the
+default browser is missing or unsupported, it will report clearly.
 
 ## How to run / use
 

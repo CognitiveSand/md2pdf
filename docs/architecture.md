@@ -13,7 +13,7 @@ describes a mechanism differently, this one wins; if it conflicts with a
 *requirement*, the requirement wins and this document is the defect.
 
 md2pdf is implemented in **TypeScript on Node.js 20+** (ADR-04) and renders by
-driving **the user's own installed web browser** through the W3C WebDriver
+driving **the user's OS default browser** through the W3C WebDriver
 protocol, using the browser's own print-to-PDF (ADR-01). Several load-bearing
 decisions below were validated by hands-on spikes on 2026-06-02 (recorded under
 `tmp/pw-research/`), including a full-fidelity render produced by stock Firefox.
@@ -28,28 +28,29 @@ The design is shaped by these requirements, in priority order:
 | Local-only, no network | CON-02, NFR-02 | All assets are inlined into a local HTML file; the page references no external URL and is loaded from `file:`. |
 | No TeX/LaTeX toolchain (MVP) | CON-03 | Rendering goes through HTML + the browser's print engine, not LaTeX. |
 | Zero configuration | NFR-01 | A single bundled stylesheet and sensible defaults; no config file is read for the common case. |
-| User-scope install without sudo | FR-19 | npm distribution (`npx`/`npm i -g`); the renderer reuses an already-installed browser, so the common case needs no browser download at all. |
+| User-scope install without sudo | FR-19 | npm distribution (`npx`/`npm i -g`); the renderer reuses the OS default browser, so the common case needs no browser download at all. |
+| Respect user browser choice | FR-25 | Browser selection resolves the OS default browser instead of choosing another installed browser by priority. |
 | One command, simple UX | Description objective | A single `md2pdf` console command; beside-the-source output by default. |
 | Node.js ≥ 20 | CON-01 | Modern Node: built-in `node:util` argument parsing, native ESM. |
 
-## 3. Central decision — render through the user's installed browser
+## 3. Central decision — render through the user's default browser
 
 **Decision.** md2pdf converts each document in two transformations —
 **Markdown → HTML**, then **HTML → PDF** — and performs the HTML → PDF step by
-driving an **already-installed web browser** over the W3C WebDriver protocol and
-invoking the browser's standard **Print** command. Both browser families are
-supported: Chromium-family (Chrome / Edge / Brave / Chromium) via `chromedriver`,
-and Firefox via `geckodriver`.
+driving the **OS default web browser** over the W3C WebDriver protocol and
+invoking the browser's standard **Print** command. Supported default browsers
+are Chromium-family browsers (Chrome / Edge / Brave / Chromium) via
+`chromedriver`, and Firefox via `geckodriver`.
 
-**Why the user's browser.** A real browser renders the full document — prose,
+**Why the user's default browser.** A real browser renders the full document — prose,
 tables, highlighted code, embedded images (FR-06), correct pagination (FR-07),
 and Mermaid diagrams *natively*, including the HTML `foreignObject` labels that
-non-browser SVG renderers drop. Reusing the browser the user already has means
+non-browser SVG renderers drop. Reusing the browser the user chose as default means
 the common case needs **no multi-hundred-MB download** and **no elevation**,
 which is the project's simplicity and no-sudo priority. The earlier candidate of
 downloading a bundled Chromium was rejected (ADR-01 alternatives) because the
 download and its Linux system-library needs are the heaviest, most failure-prone
-part of the install — and unnecessary when a browser is already present.
+part of the install — and unnecessary when a supported default browser is already present.
 
 **Validated.** A spike drove the system Firefox headless via geckodriver,
 rendered a document containing a default-`htmlLabels` Mermaid flowchart
@@ -69,7 +70,7 @@ flowchart LR
     A[Markdown source file] --> B[Parse to HTML]
     B --> C[Highlight code]
     C --> D[Assemble local HTML and inline assets and Mermaid engine]
-    D --> E[Render and print in the user's browser via WebDriver]
+    D --> E[Render and print in the user's default browser via WebDriver]
     E --> F[Output PDF]
 ```
 
@@ -103,7 +104,7 @@ Modules under `src/`. Each owns one concern (SRP) and stays within the
 | `pipeline.ts` | `ConversionPipeline` | Expand conversion entries to a file work-list, convert each, continue past failures, emit the outcome summary. | FR-08, FR-09, FR-10, FR-11 |
 | `converter.ts` | `DocumentConverter` | Convert one Markdown source file to one output PDF via the five pipeline stages. | FR-01, FR-04–07, FR-24 |
 | `markdownRenderer.ts` | `MarkdownToHtmlRenderer` | Stages 1–3: Markdown to a full, self-contained local HTML document with code highlighting and the inlined Mermaid engine. | FR-04, FR-05, FR-06, FR-24 |
-| `browserLocator.ts` | `BrowserLocator` | Detect an installed Chromium-family or Firefox browser (resolving the real binary, including the snap wrapper case), and resolve the matching WebDriver (`chromedriver`/`geckodriver`). | FR-19, NFR-03 |
+| `browserLocator.ts` | `BrowserLocator` | Resolve the OS default browser when it is a supported Chromium-family or Firefox browser, and resolve the matching WebDriver (`chromedriver`/`geckodriver`). | FR-19, FR-25, NFR-03 |
 | `pdfRenderer.ts` | `WebDriverPdfRenderer` | Stage 4: load the local HTML in the located browser via WebDriver, await Mermaid completion, and return PDF bytes from the Print command. | FR-07, FR-24, NFR-02 |
 | `paths.ts` | `OutputPathResolver`, `ConversionEntryResolver` | Resolve default / explicit / `--output-dir` output paths; expand a directory entry to its top-level Markdown files. | FR-02, FR-03, FR-09, FR-23 |
 | `overwrite.ts` | `OverwritePolicy` | Decide overwrite vs preserve from the force flag and terminal interactivity. | FR-12, FR-13, FR-14 |
@@ -125,8 +126,7 @@ ENTRY                     a Markdown file or a directory of Markdown files
 -h, --help                list options with one-line descriptions (NFR-04)
 ```
 
-The `MD2PDF_BROWSER` environment variable may pin an explicit browser binary,
-overriding detection. `--output` and `--output-dir` are mutually exclusive;
+`--output` and `--output-dir` are mutually exclusive;
 `--output` is rejected when more than one document would be produced. These are
 usage errors (§8).
 
@@ -157,9 +157,9 @@ layer that converts errors to messages and exit codes.
   un-renderable content → `RenderError`) are reported on stderr with the
   offending path. Inside a batch the pipeline catches them, records a failure,
   and continues (FR-10, FR-15, FR-16). No partial output PDF is written.
-- **No usable browser** → `BrowserNotFoundError` reported once on stderr with
-  guidance (install Chrome/Edge/Firefox, or set `MD2PDF_BROWSER`), and the
-  last-resort provisioning path (§11).
+- **No usable default browser** → `BrowserNotFoundError` reported once on
+  stderr with guidance to install Chrome/Edge/Firefox and make it the OS default
+  browser.
 - **Exit status**, set once at process end:
   - `0` — every conversion succeeded (FR-18).
   - `1` — at least one conversion failed (FR-17).
@@ -202,12 +202,11 @@ stylesheet styles the server-highlighted code. Theme selection is out of scope
   prior global install; `npm i -g md2pdf` installs a per-user global on the PATH
   without elevation. Validated: installing the npm packages required no sudo.
 - **Browser and driver provisioning (ADR-05).** On first run `BrowserLocator`
-  detects an installed Chromium-family or Firefox browser and resolves a matching
-  WebDriver, provisioning `chromedriver`/`geckodriver` (small binaries, per-user
-  cache, no sudo) to match the detected browser version. The common case needs
-  **no browser download**. If no browser is found, md2pdf reports clearly and, as
-  a last resort, can provision a Chromium-for-Testing build plus its chromedriver
-  into the per-user cache.
+  resolves the OS default browser when it is a supported Chromium-family or
+  Firefox browser and resolves a matching WebDriver, provisioning
+  `chromedriver`/`geckodriver` (small binaries, per-user cache, no sudo) to match
+  the detected browser version. The common case needs **no browser download**. If
+  the default browser is missing or unsupported, md2pdf reports clearly.
 - **System-scope install (FR-20).** Installing the package into a system-shared
   location with elevation places the `md2pdf` entry point on every account's
   PATH; each user's browser/driver are resolved per-user on first run.
@@ -251,10 +250,10 @@ md2pdf/
 
 ## 13. Architecture decision records
 
-**ADR-01 — Render via the user's installed browser using WebDriver Print.**
+**ADR-01 — Render via the user's default browser using WebDriver Print.**
 *Context:* FR-24 requires faithful Mermaid; a real browser renders it natively
-(including `foreignObject`), and most desktops already have a browser. *Decision:*
-drive an installed browser over WebDriver and use its Print command for HTML→PDF,
+(including `foreignObject`), and most desktops already have a default browser. *Decision:*
+drive the OS default browser over WebDriver and use its Print command for HTML→PDF,
 rather than bundling/downloading a Chromium or assembling the PDF without a
 browser. *Alternatives rejected:* (a) bundled Chromium via Playwright — heavy
 download and Linux system-library/no-sudo problems, and cannot drive stock
@@ -286,30 +285,28 @@ approval (2026-06-02). *Consequences:* one language and one runtime, `npx`
 zero-install distribution (positive); divergence from the team's Python tooling
 (negative, accepted). *Status:* accepted.
 
-**ADR-05 — Prefer an installed browser; provision a matching driver; download a
-browser only as a last resort.**
-*Context:* the WebDriver path needs a browser plus a matching WebDriver binary;
-most desktops have a browser, and drivers are small. *Decision:* detect an
-installed Chromium-family or Firefox browser and provision the matching
-`chromedriver`/`geckodriver` per-user; if no browser exists, report clearly and
-optionally provision a Chromium-for-Testing build as a fallback. *Consequences:*
-no-sudo and no large download on typical desktops, with coverage for browser-less
-hosts. *Status:* accepted.
+**ADR-05 — Use the OS default browser; provision a matching driver.**
+*Context:* the WebDriver path needs a browser plus a matching WebDriver binary,
+and the user explicitly wants the OS default browser to be authoritative.
+*Decision:* resolve the OS default browser and use it only when it is supported;
+provision the matching `chromedriver`/`geckodriver` per-user. If the default
+browser is missing or unsupported, report clearly. *Consequences:* no-sudo and
+no large download on typical desktops, while respecting the user's browser
+choice. Hosts whose default browser is unsupported must change the default
+browser before conversion. *Status:* accepted.
 
 ## 14. Key risks
 
 - **R-1 — Browser/driver availability and version lockstep.** `chromedriver`'s
-  major version must match the installed Chrome; `geckodriver` is version
-  tolerant. A host may have no browser at all. The snap-packaged Firefox on
-  Ubuntu exposes a wrapper script at `/usr/bin/firefox`; the real binary
-  (`/snap/firefox/current/usr/lib/firefox/firefox`) must be resolved. *Mitigations:*
-  auto-provision the driver matching the detected browser version; resolve the
-  real binary behind snap wrappers; `BrowserNotFoundError` with guidance plus the
-  last-resort Chromium-for-Testing download (ADR-05).
+  major version must match the default Chromium-family browser; `geckodriver` is
+  version tolerant. A host may have no supported default browser. *Mitigations:*
+  auto-provision the driver matching the detected default browser version;
+  `BrowserNotFoundError` gives guidance to install a supported browser and make
+  it the default.
 - **R-2 — Output variation across browsers/versions.** Firefox and Chrome render
   slightly differently, and a user's browser auto-updates. *Mitigation:* document
-  this; offer the provisioned Chromium-for-Testing path for users who need
-  byte-stable output.
+  this; users who need stable output should keep a stable supported browser as
+  their OS default during conversion.
 - **R-3 — Offline guarantee is structural, not intercepted.** Without request
   interception, local-only relies on inlined assets + offline launch.
   *Mitigation:* a test asserting no external URLs in the assembled HTML and a
@@ -333,6 +330,7 @@ hosts. *Status:* accepted.
 | FR-15–18 | contract test: stderr messages and exit codes; `BrowserNotFoundError` path |
 | FR-19–21 | install demonstration on a non-privileged account; idempotent re-run exits 0 |
 | FR-24 | integration test: a `mermaid` block renders as vector graphics, not raw text (validated on stock Firefox) |
+| FR-25 | unit test: `BrowserLocator` resolves the OS default browser and does not pick a different installed browser by priority |
 | NFR-01 | integration test: conversion with no config file present |
 | NFR-02 | test: no external URL in assembled HTML; conversion with host network disabled |
 | NFR-03 | CI matrix: Linux, macOS, Windows on Node.js 20+, against Chromium and Firefox |

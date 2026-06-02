@@ -29,6 +29,7 @@ Terms below are binding for the whole document.
 | **interactive terminal session** | An invocation whose standard input and standard output are both attached to a terminal (TTY). |
 | **user-scope installation** | An installation that places md2pdf on the invoking user's executable path without elevated privileges. |
 | **system-scope installation** | An installation, performed with elevated privileges, that places md2pdf on the executable path of every user account on the host. |
+| **OS default browser** | The browser registered by the invoking user's operating-system account as the default handler for `http`/`https` URLs. |
 | **artifact** | Any third-party package, transitive dependency, binary, driver, runtime helper, browser build, bundled engine, stylesheet, font, template, generated vendor file, or external asset that is part of md2pdf's codebase, distribution, installation, or runtime provisioning path. |
 | **eligible artifact version** | A released artifact version whose publication timestamp is at least 7 full days old at the time md2pdf selects, locks, embeds, distributes, references, vendors, or provisions it. |
 
@@ -90,6 +91,7 @@ PDF.
 | FR-22 | LaTeX rendering backend | md2pdf shall produce the output PDF through a LaTeX rendering backend when that backend is selected. | Roadmap | Could | Post-MVP | Test |
 | FR-23 | Output-directory option | Where the `--output-dir` option supplies a directory path, md2pdf shall write each output PDF into that directory using the source file's base name with a `.pdf` extension. | User-declared output-dir need | Should | MVP | Demonstration |
 | FR-24 | Mermaid diagram rendering | When a fenced code block declares the `mermaid` language identifier, md2pdf shall render the described Mermaid diagram as an image in the output PDF rather than as the block's raw text. | User-declared diagram need (high priority) | Must | MVP | Demonstration |
+| FR-25 | Default-browser rendering | When md2pdf performs browser-backed rendering, md2pdf shall launch the OS default browser and shall not select a different installed browser. | User-declared browser-selection need | Must | MVP | Test |
 
 **Note on FR-24 (C6 Feasible).** Mermaid diagram rendering is a confirmed
 high-priority MVP capability and shall not be deferred. Rendering Mermaid
@@ -120,7 +122,7 @@ description, never as a requirement.
 
 **Set-level (C10–C14):**
 
-- **C10 Complete** — covers conversion (FR-01–07, FR-23, FR-24), batch (FR-08–11),
+- **C10 Complete** — covers conversion (FR-01–07, FR-23, FR-24), browser selection (FR-25), batch (FR-08–11),
   overwrite (FR-12–14), error handling and exit status (FR-15–18),
   installation (FR-19–21), artifact freshness (NFR-05), and the deferred backend
   (FR-22).

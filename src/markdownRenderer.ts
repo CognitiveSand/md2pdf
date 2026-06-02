@@ -30,6 +30,9 @@ const MIME_BY_EXT: Record<string, string> = {
   bmp: 'image/bmp',
 };
 
+const TRANSPARENT_PIXEL_DATA_URI =
+  'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
+
 function imageToDataUri(imgPath: string): string {
   const ext = extname(imgPath).toLowerCase().slice(1);
   const mime = MIME_BY_EXT[ext] ?? 'application/octet-stream';
@@ -42,6 +45,10 @@ function escapeHtml(text: string): string {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
+}
+
+function isExternalNetworkUrl(value: string): boolean {
+  return /^https?:\/\//i.test(value);
 }
 
 export interface RenderOptions {
@@ -90,7 +97,8 @@ export function renderToHtml(markdown: string, options: RenderOptions): string {
     .use(taskLists, { enabled: true, label: true })
     .use(footnote);
 
-  // Inline relative images as base64 data URIs
+  // Keep the assembled document local-only: inline relative images and remove
+  // network image sources so the browser never performs an outbound fetch.
   const origImageRule = md.renderer.rules['image'];
   md.renderer.rules['image'] = (tokens, idx, opts, env, self) => {
     const token = tokens[idx];
@@ -102,12 +110,9 @@ export function renderToHtml(markdown: string, options: RenderOptions): string {
     const srcAttr = token.attrs?.[srcIdx];
     if (srcIdx >= 0 && srcAttr) {
       const src = srcAttr[1];
-      if (
-        src &&
-        !src.startsWith('http://') &&
-        !src.startsWith('https://') &&
-        !src.startsWith('data:')
-      ) {
+      if (src && isExternalNetworkUrl(src)) {
+        srcAttr[1] = TRANSPARENT_PIXEL_DATA_URI;
+      } else if (src && !src.startsWith('data:')) {
         const imgPath = resolve(sourceDir, src);
         if (existsSync(imgPath)) {
           srcAttr[1] = imageToDataUri(imgPath);
@@ -116,6 +121,24 @@ export function renderToHtml(markdown: string, options: RenderOptions): string {
     }
     return origImageRule
       ? origImageRule(tokens, idx, opts, env, self)
+      : self.renderToken(tokens, idx, opts);
+  };
+
+  const origLinkOpenRule = md.renderer.rules['link_open'];
+  md.renderer.rules['link_open'] = (tokens, idx, opts, env, self) => {
+    const token = tokens[idx];
+    if (!token) {
+      return self.renderToken(tokens, idx, opts);
+    }
+
+    const hrefIdx = token.attrIndex('href');
+    const hrefAttr = token.attrs?.[hrefIdx];
+    if (hrefIdx >= 0 && hrefAttr && isExternalNetworkUrl(hrefAttr[1])) {
+      token.attrs?.splice(hrefIdx, 1);
+    }
+
+    return origLinkOpenRule
+      ? origLinkOpenRule(tokens, idx, opts, env, self)
       : self.renderToken(tokens, idx, opts);
   };
 

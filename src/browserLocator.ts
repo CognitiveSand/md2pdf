@@ -1,9 +1,9 @@
 import { execFileSync, execSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { homedir, platform } from 'node:os';
 import { join } from 'node:path';
 import { provisionDriver } from './driverProvisioner.js';
-import { BrowserNotFoundError } from './errors.js';
+import { BrowserNotFoundError, DriverNotFoundError } from './errors.js';
 
 export type BrowserKind = 'chrome' | 'chromium' | 'firefox';
 export type DriverKind = 'chromedriver' | 'geckodriver';
@@ -26,113 +26,55 @@ export interface BrowserAndDriver {
 }
 
 // --------------------------------------------------------------------------
-// Platform candidate paths
-// --------------------------------------------------------------------------
-
-interface BrowserCandidate {
-  kind: BrowserKind;
-  path: string;
-}
-
-const CANDIDATES_DARWIN: BrowserCandidate[] = [
-  { kind: 'chrome', path: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' },
-  {
-    kind: 'chrome',
-    path: '/Applications/Google Chrome Beta.app/Contents/MacOS/Google Chrome Beta',
-  },
-  {
-    kind: 'chrome',
-    path: '/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary',
-  },
-  { kind: 'chromium', path: '/Applications/Chromium.app/Contents/MacOS/Chromium' },
-  { kind: 'firefox', path: '/Applications/Firefox.app/Contents/MacOS/firefox' },
-];
-
-const CANDIDATES_LINUX: BrowserCandidate[] = [
-  { kind: 'chrome', path: '/usr/bin/google-chrome' },
-  { kind: 'chrome', path: '/usr/bin/google-chrome-stable' },
-  { kind: 'chromium', path: '/usr/bin/chromium-browser' },
-  { kind: 'chromium', path: '/usr/bin/chromium' },
-  { kind: 'firefox', path: '/usr/bin/firefox' },
-  // Snap paths are handled separately below
-];
-
-const CANDIDATES_WIN32: BrowserCandidate[] = [
-  {
-    kind: 'chrome',
-    path: join(
-      process.env['PROGRAMFILES(X86)'] ?? 'C:\\Program Files (x86)',
-      'Google',
-      'Chrome',
-      'Application',
-      'chrome.exe',
-    ),
-  },
-  {
-    kind: 'chrome',
-    path: join(
-      process.env['PROGRAMFILES'] ?? 'C:\\Program Files',
-      'Google',
-      'Chrome',
-      'Application',
-      'chrome.exe',
-    ),
-  },
-  {
-    kind: 'chrome',
-    path: join(
-      process.env['LOCALAPPDATA'] ?? '',
-      'Google',
-      'Chrome',
-      'Application',
-      'chrome.exe',
-    ),
-  },
-  {
-    kind: 'firefox',
-    path: join(
-      process.env['PROGRAMFILES'] ?? 'C:\\Program Files',
-      'Mozilla Firefox',
-      'firefox.exe',
-    ),
-  },
-  {
-    kind: 'firefox',
-    path: join(
-      process.env['PROGRAMFILES(X86)'] ?? 'C:\\Program Files (x86)',
-      'Mozilla Firefox',
-      'firefox.exe',
-    ),
-  },
-];
-
-function candidatesForPlatform(): BrowserCandidate[] {
-  switch (platform()) {
-    case 'darwin':
-      return CANDIDATES_DARWIN;
-    case 'win32':
-      return CANDIDATES_WIN32;
-    default:
-      return CANDIDATES_LINUX;
-  }
-}
-
-// --------------------------------------------------------------------------
 // Version helpers
 // --------------------------------------------------------------------------
 
-function getBrowserVersion(executablePath: string): string {
+function parseVersion(output: string): string | null {
+  const match = output.match(/\d+\.\d+(?:\.\d+)*/);
+  return match ? match[0] : null;
+}
+
+function readExecutableVersion(executablePath: string, args: string[]): string | null {
   try {
-    const output = execFileSync(executablePath, ['--version'], {
+    const output = execFileSync(executablePath, args, {
       encoding: 'utf8',
       timeout: 5000,
       stdio: ['ignore', 'pipe', 'ignore'],
     });
-    const match = output.match(/\d+\.\d+(?:\.\d+)*/);
-    return match ? match[0] : '0.0.0';
+    return parseVersion(output);
   } catch {
-    return '0.0.0';
+    return null;
   }
+}
+
+function powerShellSingleQuote(value: string): string {
+  return `'${value.replace(/'/g, "''")}'`;
+}
+
+function readWindowsFileVersion(executablePath: string): string | null {
+  if (platform() !== 'win32') return null;
+
+  try {
+    const output = execFileSync('powershell.exe', [
+      '-NoProfile',
+      '-Command',
+      `$ErrorActionPreference = 'Stop'; (Get-Item -LiteralPath ${powerShellSingleQuote(executablePath)}).VersionInfo.ProductVersion`,
+    ], {
+      encoding: 'utf8',
+      timeout: 5000,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    return parseVersion(output);
+  } catch {
+    return null;
+  }
+}
+
+function getBrowserVersion(executablePath: string): string {
+  return readExecutableVersion(executablePath, ['--version'])
+    ?? readExecutableVersion(executablePath, ['--product-version'])
+    ?? readWindowsFileVersion(executablePath)
+    ?? '0.0.0';
 }
 
 function getDriverVersion(executablePath: string): string {
@@ -149,53 +91,201 @@ function getDriverVersion(executablePath: string): string {
   }
 }
 
-// --------------------------------------------------------------------------
-// Snap Firefox (Linux)
-// --------------------------------------------------------------------------
+function majorVersion(version: string): number | null {
+  const major = parseInt(version.split('.')[0] ?? '', 10);
+  return Number.isFinite(major) && major > 0 ? major : null;
+}
 
-/**
- * On Linux, `snap install firefox` places a wrapper at `/snap/bin/firefox` that
- * is not a real executable WebDriver can launch.  The actual binary lives under
- * the snap mount.
- */
-function resolveSnapFirefox(): LocatedBrowser | null {
-  if (platform() !== 'linux') return null;
+function isCompatibleDriver(browser: LocatedBrowser, driver: LocatedDriver): boolean {
+  if (browser.kind === 'firefox') {
+    return driver.kind === 'geckodriver';
+  }
 
-  const snapWrapper = '/snap/bin/firefox';
-  const snapReal = '/snap/firefox/current/usr/lib/firefox/firefox';
+  if (driver.kind !== 'chromedriver') {
+    return false;
+  }
 
-  if (!existsSync(snapWrapper) && !existsSync(snapReal)) return null;
+  const browserMajor = majorVersion(browser.version);
+  const driverMajor = majorVersion(driver.version);
+  return browserMajor !== null && driverMajor !== null && browserMajor === driverMajor;
+}
 
-  const realPath = existsSync(snapReal) ? snapReal : snapWrapper;
-  return {
-    kind: 'firefox',
-    executablePath: realPath,
-    version: getBrowserVersion(realPath),
-  };
+function compatibleDriverOrNull(
+  browser: LocatedBrowser,
+  kind: DriverKind,
+  executablePath: string,
+): LocatedDriver | null {
+  const driver = { kind, executablePath, version: getDriverVersion(executablePath) };
+  return isCompatibleDriver(browser, driver) ? driver : null;
 }
 
 // --------------------------------------------------------------------------
-// MD2PDF_BROWSER override
+// Default browser detection
 // --------------------------------------------------------------------------
 
-function resolveEnvOverride(): LocatedBrowser | null {
-  const override = process.env['MD2PDF_BROWSER'];
-  if (!override) return null;
+function expandWindowsEnvVars(value: string): string {
+  return value.replace(/%([^%]+)%/g, (_, name: string) => process.env[name] ?? '');
+}
 
-  if (!existsSync(override)) {
-    throw new Error(
-      `MD2PDF_BROWSER="${override}" — no file exists at that path.`,
-    );
+function executableFromCommand(command: string): string | null {
+  const trimmed = expandWindowsEnvVars(command).trim();
+  if (!trimmed) return null;
+
+  if (trimmed.startsWith('"')) {
+    const endQuote = trimmed.indexOf('"', 1);
+    return endQuote > 1 ? trimmed.slice(1, endQuote) : null;
   }
 
-  // Infer kind from path string; default to chrome-family
-  const lower = override.toLowerCase();
-  const kind: BrowserKind = lower.includes('firefox') ? 'firefox' : 'chrome';
+  const firstToken = trimmed.split(/\s+/)[0];
+  return firstToken || null;
+}
+
+function inferBrowserKind(executablePath: string): BrowserKind | null {
+  const lower = executablePath.toLowerCase();
+  if (lower.includes('firefox')) return 'firefox';
+  if (lower.includes('chromium')) return 'chromium';
+  if (
+    lower.includes('chrome')
+    || lower.includes('brave')
+    || lower.includes('msedge')
+    || lower.includes('edge')
+  ) {
+    return 'chrome';
+  }
+  return null;
+}
+
+function locatedBrowserFromExecutable(executablePath: string): LocatedBrowser | null {
+  const kind = inferBrowserKind(executablePath);
+  if (!kind || !existsSync(executablePath)) return null;
+
   return {
     kind,
-    executablePath: override,
-    version: getBrowserVersion(override),
+    executablePath,
+    version: getBrowserVersion(executablePath),
   };
+}
+
+function readWindowsRegistryValue(key: string, valueName: string): string | null {
+  try {
+    const args = valueName === '(default)'
+      ? ['query', key, '/ve']
+      : ['query', key, '/v', valueName];
+    const output = execFileSync('reg.exe', args, {
+      encoding: 'utf8',
+      timeout: 5000,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    const defaultMatch = output.match(/\s+REG_\w+\s+(.+)/);
+    if (valueName === '(default)') return defaultMatch?.[1]?.trim() ?? null;
+
+    const escapedName = valueName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const match = output.match(new RegExp(`\\s${escapedName}\\s+REG_\\w+\\s+(.+)`));
+    return match?.[1]?.trim() ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function resolveWindowsDefaultBrowser(): LocatedBrowser | null {
+  const userChoiceKeys = [
+    'HKCU\\Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\https\\UserChoice',
+    'HKCU\\Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\http\\UserChoice',
+  ];
+
+  const progId = userChoiceKeys
+    .map(key => readWindowsRegistryValue(key, 'ProgId'))
+    .find((value): value is string => Boolean(value));
+  if (!progId) return null;
+
+  const commandKeys = [
+    `HKCU\\Software\\Classes\\${progId}\\shell\\open\\command`,
+    `HKLM\\Software\\Classes\\${progId}\\shell\\open\\command`,
+    `HKCR\\${progId}\\shell\\open\\command`,
+  ];
+
+  const command = commandKeys
+    .map(key => readWindowsRegistryValue(key, '(default)'))
+    .find((value): value is string => Boolean(value));
+  const executablePath = command ? executableFromCommand(command) : null;
+  return executablePath ? locatedBrowserFromExecutable(executablePath) : null;
+}
+
+function resolveDarwinDefaultBrowser(): LocatedBrowser | null {
+  try {
+    const appPath = execFileSync('osascript', [
+      '-e',
+      'POSIX path of (path to default application for URL "https://example.com")',
+    ], {
+      encoding: 'utf8',
+      timeout: 5000,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+
+    const appName = appPath.replace(/\/$/, '').split('/').pop() ?? '';
+    const executableName = appName === 'Firefox.app'
+      ? 'firefox'
+      : appName.replace(/\.app$/, '');
+    const executablePath = join(appPath, 'Contents', 'MacOS', executableName);
+    return locatedBrowserFromExecutable(executablePath);
+  } catch {
+    return null;
+  }
+}
+
+function desktopSearchDirs(): string[] {
+  return [
+    join(homedir(), '.local', 'share', 'applications'),
+    '/usr/local/share/applications',
+    '/usr/share/applications',
+  ];
+}
+
+function resolveLinuxDesktopExec(desktopId: string): string | null {
+  for (const dir of desktopSearchDirs()) {
+    const desktopPath = join(dir, desktopId);
+    if (!existsSync(desktopPath)) continue;
+
+    try {
+      const content = readFileSync(desktopPath, 'utf8');
+      const execLine = content.split(/\r?\n/).find(line => line.startsWith('Exec='));
+      if (!execLine) continue;
+      return execLine.slice('Exec='.length).replace(/\s+%[fFuUdDnNickvm]|\s+%%/g, '');
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
+function resolveLinuxDefaultBrowser(): LocatedBrowser | null {
+  try {
+    const desktopId = execFileSync('xdg-settings', ['get', 'default-web-browser'], {
+      encoding: 'utf8',
+      timeout: 5000,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+    if (!desktopId) return null;
+
+    const command = resolveLinuxDesktopExec(desktopId);
+    const executable = command ? executableFromCommand(command) : null;
+    if (!executable) return null;
+    const executablePath = executable.includes('/') ? executable : findBinaryInPath(executable);
+    return executablePath ? locatedBrowserFromExecutable(executablePath) : null;
+  } catch {
+    return null;
+  }
+}
+
+function resolveDefaultBrowser(): LocatedBrowser | null {
+  switch (platform()) {
+    case 'darwin':
+      return resolveDarwinDefaultBrowser();
+    case 'win32':
+      return resolveWindowsDefaultBrowser();
+    default:
+      return resolveLinuxDefaultBrowser();
+  }
 }
 
 // --------------------------------------------------------------------------
@@ -203,28 +293,12 @@ function resolveEnvOverride(): LocatedBrowser | null {
 // --------------------------------------------------------------------------
 
 /**
- * Finds an installed browser.  Checks `MD2PDF_BROWSER` first, then
- * platform-specific default paths.  Throws {@link BrowserNotFoundError} when
- * nothing is found.
+ * Finds the OS default browser. Throws {@link BrowserNotFoundError} when the
+ * default browser cannot be resolved or is not supported by md2pdf.
  */
 export function locateBrowser(): LocatedBrowser {
-  const fromEnv = resolveEnvOverride();
-  if (fromEnv) return fromEnv;
-
-  // Snap Firefox needs special handling on Linux
-  const snapFirefox = resolveSnapFirefox();
-  if (snapFirefox) return snapFirefox;
-
-  for (const candidate of candidatesForPlatform()) {
-    if (existsSync(candidate.path)) {
-      return {
-        kind: candidate.kind,
-        executablePath: candidate.path,
-        version: getBrowserVersion(candidate.path),
-      };
-    }
-  }
-
+  const defaultBrowser = resolveDefaultBrowser();
+  if (defaultBrowser) return defaultBrowser;
   throw new BrowserNotFoundError();
 }
 
@@ -282,18 +356,30 @@ export async function locateDriver(
   // 1. PATH search
   const pathBin = findBinaryInPath(kind);
   if (pathBin) {
-    return { kind, executablePath: pathBin, version: getDriverVersion(pathBin) };
+    const pathDriver = compatibleDriverOrNull(browser, kind, pathBin);
+    if (pathDriver) return pathDriver;
   }
 
   // 2. Cache directory
   const cacheBin = join(cacheDir, binaryName);
   if (existsSync(cacheBin)) {
-    return { kind, executablePath: cacheBin, version: getDriverVersion(cacheBin) };
+    const cacheDriver = compatibleDriverOrNull(browser, kind, cacheBin);
+    if (cacheDriver) return cacheDriver;
   }
 
   // 3. Provision — download the newest eligible version (quarantine enforced inside)
   const provisionedPath = await provisioner(kind, browser.version, cacheDir);
-  return { kind, executablePath: provisionedPath, version: getDriverVersion(provisionedPath) };
+  const provisionedDriver = {
+    kind,
+    executablePath: provisionedPath,
+    version: getDriverVersion(provisionedPath),
+  };
+  if (!isCompatibleDriver(browser, provisionedDriver)) {
+    throw new DriverNotFoundError(
+      `${kind} (driver ${provisionedDriver.version} does not match browser ${browser.version})`,
+    );
+  }
+  return provisionedDriver;
 }
 
 /**

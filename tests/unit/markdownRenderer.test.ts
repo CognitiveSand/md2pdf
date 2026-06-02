@@ -25,7 +25,11 @@ describe('renderToHtml', () => {
     });
 
     it('contains no external http/https URLs', () => {
-      const markdown = readFileSync(sampleMd, 'utf8');
+      const markdown = [
+        readFileSync(sampleMd, 'utf8'),
+        '![remote](https://example.com/img.png)',
+        '[remote link](http://example.com/page)',
+      ].join('\n\n');
       const html = render(markdown);
       // Strip inline script content (mermaid bundle may reference protocol-relative URLs in comments)
       // Check that no src/href/url() points to an external server
@@ -191,11 +195,19 @@ describe('renderToHtml', () => {
       expect(html).toContain('data:image/png;base64,');
     });
 
-    it('leaves absolute URLs unchanged', () => {
+    it('removes absolute image URLs so HTML remains local-only', () => {
       const md = '![ext](https://example.com/img.png)';
       const html = render(md);
-      // The absolute URL must survive; image rule must not try to read it
-      expect(html).toContain('https://example.com/img.png');
+      expect(html).not.toContain('https://example.com/img.png');
+      expect(html).toContain('data:image/gif;base64,');
+    });
+  });
+
+  describe('links', () => {
+    it('removes external href attributes so HTML remains local-only', () => {
+      const html = render('[external](https://example.com/docs)');
+      expect(html).not.toContain('https://example.com/docs');
+      expect(html).toContain('<a>external</a>');
     });
   });
 });

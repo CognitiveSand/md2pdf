@@ -37,16 +37,13 @@ export class BrowserNotFoundError extends ConversionError {
   constructor() {
     super(
       [
-        'No supported browser found.',
-        'md2pdf requires Google Chrome, Chromium, or Firefox.',
+        'No supported default browser found.',
+        'md2pdf requires the OS default browser to be Google Chrome, Chromium, or Firefox.',
         '',
-        'Install one of:',
+        'Install one of these browsers and make it the default browser:',
         '  Google Chrome - https://www.google.com/chrome/',
         '  Chromium      - https://www.chromium.org/',
         '  Firefox       - https://www.mozilla.org/firefox/',
-        '',
-        'Or point MD2PDF_BROWSER to a browser executable:',
-        '  export MD2PDF_BROWSER=/usr/bin/chromium',
       ].join('\n'),
     );
   }

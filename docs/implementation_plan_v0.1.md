@@ -258,7 +258,7 @@ Deliverables:
 - Snap Firefox real-binary handling on Linux where applicable.
 - Last-resort Chromium-for-Testing provisioning path can be deferred behind a
   clear error only if browser-less-host support is explicitly tracked for a
-  follow-up patch before v0.1 release.
+  follow-up patch before v0.1 release. Tracking: `docs/followups.md`.
 
 Primary modules:
 
