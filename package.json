@@ -1,0 +1,60 @@
+{
+  "name": "md2pdf",
+  "version": "0.1.0",
+  "description": "Convert Markdown to PDF locally, without TeX/LaTeX",
+  "type": "module",
+  "license": "MIT",
+  "homepage": "https://github.com/CognitiveSand/md2pdf#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CognitiveSand/md2pdf.git"
+  },
+  "bugs": {
+    "url": "https://github.com/CognitiveSand/md2pdf/issues"
+  },
+  "keywords": [
+    "markdown",
+    "pdf",
+    "mermaid",
+    "webdriver",
+    "cli"
+  ],
+  "bin": {
+    "md2pdf": "./dist/cli.js"
+  },
+  "files": [
+    "dist/",
+    "assets/",
+    "README.md",
+    "ARTIFACT_FRESHNESS_POLICY.md",
+    "artifacts.json"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepack": "npm run build && npm run check:artifacts",
+    "test": "vitest run --reporter=verbose",
+    "test:watch": "vitest",
+    "test:browser": "vitest run --config vitest.browser.config.ts",
+    "test:all": "vitest run --reporter=verbose && vitest run --config vitest.browser.config.ts",
+    "check:artifacts": "node scripts/checkArtifactFreshness.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "fflate": "0.8.3",
+    "highlight.js": "11.11.1",
+    "markdown-it": "14.2.0",
+    "markdown-it-footnote": "4.0.0",
+    "markdown-it-task-lists": "2.1.1",
+    "mermaid": "11.15.0"
+  },
+  "devDependencies": {
+    "@types/markdown-it": "14.1.2",
+    "@types/markdown-it-footnote": "3.0.4",
+    "@types/node": "25.9.1",
+    "typescript": "6.0.3",
+    "vitest": "4.1.7"
+  }
+}

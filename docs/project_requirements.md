@@ -29,6 +29,8 @@ Terms below are binding for the whole document.
 | **interactive terminal session** | An invocation whose standard input and standard output are both attached to a terminal (TTY). |
 | **user-scope installation** | An installation that places md2pdf on the invoking user's executable path without elevated privileges. |
 | **system-scope installation** | An installation, performed with elevated privileges, that places md2pdf on the executable path of every user account on the host. |
+| **artifact** | Any third-party package, transitive dependency, binary, driver, runtime helper, browser build, bundled engine, stylesheet, font, template, generated vendor file, or external asset that is part of md2pdf's codebase, distribution, installation, or runtime provisioning path. |
+| **eligible artifact version** | A released artifact version whose publication timestamp is at least 7 full days old at the time md2pdf selects, locks, embeds, distributes, references, vendors, or provisions it. |
 
 ## 3. Constraints
 
@@ -106,6 +108,7 @@ concern, not grounds for dropping the requirement.
 | NFR-02 | Local-only processing | md2pdf shall open no outbound network connection during conversion. | Quality Attribute | Must | MVP | Test |
 | NFR-03 | Platform portability | md2pdf shall perform single-file conversion on Linux, macOS, and Windows hosts running Node.js 20 or later. | Quality Attribute | Should | MVP | Test |
 | NFR-04 | Self-describing usage | When md2pdf is invoked with the help option, md2pdf shall display each supported option with a one-line description on standard output. | Quality Attribute | Should | MVP | Demonstration |
+| NFR-05 | Artifact freshness policy | When any artifact is added, updated, embedded, locked, referenced, distributed, vendored, generated from a third-party source, or provisioned by md2pdf, md2pdf shall use the newest eligible artifact version available after a 7-day quarantine period, with no exception, override, bypass, emergency exemption, or force mode. | Quality Attribute | Must | MVP | Test |
 
 ## 8. Compliance checklist (C1–C14 self-assessment)
 
@@ -119,14 +122,16 @@ description, never as a requirement.
 
 - **C10 Complete** — covers conversion (FR-01–07, FR-23, FR-24), batch (FR-08–11),
   overwrite (FR-12–14), error handling and exit status (FR-15–18),
-  installation (FR-19–21), and the deferred backend (FR-22).
+  installation (FR-19–21), artifact freshness (NFR-05), and the deferred backend
+  (FR-22).
 - **C11 Consistent** — one vocabulary (§2); CON-03 and FR-22/OOS-01 agree that
   LaTeX is Post-MVP.
 - **C12 Feasible together** — no row contradicts CON-01–03.
 - **C13 Comprehensible** — glossary plus tables stand alone.
 - **C14 Validatable** — every success criterion in the description maps to at
   least one requirement (one-command → NFR-01; shareable output → FR-04–07;
-  no LaTeX → CON-03; local-only → CON-02/NFR-02; clear errors → FR-15/16).
+  no LaTeX → CON-03; local-only → CON-02/NFR-02; artifact freshness → NFR-05;
+  clear errors → FR-15/16).
 
 ## 9. Resolved decisions
 

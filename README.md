@@ -1,91 +1,134 @@
 # md2pdf
 
-Convert Markdown files into clean, shareable PDFs — with the simplest possible
-command, full Mermaid diagram support, and no LaTeX toolchain.
+Convert Markdown files into clean, shareable PDFs locally, with Mermaid support
+and no TeX or LaTeX toolchain.
 
 ```bash
 md2pdf report.md
-# → report.pdf
+# creates report.pdf beside report.md
 ```
 
 ## Status
 
-**Specification and design phase.** The project's intent, requirements, user
-stories, and architecture are written and mutually traceable (see `docs/`).
-Implementation has not started yet — the commands below describe the designed
-behaviour, not a shipped tool.
+v0.1 is the MVP implementation track. The command converts Markdown through a
+local HTML document and prints that document with an installed browser through
+WebDriver. All document assets are local; Markdown sources and output PDFs are
+not uploaded to an external service.
 
-Key design decisions, validated by hands-on spikes:
+## Requirements
 
-- **Implemented in TypeScript on Node.js 20+.** The Markdown and Mermaid
-  ecosystem is JavaScript-native.
-- **Renders through the user's own installed browser** (Chrome/Edge/Brave/
-  Chromium via `chromedriver`, or Firefox via `geckodriver`) using the browser's
-  WebDriver Print command. No multi-hundred-MB browser download in the common
-  case, and no `sudo`.
-- **Fully local.** No document is ever sent over the network; all rendering
-  assets are bundled.
-- **Mermaid diagrams render natively** at full fidelity (a stock-Firefox spike
-  confirmed this end-to-end).
+- Node.js 20 or later.
+- One supported browser installed locally: Google Chrome, Chromium, another
+  Chromium-family browser, or Firefox.
+- A matching WebDriver binary on `PATH`, or a supported driver provisioned by
+  md2pdf into a per-user cache.
 
-## What it does
-
-Markdown is the default format for notes and docs; PDF is the default format for
-sharing them. md2pdf bridges the two with one command and sensible defaults —
-readable typography, syntax-highlighted code, tables, footnotes, embedded
-images, correct page breaks, and Mermaid diagrams — without requiring a LaTeX
-install or uploading anything to a web service.
-
-## Designed usage
+Set `MD2PDF_BROWSER` to force a specific browser executable:
 
 ```bash
-md2pdf notes.md                 # → notes.pdf, beside the source
-md2pdf notes.md -o out/report.pdf
-md2pdf a.md b.md --output-dir build
-md2pdf ./notes-folder           # convert every top-level .md in the folder
-md2pdf notes.md -f              # overwrite an existing PDF without prompting
+MD2PDF_BROWSER=/usr/bin/chromium md2pdf notes.md
+```
+
+## Install
+
+After publication, the package can be used without administrator privileges:
+
+```bash
+npx md2pdf notes.md
+npm install --global md2pdf
 md2pdf --help
 ```
 
-## Project structure
-
-```
-md2pdf/
-  README.md                      this file
-  docs/
-    project_description.md       what md2pdf is and why (objectives, scope)
-    project_requirements.md      functional + non-functional requirements (EARS/INCOSE)
-    user_stories.md              user stories with Gherkin acceptance criteria
-    architecture.md              how it is built (pipeline, components, ADRs, risks)
-  src/                           TypeScript sources (to be implemented)
-  assets/                        bundled CSS, fonts (to be added)
-  tests/                         unit / integration / contract tests (to be added)
-```
-
-## How to install / set up
-
-Not yet published. Once implemented, md2pdf will install via npm with no `sudo`:
+For local development or release smoke testing:
 
 ```bash
-npx md2pdf file.md      # zero-install
-npm i -g md2pdf         # per-user global
+npm ci
+npm run build
+npm pack
+npm install --global --prefix /tmp/md2pdf-user ./md2pdf-0.1.0.tgz
+/tmp/md2pdf-user/bin/md2pdf --help
 ```
 
-It will use a browser already installed on the host; if none is found, it will
-report clearly and can provision one into a per-user cache. Set `MD2PDF_BROWSER`
-to pin a specific browser binary.
+Re-running the same install command converges on the same package version and
+exits successfully.
 
-## How to run / use
-
-See **Designed usage** above. The authoritative behaviour is specified in
-`docs/project_requirements.md` and `docs/user_stories.md`.
-
-## How to run tests
-
-A test suite (unit / integration / contract) is planned per `docs/architecture.md`
-§15 but not yet present. Once implemented:
+## Usage
 
 ```bash
-npm test                # fast unit + contract tests
-npm run test:all        # includes slow browser-backed integration tests
+md2pdf [OPTIONS] ENTRY [ENTRY ...]
+
+ENTRY                     a Markdown file or a directory of Markdown files
+-o, --output PATH         output path for a single-file conversion
+    --output-dir DIR      write every output PDF into DIR
+-f, --force-overwrite     overwrite existing output PDFs without prompting
+-h, --help                list options with one-line descriptions
 ```
+
+Examples:
+
+```bash
+md2pdf notes.md
+md2pdf notes.md --output out/report.pdf
+md2pdf a.md b.md --output-dir build
+md2pdf ./notes-folder
+md2pdf notes.md --force-overwrite
+```
+
+Directory conversion is non-recursive for v0.1: only top-level `.md` files in
+the named directory are converted.
+
+## Output And Errors
+
+- By default, `notes.md` writes `notes.pdf` beside the source.
+- `--output` is valid only when exactly one Markdown file is produced.
+- `--output-dir` writes every PDF into the given directory using the source base
+  name.
+- Existing outputs are preserved unless `--force-overwrite` is supplied or an
+  interactive overwrite prompt is accepted.
+- Batch conversion continues after per-file failures and prints a final summary.
+
+Exit codes:
+
+- `0`: every conversion succeeded, or all existing outputs were skipped without
+  conversion failures.
+- `1`: at least one conversion failed.
+- `2`: invalid command-line usage.
+
+## Markdown Support
+
+v0.1 renders headings, paragraphs, lists, tables, task lists, footnotes, fenced
+code blocks with syntax highlighting, relative images, and Mermaid code fences.
+
+Mermaid fences use the browser path so diagrams render as diagrams rather than
+raw code:
+
+````markdown
+```mermaid
+graph TD
+  A[Start] --> B[Done]
+```
+````
+
+## Development
+
+```bash
+npm ci
+npm run typecheck
+npm test
+npm run check:artifacts
+npm run build
+npm run test:browser
+```
+
+`npm test` runs fast unit and contract coverage. `npm run test:browser` runs the
+browser-backed integration tests and requires a local browser plus WebDriver.
+
+## Artifact Freshness Policy
+
+Every artifact in md2pdf must be the newest eligible version available after a
+7-day quarantine period. The policy applies to npm dependencies, transitive
+lockfile entries, bundled assets, drivers, browser fallback builds, generated
+vendor files, runtime provisioning paths, and any future external artifact.
+
+There is no exception or override. See
+[`ARTIFACT_FRESHNESS_POLICY.md`](ARTIFACT_FRESHNESS_POLICY.md).
