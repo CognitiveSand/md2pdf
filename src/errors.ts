@@ -19,3 +19,9 @@ export class ConversionError extends Md2PdfError {
     super(message, 1);
   }
 }
+
+export class PathError extends Md2PdfError {
+  constructor(message: string) {
+    super(message, 1);
+  }
+}

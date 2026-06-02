@@ -10,14 +10,15 @@ md2pdf report.md
 
 ## Status
 
-**M0 bootstrap implemented.** The project's intent, requirements, user stories,
-and architecture are written and mutually traceable (see `docs/`). The
-TypeScript/npm skeleton is present, `md2pdf --help` works locally, and the test
-runner is wired.
+**M1 CLI, paths, and error model implemented.** The project's intent,
+requirements, user stories, and architecture are written and mutually traceable
+(see `docs/`). The TypeScript/npm skeleton is present, `md2pdf --help` works
+locally, supported options are parsed and validated, source entries are resolved,
+and output paths are computed.
 
-Markdown-to-PDF conversion has not started yet. The conversion examples below
-still describe the designed behaviour for later milestones, not a shipped
-converter.
+Markdown-to-PDF rendering has not started yet. Valid conversion commands are
+accepted through M1 resolution, then stop with a clear "not implemented yet"
+conversion error until later milestones add the renderer.
 
 Key design decisions, validated by hands-on spikes:
 
@@ -109,19 +110,20 @@ to pin a specific browser binary.
 
 ## How to run / use
 
-The implemented M0 command surface is:
+The implemented M1 command surface is:
 
 ```bash
 npm exec -- md2pdf --help
 ```
 
-See **Designed usage** above for planned conversion commands. The authoritative
-behaviour is specified in `docs/project_requirements.md` and
-`docs/user_stories.md`.
+The CLI already validates `--output`, `--output-dir`, `--force-overwrite`, and
+entry arguments. See **Designed usage** above for planned end-to-end conversion
+commands. The authoritative behaviour is specified in
+`docs/project_requirements.md` and `docs/user_stories.md`.
 
 ## How to run tests
 
-The M0 test harness is present:
+The M1 test harness is present:
 
 ```bash
 npm test                # fast unit tests

@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import { buildHelpText } from "../../src/helpText.js";
 
 describe("buildHelpText", () => {
-  it("documents the M0 command surface", () => {
+  it("documents the M1 command surface", () => {
     const helpText = buildHelpText();
 
     assert.match(helpText, /Usage: md2pdf/);
