@@ -10,15 +10,16 @@ md2pdf report.md
 
 ## Status
 
-**M1 CLI, paths, and error model implemented.** The project's intent,
+**M2 overwrite policy and file safety implemented.** The project's intent,
 requirements, user stories, and architecture are written and mutually traceable
 (see `docs/`). The TypeScript/npm skeleton is present, `md2pdf --help` works
 locally, supported options are parsed and validated, source entries are resolved,
-and output paths are computed.
+output paths are computed, and existing outputs are protected by the M2
+overwrite policy.
 
 Markdown-to-PDF rendering has not started yet. Valid conversion commands are
-accepted through M1 resolution, then stop with a clear "not implemented yet"
-conversion error until later milestones add the renderer.
+accepted through M2 resolution and overwrite checks, then stop with a clear "not
+implemented yet" conversion error until later milestones add the renderer.
 
 Key design decisions, validated by hands-on spikes:
 
@@ -110,20 +111,21 @@ to pin a specific browser binary.
 
 ## How to run / use
 
-The implemented M1 command surface is:
+The implemented M2 command surface is:
 
 ```bash
 npm exec -- md2pdf --help
 ```
 
-The CLI already validates `--output`, `--output-dir`, `--force-overwrite`, and
-entry arguments. See **Designed usage** above for planned end-to-end conversion
-commands. The authoritative behaviour is specified in
+The CLI validates `--output`, `--output-dir`, `--force-overwrite`, and entry
+arguments. Existing outputs are skipped in non-interactive mode unless
+`--force-overwrite` is supplied. See **Designed usage** above for planned
+end-to-end conversion commands. The authoritative behaviour is specified in
 `docs/project_requirements.md` and `docs/user_stories.md`.
 
 ## How to run tests
 
-The M1 test harness is present:
+The M2 test harness is present:
 
 ```bash
 npm test                # fast unit tests

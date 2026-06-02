@@ -1,6 +1,7 @@
 import { buildHelpText } from "./helpText.js";
 import { parseCommandLine } from "./commandLine.js";
 import { ConversionError, Md2PdfError } from "./errors.js";
+import { ConversionResult, DocumentConverter, PdfRenderer } from "./converter.js";
 import { resolveConversionWorkItems } from "./paths.js";
 
 export interface CliStreams {
@@ -12,7 +13,7 @@ interface TextOutput {
   write(chunk: string): boolean;
 }
 
-export function runCli(args: readonly string[], streams: CliStreams): number {
+export async function runCli(args: readonly string[], streams: CliStreams): Promise<number> {
   try {
     const parsed = parseCommandLine(args);
 
@@ -21,8 +22,17 @@ export function runCli(args: readonly string[], streams: CliStreams): number {
       return 0;
     }
 
-    resolveConversionWorkItems(parsed);
-    throw new ConversionError("Conversion is not implemented yet.");
+    const workItems = resolveConversionWorkItems(parsed);
+    const converter = new DocumentConverter({
+      forceOverwrite: parsed.forceOverwrite,
+      renderer: new NotImplementedRenderer(),
+    });
+
+    for (const workItem of workItems) {
+      reportConversionResult(await converter.convert(workItem), streams);
+    }
+
+    return 0;
   } catch (error) {
     if (error instanceof Md2PdfError) {
       streams.stderr.write(`md2pdf: ${error.message}\n`);
@@ -30,5 +40,17 @@ export function runCli(args: readonly string[], streams: CliStreams): number {
     }
 
     throw error;
+  }
+}
+
+function reportConversionResult(result: ConversionResult, streams: CliStreams): void {
+  if (result.kind === "skipped") {
+    streams.stderr.write(`Skipped ${result.outputPath}: ${result.reason}\n`);
+  }
+}
+
+class NotImplementedRenderer implements PdfRenderer {
+  async render(): Promise<Uint8Array> {
+    throw new ConversionError("Conversion is not implemented yet.");
   }
 }

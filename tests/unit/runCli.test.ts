@@ -20,35 +20,48 @@ describe("runCli", () => {
     rmSync(workspace, { recursive: true, force: true });
   });
 
-  it("prints help and exits successfully", () => {
+  it("prints help and exits successfully", async () => {
     const streams = createMemoryStreams();
 
-    const exitCode = runCli(["--help"], streams);
+    const exitCode = await runCli(["--help"], streams);
 
     assert.equal(exitCode, 0);
     assert.match(streams.stdout.content, /Usage: md2pdf/);
     assert.equal(streams.stderr.content, "");
   });
 
-  it("returns usage errors with exit code 2", () => {
+  it("returns usage errors with exit code 2", async () => {
     const streams = createMemoryStreams();
 
-    const exitCode = runCli([], streams);
+    const exitCode = await runCli([], streams);
 
     assert.equal(exitCode, 2);
     assert.equal(streams.stdout.content, "");
     assert.match(streams.stderr.content, /At least one entry is required/);
   });
 
-  it("returns conversion errors with exit code 1 after valid M1 resolution", () => {
+  it("returns conversion errors with exit code 1 after valid M2 checks", async () => {
     const streams = createMemoryStreams();
     writeFileSync(join(workspace, "notes.md"), "# Notes\n");
 
-    const exitCode = runCli(["notes.md"], streams);
+    const exitCode = await runCli(["notes.md"], streams);
 
     assert.equal(exitCode, 1);
     assert.equal(streams.stdout.content, "");
     assert.match(streams.stderr.content, /not implemented yet/);
+  });
+
+  it("reports non-interactive skips on stderr", async () => {
+    const streams = createMemoryStreams();
+    writeFileSync(join(workspace, "notes.md"), "# Notes\n");
+    writeFileSync(join(workspace, "notes.pdf"), "original");
+
+    const exitCode = await runCli(["notes.md"], streams);
+
+    assert.equal(exitCode, 0);
+    assert.equal(streams.stdout.content, "");
+    assert.match(streams.stderr.content, /Skipped/);
+    assert.match(streams.stderr.content, /Output exists/);
   });
 });
 
