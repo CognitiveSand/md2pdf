@@ -1,0 +1,12 @@
+# Scratch / exploratory research — kept locally, never committed
+tmp/
+
+# Node
+node_modules/
+dist/
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
