@@ -95,22 +95,23 @@ Done when:
 
 Deliverables:
 
-- `ARTIFACT_FRESHNESS_POLICY.md` as the authoritative project-wide rule.
+- `.policy/ARTIFACT_FRESHNESS_POLICY.md` as the authoritative project-wide rule.
 - `AGENTS.md` as the required entry point for humans, LLMs, automation, and
   dependency bots that modify the repository.
-- `artifacts.json` as the inventory for non-npm and runtime-provisioned
+- `.policy/artifacts.json` as the inventory for non-npm and runtime-provisioned
   artifacts.
-- `renovate.json` with a 7-day minimum release age and strict internal checks.
+- `.policy/renovate.json` with a 7-day minimum release age and strict internal
+  checks.
 - Shared freshness selection logic once the TypeScript source tree exists.
 - A repository check that verifies package lockfiles, non-npm artifacts,
   vendored assets, and runtime provisioning references.
 
 Primary modules/files:
 
-- `ARTIFACT_FRESHNESS_POLICY.md`
+- `.policy/ARTIFACT_FRESHNESS_POLICY.md`
 - `AGENTS.md`
-- `artifacts.json`
-- `renovate.json`
+- `.policy/artifacts.json`
+- `.policy/renovate.json`
 - `src/artifactPolicy.ts`
 - `src/releaseCatalog.ts`
 - `scripts/checkArtifactFreshness.mjs`
@@ -131,8 +132,8 @@ Tests:
 
 Done when:
 
-- All code-modifying agents are pointed at `ARTIFACT_FRESHNESS_POLICY.md`.
-- Every non-npm artifact has an `artifacts.json` entry.
+- All code-modifying agents are pointed at `.policy/ARTIFACT_FRESHNESS_POLICY.md`.
+- Every non-npm artifact has a `.policy/artifacts.json` entry.
 - Dependency automation cannot propose versions inside quarantine.
 - The local Git hook blocks artifact freshness violations before commit.
 
@@ -455,7 +456,7 @@ v0.1 is ready when:
 | Output differs across browsers | PDFs may vary between users | Document variation and keep fixtures focused on observable correctness, not byte equality. |
 | Mermaid completion race | PDF captures raw or partially rendered diagrams | Expose an explicit browser-side completion signal and wait with timeout. |
 | Local-only guarantee is structural | Accidental CDN URL could violate privacy promise | Inline assets and test generated HTML for external URLs. |
-| Artifact freshness checker coverage gaps | A future contributor or LLM could add a vendored artifact outside the known inventory | Require `AGENTS.md`, track non-npm artifacts in `artifacts.json`, and make the local pre-commit hook run `npm run check:artifacts` or `node scripts/checkArtifactFreshness.mjs`. |
+| Artifact freshness checker coverage gaps | A future contributor or LLM could add a vendored artifact outside the known inventory | Require `AGENTS.md`, track non-npm artifacts in `.policy/artifacts.json`, and make the local pre-commit hook run `npm run check:artifacts` or `node scripts/checkArtifactFreshness.mjs`. |
 | Browser-backed tests are slow/flaky | CI friction | Keep most tests unit/contract; isolate browser tests behind a dedicated command. |
 | Scope creep around styling/themes | Delays v0.1 | Ship one polished default stylesheet; defer theme selection. |
 

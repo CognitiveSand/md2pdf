@@ -52,10 +52,11 @@ md2pdf --help
 ```
 md2pdf/
   README.md                      this file
-  ARTIFACT_FRESHNESS_POLICY.md   project-wide artifact version rule
   AGENTS.md                      instructions for LLMs and automation
-  artifacts.json                 inventory for non-npm and provisioned artifacts
-  renovate.json                  dependency automation quarantine policy
+  .policy/
+    ARTIFACT_FRESHNESS_POLICY.md project-wide artifact version rule
+    artifacts.json               inventory for non-npm and provisioned artifacts
+    renovate.json                dependency automation quarantine policy
   docs/
     project_description.md       what md2pdf is and why (objectives, scope)
     project_requirements.md      functional + non-functional requirements (EARS/INCOSE)
@@ -76,7 +77,7 @@ vendor files, runtime provisioning paths, and any future external artifact.
 The rule is actor-independent: humans, LLMs, automation, dependency bots,
 scripts, local Git hooks, and runtime code must all preserve it. There is no
 exception or override. See
-[`ARTIFACT_FRESHNESS_POLICY.md`](ARTIFACT_FRESHNESS_POLICY.md).
+[`ARTIFACT_FRESHNESS_POLICY.md`](.policy/ARTIFACT_FRESHNESS_POLICY.md).
 
 ## How to install / set up
 
