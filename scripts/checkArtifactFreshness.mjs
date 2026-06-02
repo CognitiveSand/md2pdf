@@ -33,6 +33,15 @@ function assert(condition, message) {
   }
 }
 
+function runNpm(args, options) {
+  if (process.platform === "win32") {
+    execFileSync("cmd.exe", ["/d", "/s", "/c", "npm.cmd", ...args], options);
+    return;
+  }
+
+  execFileSync("npm", args, options);
+}
+
 async function checkArtifactManifest() {
   const manifestPath = join(root, ".policy", "artifacts.json");
   assert(await exists(manifestPath), "Missing .policy/artifacts.json");
@@ -75,8 +84,7 @@ async function checkNpmLockFreshness() {
     await cp(packageJsonPath, join(temp, "package.json"));
     await cp(lockPath, join(temp, "package-lock.json"));
 
-    execFileSync(
-      "npm",
+    runNpm(
       [
         "install",
         "--package-lock-only",

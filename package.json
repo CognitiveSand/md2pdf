@@ -1,0 +1,29 @@
+{
+  "name": "md2pdf",
+  "version": "0.1.0",
+  "description": "Convert Markdown files into clean, shareable PDFs locally.",
+  "type": "module",
+  "bin": {
+    "md2pdf": "./dist/src/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check:artifacts": "node scripts/checkArtifactFreshness.mjs",
+    "test": "npm run test:fast",
+    "test:all": "npm run test:fast && npm run test:browser",
+    "test:fast": "npm run build && node --test dist/tests/unit/*.test.js",
+    "test:browser": "npm run build && node --test dist/tests/browser/*.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "dist/",
+    "assets/",
+    "README.md"
+  ],
+  "devDependencies": {
+    "@types/node": "20.19.39",
+    "typescript": "6.0.3"
+  }
+}
