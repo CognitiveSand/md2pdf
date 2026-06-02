@@ -1,9 +1,9 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { cp, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const QUARANTINE_DAYS = 7;
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -36,10 +36,13 @@ async function exists(path) {
  * (ARTIFACT_FRESHNESS_POLICY.md) is defined over versions and publication
  * timestamps, so the comparison must be too.
  */
-function lockVersionSignature(lock) {
+export function lockVersionSignature(lock, exemptPaths = new Set()) {
   const packages = lock.packages ?? {};
   const signature = {};
   for (const path of Object.keys(packages).sort()) {
+    if (exemptPaths.has(path)) {
+      continue;
+    }
     const entry = packages[path];
     signature[path] = {
       version: entry.version ?? null,
@@ -48,6 +51,73 @@ function lockVersionSignature(lock) {
     };
   }
   return JSON.stringify(signature);
+}
+
+/**
+ * Decide which freshness failures a lockfile pair produces, honouring approved
+ * quarantine waivers (ARTIFACT_FRESHNESS_POLICY.md, "Quarantine Waiver").
+ *
+ * `committedLock` is the lockfile in the repo; `regeneratedLock` is the
+ * newest-eligible lockfile npm produces under the 7-day `--before` cutoff. A
+ * valid waiver — one whose package is locked at exactly the waived version and
+ * whose in-repo audit report exists — exempts that package's lockfile entry
+ * from the version-match comparison, letting the audited in-quarantine version
+ * through. `auditExists(reportPath)` reports whether a waiver's audit report
+ * file is present in the repository.
+ */
+export function freshnessFailures(committedLock, regeneratedLock, waivers, auditExists) {
+  const failures = [];
+  const exemptPaths = new Set();
+
+  for (const waiver of waivers) {
+    const label = `${waiver?.package ?? "?"}@${waiver?.version ?? "?"}`;
+    if (
+      !waiver?.package ||
+      !waiver?.version ||
+      !waiver?.auditReport ||
+      !waiver?.approvedBy ||
+      !waiver?.approvedOn
+    ) {
+      failures.push(
+        `quarantine waiver ${label} is missing a required field (package, version, auditReport, approvedBy, approvedOn)`,
+      );
+      continue;
+    }
+
+    const path = `node_modules/${waiver.package}`;
+    const locked = committedLock.packages?.[path];
+    if (!locked) {
+      failures.push(
+        `quarantine waiver ${label} does not match any package in package-lock.json`,
+      );
+      continue;
+    }
+    if (locked.version !== waiver.version) {
+      failures.push(
+        `quarantine waiver ${label} does not match the locked version ${locked.version}`,
+      );
+      continue;
+    }
+    if (!auditExists(waiver.auditReport)) {
+      failures.push(
+        `quarantine waiver ${label} references a missing audit report: ${waiver.auditReport}`,
+      );
+      continue;
+    }
+
+    exemptPaths.add(path);
+  }
+
+  if (
+    lockVersionSignature(committedLock, exemptPaths) !==
+    lockVersionSignature(regeneratedLock, exemptPaths)
+  ) {
+    failures.push(
+      "package-lock.json is not the newest eligible lockfile after the 7-day quarantine",
+    );
+  }
+
+  return failures;
 }
 
 function assert(condition, message) {
@@ -83,6 +153,13 @@ async function checkArtifactManifest() {
     assert(typeof location.path === "string", "trackedLocations entries need a path");
     assert(typeof location.kind === "string", "trackedLocations entries need a kind");
   }
+
+  if (manifest.waivers !== undefined) {
+    assert(
+      Array.isArray(manifest.waivers),
+      "artifacts.json waivers must be an array when present",
+    );
+  }
 }
 
 async function checkNpmLockFreshness() {
@@ -110,13 +187,20 @@ async function checkNpmLockFreshness() {
       { cwd: temp, stdio: "pipe" },
     );
 
-    const original = lockVersionSignature(readJson(lockPath));
-    const regenerated = lockVersionSignature(readJson(join(temp, "package-lock.json")));
+    const committedLock = readJson(lockPath);
+    const regeneratedLock = readJson(join(temp, "package-lock.json"));
 
-    if (original !== regenerated) {
-      failures.push(
-        "package-lock.json is not the newest eligible lockfile after the 7-day quarantine",
-      );
+    const manifest = readJson(join(root, "artifacts.json"));
+    const waivers = Array.isArray(manifest.waivers) ? manifest.waivers : [];
+    const auditExists = (reportPath) => existsSync(join(root, reportPath));
+
+    for (const failure of freshnessFailures(
+      committedLock,
+      regeneratedLock,
+      waivers,
+      auditExists,
+    )) {
+      failures.push(failure);
     }
   } catch (error) {
     failures.push(`npm freshness check failed: ${error.message}`);
@@ -164,4 +248,6 @@ async function main() {
   console.log("Artifact freshness policy passed.");
 }
 
-await main();
+if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
+  await main();
+}
