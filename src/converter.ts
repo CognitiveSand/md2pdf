@@ -1,6 +1,5 @@
 import { readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { tmpdir } from 'node:os';
 import { locateBrowserAndDriver, type DriverProvisioner } from './browserLocator.js';
 import { ConversionError } from './errors.js';
 import { renderToTempHtml } from './markdownRenderer.js';
@@ -50,7 +49,7 @@ export async function convertFile(
     const pdfBytes = await renderToPdf(htmlPath, sourcePath, browser, driver, renderOpts);
 
     // Stage 5: Atomic-ish write — write to a sibling temp file first, then rename
-    const tmpOut = join(tmpdir(), `md2pdf-out-${Date.now()}.pdf`);
+    const tmpOut = join(dirname(outputPath), `.md2pdf-${Date.now()}-${process.pid}.tmp`);
     writeFileSync(tmpOut, pdfBytes);
     renameSync(tmpOut, outputPath);
   } finally {
