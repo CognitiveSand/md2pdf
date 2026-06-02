@@ -1,22 +1,31 @@
 {
   "name": "md2pdf",
   "version": "0.1.0",
-  "description": "Convert Markdown to PDF locally, without TeX/LaTeX",
+  "description": "Convert Markdown files into clean, shareable PDFs locally.",
   "type": "module",
   "bin": {
-    "md2pdf": "./dist/cli.js"
+    "md2pdf": "./dist/src/cli.js"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=20"
   },
   "scripts": {
-    "build": "tsc",
-    "test": "vitest run --reporter=verbose",
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run test:all",
+    "test:all": "npm run test:unit && npm run test:browser",
+    "test:unit": "npm run test:unit:vitest && npm run test:unit:node",
+    "test:unit:vitest": "vitest run --reporter=verbose",
+    "test:unit:node": "npm run build && node --test dist/tests/unit/commandLine.test.js dist/tests/unit/converter.test.js dist/tests/unit/helpText.test.js dist/tests/unit/overwrite.test.js dist/tests/unit/paths.test.js dist/tests/unit/runCli.test.js",
     "test:watch": "vitest",
-    "test:browser": "vitest run --config vitest.browser.config.ts",
+    "test:browser": "npm run build && node --test dist/tests/browser/placeholder.test.js",
     "check:artifacts": "node scripts/checkArtifactFreshness.mjs",
     "typecheck": "tsc --noEmit"
   },
+  "files": [
+    "dist/",
+    "assets/",
+    "README.md"
+  ],
   "dependencies": {
     "fflate": "0.8.3",
     "highlight.js": "11.11.1",

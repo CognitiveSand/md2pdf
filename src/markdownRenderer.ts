@@ -94,9 +94,14 @@ export function renderToHtml(markdown: string, options: RenderOptions): string {
   const origImageRule = md.renderer.rules['image'];
   md.renderer.rules['image'] = (tokens, idx, opts, env, self) => {
     const token = tokens[idx];
+    if (!token) {
+      return self.renderToken(tokens, idx, opts);
+    }
+
     const srcIdx = token.attrIndex('src');
-    if (srcIdx >= 0 && token.attrs) {
-      const src = token.attrs[srcIdx][1];
+    const srcAttr = token.attrs?.[srcIdx];
+    if (srcIdx >= 0 && srcAttr) {
+      const src = srcAttr[1];
       if (
         src &&
         !src.startsWith('http://') &&
@@ -105,7 +110,7 @@ export function renderToHtml(markdown: string, options: RenderOptions): string {
       ) {
         const imgPath = resolve(sourceDir, src);
         if (existsSync(imgPath)) {
-          token.attrs[srcIdx][1] = imageToDataUri(imgPath);
+          srcAttr[1] = imageToDataUri(imgPath);
         }
       }
     }
@@ -118,6 +123,10 @@ export function renderToHtml(markdown: string, options: RenderOptions): string {
   const origFenceRule = md.renderer.rules['fence'];
   md.renderer.rules['fence'] = (tokens, idx, opts, env, self) => {
     const token = tokens[idx];
+    if (!token) {
+      return self.renderToken(tokens, idx, opts);
+    }
+
     const lang = token.info.trim().split(/\s+/)[0];
     if (lang === 'mermaid') {
       // Escape content so HTML stays valid; Mermaid reads .textContent which decodes entities

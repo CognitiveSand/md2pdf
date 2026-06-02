@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { join } from 'node:path';
-import { homedir } from 'node:os';
+import { platform } from 'node:os';
 
 vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs')>();
@@ -85,8 +85,7 @@ describe('locateBrowser', () => {
   });
 
   it('returns the first existing candidate in priority order', () => {
-    const chromePath =
-      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+    const chromePath = firstChromeCandidateForCurrentPlatform();
     mockExistsSync.mockImplementation((p: string) => p === chromePath);
     mockExecFileSync.mockReturnValue('Google Chrome 124.0.0.0\n');
 
@@ -139,7 +138,8 @@ describe('locateDriver', () => {
   it('falls back to cache directory when driver is not on PATH', async () => {
     mockExecSync.mockImplementation(() => { throw new Error('not found'); });
 
-    const cacheBin = join(driverCacheDir(), 'chromedriver');
+    const driverBinary = platform() === 'win32' ? 'chromedriver.exe' : 'chromedriver';
+    const cacheBin = join(driverCacheDir(), driverBinary);
     mockExistsSync.mockImplementation((p: string) => p === cacheBin);
     mockExecFileSync.mockReturnValue('ChromeDriver 124.0.0.0\n');
 
@@ -169,3 +169,20 @@ describe('locateDriver', () => {
       .rejects.toThrowError(DriverNotFoundError);
   });
 });
+
+function firstChromeCandidateForCurrentPlatform(): string {
+  switch (platform()) {
+    case 'darwin':
+      return '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+    case 'win32':
+      return join(
+        process.env['PROGRAMFILES(X86)'] ?? 'C:\\Program Files (x86)',
+        'Google',
+        'Chrome',
+        'Application',
+        'chrome.exe',
+      );
+    default:
+      return '/usr/bin/google-chrome';
+  }
+}

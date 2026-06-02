@@ -35,7 +35,7 @@ There is no exception, override, bypass, emergency exemption, or force mode.
    days.
 3. A version that has not completed quarantine is ineligible regardless of
    urgency, release type, caller intent, or author.
-4. Every non-npm artifact must be declared in `artifacts.json`.
+4. Every non-npm artifact must be declared in `.policy/artifacts.json`.
 5. Every dependency lockfile, vendored asset, runtime provisioning path, and
    release package must pass the artifact freshness check before commit or
    release.
@@ -45,8 +45,8 @@ There is no exception, override, bypass, emergency exemption, or force mode.
 
 - npm dependencies are checked through `package-lock.json` and registry release
   timestamps.
-- Non-npm artifacts are checked through `artifacts.json` and the release catalog
-  implementation for their source.
+- Non-npm artifacts are checked through `.policy/artifacts.json` and the release
+  catalog implementation for their source.
 - Runtime provisioning code must call the shared artifact policy module before
   downloading or using a provisioned artifact.
 - The local pre-commit hook must run the artifact freshness check as a required

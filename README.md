@@ -1,19 +1,25 @@
 # md2pdf
 
-Convert Markdown files into clean, shareable PDFs — with the simplest possible
+Convert Markdown files into clean, shareable PDFs with the simplest possible
 command, full Mermaid diagram support, and no LaTeX toolchain.
 
 ```bash
 md2pdf report.md
-# → report.pdf
+# -> report.pdf
 ```
 
 ## Status
 
-**Specification and design phase.** The project's intent, requirements, user
-stories, and architecture are written and mutually traceable (see `docs/`).
-Implementation has not started yet — the commands below describe the designed
-behaviour, not a shipped tool.
+**M2 overwrite policy and file safety implemented.** The project's intent,
+requirements, user stories, and architecture are written and mutually traceable
+(see `docs/`). The TypeScript/npm skeleton is present, `md2pdf --help` works
+locally, supported options are parsed and validated, source entries are resolved,
+output paths are computed, and existing outputs are protected by the M2
+overwrite policy.
+
+Markdown-to-PDF rendering has not started yet. Valid conversion commands are
+accepted through M2 resolution and overwrite checks, then stop with a clear "not
+implemented yet" conversion error until later milestones add the renderer.
 
 Key design decisions, validated by hands-on spikes:
 
@@ -31,15 +37,15 @@ Key design decisions, validated by hands-on spikes:
 ## What it does
 
 Markdown is the default format for notes and docs; PDF is the default format for
-sharing them. md2pdf bridges the two with one command and sensible defaults —
+sharing them. md2pdf bridges the two with one command and sensible defaults:
 readable typography, syntax-highlighted code, tables, footnotes, embedded
-images, correct page breaks, and Mermaid diagrams — without requiring a LaTeX
+images, correct page breaks, and Mermaid diagrams, without requiring a LaTeX
 install or uploading anything to a web service.
 
 ## Designed usage
 
 ```bash
-md2pdf notes.md                 # → notes.pdf, beside the source
+md2pdf notes.md                 # -> notes.pdf, beside the source
 md2pdf notes.md -o out/report.pdf
 md2pdf a.md b.md --output-dir build
 md2pdf ./notes-folder           # convert every top-level .md in the folder
@@ -49,21 +55,25 @@ md2pdf --help
 
 ## Project structure
 
-```
+```text
 md2pdf/
   README.md                      this file
-  ARTIFACT_FRESHNESS_POLICY.md   project-wide artifact version rule
   AGENTS.md                      instructions for LLMs and automation
-  artifacts.json                 inventory for non-npm and provisioned artifacts
-  renovate.json                  dependency automation quarantine policy
+  package.json                   npm package manifest and scripts
+  package-lock.json              pinned npm dependency lockfile
+  tsconfig.json                  TypeScript compiler configuration
+  .policy/
+    ARTIFACT_FRESHNESS_POLICY.md project-wide artifact version rule
+    artifacts.json               inventory for non-npm and provisioned artifacts
+    renovate.json                dependency automation quarantine policy
   docs/
     project_description.md       what md2pdf is and why (objectives, scope)
-    project_requirements.md      functional + non-functional requirements (EARS/INCOSE)
+    project_requirements.md      functional + non-functional requirements
     user_stories.md              user stories with Gherkin acceptance criteria
-    architecture.md              how it is built (pipeline, components, ADRs, risks)
-  src/                           TypeScript sources (to be implemented)
+    architecture.md              how it is built (pipeline, components, ADRs)
+  src/                           TypeScript CLI bootstrap sources
   assets/                        bundled CSS, fonts (to be added)
-  tests/                         unit / integration / contract tests (to be added)
+  tests/                         unit and browser-backed test harnesses
 ```
 
 ## Artifact freshness policy
@@ -76,11 +86,19 @@ vendor files, runtime provisioning paths, and any future external artifact.
 The rule is actor-independent: humans, LLMs, automation, dependency bots,
 scripts, local Git hooks, and runtime code must all preserve it. There is no
 exception or override. See
-[`ARTIFACT_FRESHNESS_POLICY.md`](ARTIFACT_FRESHNESS_POLICY.md).
+[`ARTIFACT_FRESHNESS_POLICY.md`](.policy/ARTIFACT_FRESHNESS_POLICY.md).
 
 ## How to install / set up
 
-Not yet published. Once implemented, md2pdf will install via npm with no `sudo`:
+Not yet published. For local development:
+
+```bash
+npm install
+npm run build
+npm exec -- md2pdf --help
+```
+
+Once implemented and published, md2pdf will install via npm with no `sudo`:
 
 ```bash
 npx md2pdf file.md      # zero-install
@@ -93,15 +111,25 @@ to pin a specific browser binary.
 
 ## How to run / use
 
-See **Designed usage** above. The authoritative behaviour is specified in
+The implemented M2 command surface is:
+
+```bash
+npm exec -- md2pdf --help
+```
+
+The CLI validates `--output`, `--output-dir`, `--force-overwrite`, and entry
+arguments. Existing outputs are skipped in non-interactive mode unless
+`--force-overwrite` is supplied. See **Designed usage** above for planned
+end-to-end conversion commands. The authoritative behaviour is specified in
 `docs/project_requirements.md` and `docs/user_stories.md`.
 
 ## How to run tests
 
-A test suite (unit / integration / contract) is planned per `docs/architecture.md`
-§15 but not yet present. Once implemented:
+The M2 test harness is present:
 
 ```bash
-npm test                # fast unit + contract tests
-npm run test:all        # includes slow browser-backed integration tests
+npm test                # fast unit tests
+npm run test:browser    # browser-backed placeholder harness for later milestones
+npm run test:all
+npm run check:artifacts
 ```

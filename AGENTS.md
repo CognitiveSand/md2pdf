@@ -2,7 +2,8 @@
 
 Before modifying this repository, read and follow:
 
-- `ARTIFACT_FRESHNESS_POLICY.md`
+- `.policy/ARTIFACT_FRESHNESS_POLICY.md`
+- `.policy/artifacts.json`
 
 The artifact freshness policy applies to every human, LLM, automation,
 dependency bot, script, local Git hook, and runtime provisioning path that

@@ -33,27 +33,36 @@ function assert(condition, message) {
   }
 }
 
+function runNpm(args, options) {
+  if (process.platform === "win32") {
+    execFileSync("cmd.exe", ["/d", "/s", "/c", "npm.cmd", ...args], options);
+    return;
+  }
+
+  execFileSync("npm", args, options);
+}
+
 async function checkArtifactManifest() {
-  const manifestPath = join(root, "artifacts.json");
-  assert(await exists(manifestPath), "Missing artifacts.json");
+  const manifestPath = join(root, ".policy", "artifacts.json");
+  assert(await exists(manifestPath), "Missing .policy/artifacts.json");
   if (!(await exists(manifestPath))) {
     return;
   }
 
   const manifest = readJson(manifestPath);
-  assert(manifest.schemaVersion === 1, "artifacts.json must use schemaVersion 1");
+  assert(manifest.schemaVersion === 1, ".policy/artifacts.json must use schemaVersion 1");
   assert(
     manifest.quarantineDays === QUARANTINE_DAYS,
-    `artifacts.json quarantineDays must be ${QUARANTINE_DAYS}`,
+    `.policy/artifacts.json quarantineDays must be ${QUARANTINE_DAYS}`,
   );
   assert(
-    manifest.policy === "ARTIFACT_FRESHNESS_POLICY.md",
-    "artifacts.json must point to ARTIFACT_FRESHNESS_POLICY.md",
+    manifest.policy === ".policy/ARTIFACT_FRESHNESS_POLICY.md",
+    ".policy/artifacts.json must point to .policy/ARTIFACT_FRESHNESS_POLICY.md",
   );
-  assert(Array.isArray(manifest.artifacts), "artifacts.json artifacts must be an array");
+  assert(Array.isArray(manifest.artifacts), ".policy/artifacts.json artifacts must be an array");
   assert(
     Array.isArray(manifest.trackedLocations),
-    "artifacts.json trackedLocations must be an array",
+    ".policy/artifacts.json trackedLocations must be an array",
   );
 
   for (const location of manifest.trackedLocations ?? []) {
@@ -75,8 +84,7 @@ async function checkNpmLockFreshness() {
     await cp(packageJsonPath, join(temp, "package.json"));
     await cp(lockPath, join(temp, "package-lock.json"));
 
-    execFileSync(
-      "npm",
+    runNpm(
       [
         "install",
         "--package-lock-only",
@@ -103,23 +111,23 @@ async function checkNpmLockFreshness() {
 }
 
 async function checkPolicyFiles() {
-  const policyPath = join(root, "ARTIFACT_FRESHNESS_POLICY.md");
+  const policyPath = join(root, ".policy", "ARTIFACT_FRESHNESS_POLICY.md");
   const agentsPath = join(root, "AGENTS.md");
-  const renovatePath = join(root, "renovate.json");
+  const renovatePath = join(root, ".policy", "renovate.json");
 
-  assert(await exists(policyPath), "Missing ARTIFACT_FRESHNESS_POLICY.md");
+  assert(await exists(policyPath), "Missing .policy/ARTIFACT_FRESHNESS_POLICY.md");
   assert(await exists(agentsPath), "Missing AGENTS.md");
-  assert(await exists(renovatePath), "Missing renovate.json");
+  assert(await exists(renovatePath), "Missing .policy/renovate.json");
 
   if (await exists(renovatePath)) {
     const renovate = readJson(renovatePath);
     assert(
       renovate.minimumReleaseAge === "7 days",
-      'renovate.json minimumReleaseAge must be "7 days"',
+      '.policy/renovate.json minimumReleaseAge must be "7 days"',
     );
     assert(
       renovate.internalChecksFilter === "strict",
-      'renovate.json internalChecksFilter must be "strict"',
+      '.policy/renovate.json internalChecksFilter must be "strict"',
     );
   }
 }

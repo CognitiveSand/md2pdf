@@ -23,12 +23,15 @@ function makeFakeZip(binaryName: string, content: Buffer): Buffer {
 vi.mock('fflate', () => ({
   unzipSync: vi.fn((data: Uint8Array) => {
     // Return a fake entry keyed by binary name
-    return { chromedriver: new Uint8Array(Buffer.from('fake-binary')) };
+    return {
+      chromedriver: new Uint8Array(Buffer.from('fake-binary')),
+      'chromedriver.exe': new Uint8Array(Buffer.from('fake-binary')),
+    };
   }),
   gunzipSync: vi.fn((data: Uint8Array) => {
     // Return a minimal TAR with one entry named "geckodriver"
     const binary = Buffer.from('fake-binary');
-    const name = 'geckodriver';
+    const name = process.platform === 'win32' ? 'geckodriver.exe' : 'geckodriver';
     const header = Buffer.alloc(512);
     Buffer.from(name).copy(header, 0);
     const sizeOctal = binary.length.toString(8).padStart(11, '0');

@@ -34,7 +34,14 @@ export function selectNewestEligible(releases: Release[], now = new Date()): Rel
   }
 
   eligible.sort((a, b) => compareVersions(a.version, b.version));
-  return eligible[eligible.length - 1];
+  const newest = eligible[eligible.length - 1];
+  if (!newest) {
+    throw new ArtifactFreshnessError(
+      'No release has cleared the 7-day quarantine policy. ' +
+        'Wait for a release that is at least 7 days old.',
+    );
+  }
+  return newest;
 }
 
 function compareVersions(a: string, b: string): number {

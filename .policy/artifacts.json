@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "quarantineDays": 7,
-  "policy": "ARTIFACT_FRESHNESS_POLICY.md",
+  "policy": ".policy/ARTIFACT_FRESHNESS_POLICY.md",
   "artifacts": [],
   "trackedLocations": [
     {
@@ -32,4 +32,3 @@
     "Chromium-for-Testing fallback build"
   ]
 }
-
