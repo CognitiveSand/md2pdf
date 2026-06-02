@@ -3,6 +3,7 @@
   "quarantineDays": 7,
   "policy": "ARTIFACT_FRESHNESS_POLICY.md",
   "artifacts": [],
+  "waivers": [],
   "trackedLocations": [
     {
       "path": "package.json",

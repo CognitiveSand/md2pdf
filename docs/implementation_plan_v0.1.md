@@ -424,7 +424,9 @@ v0.1 is ready when:
 - No TeX/LaTeX toolchain is required.
 - Mermaid renders through the browser path.
 - The CLI reports errors clearly and exits with documented status codes.
-- The artifact freshness policy passes with no exception or bypass.
+- The artifact freshness policy passes; any in-quarantine version is covered by
+  an approved quarantine waiver (audited and owner-approved), with no other
+  exception or bypass.
 - The package can be installed and invoked as `md2pdf`.
 - README instructions match the implemented CLI.
 

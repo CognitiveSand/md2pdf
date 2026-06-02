@@ -30,7 +30,8 @@ Terms below are binding for the whole document.
 | **user-scope installation** | An installation that places md2pdf on the invoking user's executable path without elevated privileges. |
 | **system-scope installation** | An installation, performed with elevated privileges, that places md2pdf on the executable path of every user account on the host. |
 | **artifact** | Any third-party package, transitive dependency, binary, driver, runtime helper, browser build, bundled engine, stylesheet, font, template, generated vendor file, or external asset that is part of md2pdf's codebase, distribution, installation, or runtime provisioning path. |
-| **eligible artifact version** | A released artifact version whose publication timestamp is at least 7 full days old at the time md2pdf selects, locks, embeds, distributes, references, vendors, or provisions it. |
+| **eligible artifact version** | A released artifact version whose publication timestamp is at least 7 full days old at the time md2pdf selects, locks, embeds, distributes, references, vendors, or provisions it, or one authorised early by an approved quarantine waiver. |
+| **quarantine waiver** | A recorded, project-owner-approved exception, granted only after a full security audit committed in-repo, that makes one specific in-quarantine artifact version eligible early. Defined in `ARTIFACT_FRESHNESS_POLICY.md`. |
 
 ## 3. Constraints
 
@@ -108,7 +109,7 @@ concern, not grounds for dropping the requirement.
 | NFR-02 | Local-only processing | md2pdf shall open no outbound network connection during conversion. | Quality Attribute | Must | MVP | Test |
 | NFR-03 | Platform portability | md2pdf shall perform single-file conversion on Linux, macOS, and Windows hosts running Node.js 20 or later. | Quality Attribute | Should | MVP | Test |
 | NFR-04 | Self-describing usage | When md2pdf is invoked with the help option, md2pdf shall display each supported option with a one-line description on standard output. | Quality Attribute | Should | MVP | Demonstration |
-| NFR-05 | Artifact freshness policy | When any artifact is added, updated, embedded, locked, referenced, distributed, vendored, generated from a third-party source, or provisioned by md2pdf, md2pdf shall use the newest eligible artifact version available after a 7-day quarantine period, with no exception, override, bypass, emergency exemption, or force mode. | Quality Attribute | Must | MVP | Test |
+| NFR-05 | Artifact freshness policy | When any artifact is added, updated, embedded, locked, referenced, distributed, vendored, generated from a third-party source, or provisioned by md2pdf, md2pdf shall use the newest eligible artifact version available after a 7-day quarantine period, except where an approved quarantine waiver authorises a specific in-quarantine version; no other exception, override, bypass, emergency exemption, or force mode exists. | Quality Attribute | Must | MVP | Test |
 
 ## 8. Compliance checklist (C1–C14 self-assessment)
 
