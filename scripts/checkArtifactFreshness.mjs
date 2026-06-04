@@ -8,6 +8,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const QUARANTINE_DAYS = 7;
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const cutoff = new Date(Date.now() - QUARANTINE_DAYS * 24 * 60 * 60 * 1000);
+const npmExecutable = process.platform === "win32" ? "npm.cmd" : "npm";
 const failures = [];
 
 function readJson(path) {
@@ -176,7 +177,7 @@ async function checkNpmLockFreshness() {
     await cp(lockPath, join(temp, "package-lock.json"));
 
     execFileSync(
-      "npm",
+      npmExecutable,
       [
         "install",
         "--package-lock-only",

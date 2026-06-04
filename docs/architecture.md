@@ -111,14 +111,13 @@ export interface ConversionJob {
   sourcePath: string;
   outputPath: string;
   originEntry: string;
-  options: ConvertOptions;
 }
 
 export type ConversionStatus = 'success' | 'failed' | 'skipped';
 
 export interface ConversionOutcome extends ConversionJob {
   status: ConversionStatus;
-  error?: Md2pdfError;
+  error?: Md2PdfError;
 }
 
 export async function convertFile(
@@ -135,19 +134,19 @@ before any production implementation relies on it.
 
 `ConversionJob` represents a planned conversion after path resolution and
 preflight. `sourcePath` and `outputPath` are already resolved for execution,
-`originEntry` preserves the user-supplied file or directory entry for reporting,
-and `options` carries the per-job conversion settings.
+and `originEntry` preserves the user-supplied file or directory entry for
+reporting.
 
 `ConversionOutcome` is the batch-facing result used for stdout summaries and
 exit status decisions. It extends `ConversionJob` so every outcome preserves the
-resolved source path, resolved output path, original user entry, and conversion
-options that produced it. A successful outcome has `status: 'success'` and no
-`error`; a failed outcome carries the `Md2pdfError`; a skipped outcome has
+resolved source path, resolved output path, and original user entry. A
+successful outcome has `status: 'success'` and no `error`; a failed outcome
+carries the `Md2PdfError`; a skipped outcome has
 `status: 'skipped'` and preserves the output path that was not overwritten.
 
 `convertFile` converts exactly one Markdown source file to exactly one output
 path. It resolves no batch behavior and emits no summary. On failure it throws a
-typed `Md2pdfError`; callers such as `ConversionPipeline` catch that exception
+typed `Md2PdfError`; callers such as `ConversionPipeline` catch that exception
 and turn it into a `ConversionOutcome`. The output PDF is written only after a
 complete render succeeds, so a failed conversion must not leave a partial PDF at
 the target path.
@@ -170,7 +169,7 @@ Modules under `src/`. Each owns one concern (SRP) and stays within the
 | `fallbackBrowserProvisioner.ts` | `FallbackBrowserProvisioner` | Provision Chromium-for-Testing only as a last resort after `ReleaseCatalog` and `ArtifactPolicy` approve an eligible fallback artifact. | FR-19, NFR-03, NFR-05 |
 | `paths.ts` | `OutputPathResolver`, `ConversionEntryResolver` | Resolve default / explicit / `--output-dir` output paths; expand a directory entry to its top-level Markdown files. | FR-02, FR-03, FR-09, FR-23 |
 | `overwrite.ts` | `OverwritePolicy` | Decide overwrite vs preserve from the force flag and terminal interactivity. | FR-12, FR-13, FR-14 |
-| `errors.ts` | `Md2pdfError` hierarchy | Typed, fail-loud errors carrying offending paths, artifact context, missing-browser causes, and action hints. | FR-15, FR-16, FR-17 |
+| `errors.ts` | `Md2PdfError` hierarchy | Typed, fail-loud errors carrying offending paths, artifact context, missing-browser causes, and action hints. | FR-15, FR-16, FR-17 |
 | `assets/` | bundled resources | Default CSS, highlight.js theme CSS, fonts — all local. | NFR-01, NFR-02 |
 
 ## 6. Command-line surface
@@ -212,7 +211,7 @@ honored in scripts and pipes (FR-13, second scenario in US-05).
 
 ## 8. Error handling and exit status
 
-Fail loud, fail early. `errors.ts` defines a single root `Md2pdfError`; every
+Fail loud, fail early. `errors.ts` defines a single root `Md2PdfError`; every
 thrown error is a subclass carrying its context. The CLI front end is the only
 layer that converts errors to messages and exit codes.
 
@@ -325,7 +324,7 @@ md2pdf/
     pdfRenderer.ts           # WebDriverPdfRenderer
     paths.ts                 # OutputPathResolver, ConversionEntryResolver
     overwrite.ts             # OverwritePolicy
-    errors.ts                # Md2pdfError hierarchy
+    errors.ts                # Md2PdfError hierarchy
   assets/
     default.css
     highlight.css            # highlight.js theme

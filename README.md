@@ -10,10 +10,17 @@ md2pdf report.md
 
 ## Status
 
-v0.1 is the MVP implementation track. The command converts Markdown through a
-local HTML document and prints that document with an installed browser through
-WebDriver. All document assets are local; Markdown sources and output PDFs are
-not uploaded to an external service.
+v0.1.2 is the current MVP implementation track. The project is being rebuilt
+from `src/`; any existing `dist/` output is historical and non-normative until a
+fresh build regenerates it from source. The package is not release-ready until
+the C0 contracts, browser-backed conversion, artifact checks, packlist, and
+install evidence in `docs/release-evidence/release-checklist-v0.1.2.md` are
+complete.
+
+The target command converts Markdown through a local HTML document and prints
+that document with an installed browser through WebDriver. All document assets
+are local; Markdown sources and output PDFs are not uploaded to an external
+service.
 
 ## Requirements
 
@@ -45,7 +52,7 @@ For local development or release smoke testing:
 npm ci
 npm run build
 npm pack
-npm install --global --prefix /tmp/md2pdf-user ./md2pdf-0.1.0.tgz
+npm install --global --prefix /tmp/md2pdf-user ./<tarball-from-npm-pack>.tgz
 /tmp/md2pdf-user/bin/md2pdf --help
 ```
 

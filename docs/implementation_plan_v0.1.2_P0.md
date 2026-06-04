@@ -62,14 +62,14 @@ export interface ConvertOptions {
 export interface ConversionJob {
   sourcePath: string;
   outputPath: string;
-  options: ConvertOptions;
+  originEntry: string;
 }
 
-export interface ConversionOutcome {
-  sourcePath: string;
-  outputPath?: string;
-  status: 'success' | 'failed' | 'skipped';
-  error?: Md2pdfError;
+export type ConversionStatus = 'success' | 'failed' | 'skipped';
+
+export interface ConversionOutcome extends ConversionJob {
+  status: ConversionStatus;
+  error?: Md2PdfError;
 }
 
 export async function convertFile(
@@ -82,9 +82,10 @@ export async function convertFile(
 Clarifications attendues:
 
 - `ConvertOptions` est l'API publique minimale pour une conversion unitaire.
-- `ConversionJob` represente une conversion planifiee avec chemins deja resolus.
-- `ConversionOutcome` represente le resultat exploitable par le batch et le
-  resume stdout.
+- `ConversionJob` represente une conversion planifiee avec chemins deja resolus
+  et entree utilisateur d'origine conservee dans `originEntry`.
+- `ConversionOutcome` etend `ConversionJob` et represente le resultat
+  exploitable par le batch et le resume stdout.
 - `convertFile` est le point d'entree public pour convertir un seul fichier.
 
 ### 2.2 Clarifier les responsabilites des modules

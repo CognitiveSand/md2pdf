@@ -396,6 +396,7 @@ document.
 | Cross-cutting | NFR-03 (portability) — verified within US-01 |
 
 Every functional and non-functional requirement is covered by at least one
-story. The Definition of Done (test coverage, `mypy --strict`, `ruff check`,
-README currency) applies to every story and is tracked separately from these
-acceptance criteria.
+story. The Definition of Done (TypeScript typecheck, unit/contract tests,
+artifact freshness gate, browser-backed tests when required, and README/CLI
+currency) applies to every story and is tracked separately from these acceptance
+criteria.

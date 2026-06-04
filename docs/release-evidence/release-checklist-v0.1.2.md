@@ -1,6 +1,8 @@
 # md2pdf v0.1.2 Release Checklist
 
-Status: `pending`
+Release status: `pending`
+
+P0 closure status: `pass`
 
 This checklist tracks the release evidence required for md2pdf v0.1.2. It is
 created during P0 and must be completed before the release candidate is accepted.
@@ -16,7 +18,7 @@ explicitly accepted in this checklist.
 | Field | Value |
 | --- | --- |
 | md2pdf version | `0.1.2` |
-| Checklist status | `pending` |
+| Checklist status | `pending` for release; P0 closure `pass` |
 | Date opened | `2026-06-04` |
 | Date completed | `pending` |
 | Owner | `pending` |
@@ -25,7 +27,9 @@ explicitly accepted in this checklist.
 
 ## P0 Scope Check
 
-These items prove that P0 stayed documentary before C0.
+These items prove that P0 stayed documentation-focused and did not start C0
+application implementation. A scoped gate-maintenance exception is recorded
+below.
 
 | Item | Status | Evidence / command | Notes |
 | --- | --- | --- | --- |
@@ -33,14 +37,15 @@ These items prove that P0 stayed documentary before C0.
 | Phase 2 architecture alignment exists | `pass` | `docs/architecture.md` section 16 | P0 alignment checklist added to architecture. |
 | Phase 3 release evidence README exists | `pass` | `docs/release-evidence/README.md` | Evidence rules and statuses defined. |
 | Phase 4 FR-20 template exists | `pass` | `docs/release-evidence/fr-20-system-scope.md` | Template created with `pending` placeholders. |
-| No C0 source work started during P0 | `pending` | `git status --short` or PR diff summary | Must show no `src/`, contract tests, implementation scripts, or `dist/` regeneration introduced by P0. |
-| `docs/architecture.md` no longer diverges from plan v0.1.2 | `pending` | Architecture section 16 plus reviewer sign-off | Must be confirmed after all P0 docs are present. |
+| No C0 source work started during P0 | `pass` | P0 final reconciliation review; `find src tests -maxdepth 2 -type f` | No `src/**/*.ts`, no contract tests and no regenerated `dist/` output are present. Existing `.DS_Store` files are not C0 source work. |
+| Artifact gate Windows portability fix is scoped | `pass` | `scripts/checkArtifactFreshness.mjs` | The only non-documentary P0 correction is gate maintenance: resolving `npm.cmd` on Windows for the existing artifact freshness check. It does not create C0 contracts, runtime conversion behavior, tests, or regenerated `dist/`. |
+| `docs/architecture.md` no longer diverges from plan v0.1.2 | `pass` | `docs/architecture.md` section 4 and section 16; `docs/implementation_plan_v0.1.2.md` section 4 | Public contracts now match the parent plan: `ConversionJob` has `sourcePath`, `outputPath`, `originEntry`; `ConversionOutcome extends ConversionJob`; shared error root is `Md2PdfError`. |
 
 ## P0 Gate
 
 | Item | Status | Evidence / command | Expected Result | Observed Result |
 | --- | --- | --- | --- | --- |
-| Typecheck gate attempted | `blocked` | `npm.cmd run typecheck` | Either passes, or P0 exception is recorded because `src/` does not exist before C0. | `TS18003: No inputs were found` observed before C0 because `src/**/*.ts` does not exist. |
+| Typecheck gate attempted | `blocked` | `npm.cmd run typecheck` | Either passes, or P0 exception is recorded because `src/` does not exist before C0. | Accepted P0-only exception: `TS18003: No inputs were found` observed before C0 because `src/**/*.ts` does not exist. C0 must create contract source before this can become green. |
 
 ## C0 Contract Trace
 
@@ -48,7 +53,7 @@ These items prove that P0 stayed documentary before C0.
 | --- | --- | --- | --- |
 | Contract test red state observed | `pending` | Commit, log, or note of failing contract test | Required before marking C0 complete. |
 | Contract gate green after C0 | `pending` | `npm run typecheck` and `npm run test:contracts` | Required after C0 contracts/stubs exist. |
-| `ConversionOutcome extends ConversionJob` verified | `pending` | Contract test import or type assertion | Must preserve `sourcePath`, `outputPath`, `originEntry`, and `options`. |
+| `ConversionOutcome extends ConversionJob` verified | `pending` | Contract test import or type assertion | Must preserve `sourcePath`, `outputPath`, and `originEntry`. |
 | Shared error contracts importable and formattable | `pending` | Contract test | Must cover stable context fields, not message parsing. |
 
 ## Automated Release Gates
@@ -62,6 +67,18 @@ These items prove that P0 stayed documentary before C0.
 | Browser-backed tests | `pending` | `npm run test:browser` or equivalent | Must prove at least one real PDF and Mermaid as diagram. |
 | Artifact freshness gate | `pending` | `npm run check:artifacts` or equivalent | Must enforce `ARTIFACT_FRESHNESS_POLICY.md` and `artifacts.json`. |
 | CI matrix | `pending` | CI run URL, logs, or committed summary | Linux, macOS, Windows on Node.js 20+. |
+
+## Accepted Pre-C0 Exceptions
+
+These exceptions are acceptable for closing P0 only. They remain blockers for
+C0, P4, or the release candidate as indicated.
+
+| Exception | Status | Applies until | Required resolution |
+| --- | --- | --- | --- |
+| `npm run typecheck` fails with `TS18003` because `src/**/*.ts` does not exist. | `blocked` | C0 | Create C0 contract source/stubs, then run `npm run typecheck` successfully. |
+| C0 red/green contract evidence is not available yet. | `pending` | C0 | Record failing contract test first, then green `npm run typecheck` and `npm run test:contracts`. |
+| Release gates, browser tests, packlist, install evidence, and FR-20 proof are not runnable before a release candidate exists. | `pending` | P4/release candidate | Complete the automated and manual evidence sections below. |
+| Existing `dist/` content is non-normative and may not match `package.json` bin layout. | `blocked` | First valid build after C0/P3 | Regenerate `dist/` from `src/`; prove `bin.md2pdf` resolves to a real built `dist/cli.js` in `npm pack --json`. |
 
 ## FR-20 System-Scope Evidence
 
@@ -120,7 +137,7 @@ phase exists.
 | Browser/artifact responsibilities separated | `pass` | `docs/architecture.md` sections 5, 11, 13 | `BrowserLocator`, `ReleaseCatalog`, `ArtifactPolicy`, `FallbackBrowserProvisioner`. |
 | Chromium-for-Testing fallback constrained by policy | `pass` | `docs/architecture.md` sections 11, 13, 14 | Last resort, declared artifact, `newest eligible`, SHA-256, freshness. |
 | Provisioning vs conversion local-only boundary documented | `pass` | `docs/architecture.md` sections 9, 14 | Conversion remains local-only from pre-provisioned state. |
-| Remaining architecture audit questions resolved or accepted | `pending` | `audit.md` phase 1/2 and phase 4 audit sections | Must review before C0. |
+| Remaining architecture audit questions resolved or accepted | `pass` | `audit/2026-06-04-p0-phases-1-2-audit.md`, `audit/2026-06-04-p0-phase-4-audit.md`, `audit/2026-06-04-p0-phase-5-audit.md`, `audit/2026-06-04-p0-final-validation.md`; this checklist | Open P0 blockers were resolved or converted into explicit pre-C0 exceptions above. |
 
 ## Final Release Decision
 
