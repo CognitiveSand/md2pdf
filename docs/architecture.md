@@ -47,9 +47,12 @@ and Mermaid diagrams *natively*, including the HTML `foreignObject` labels that
 non-browser SVG renderers drop. Reusing the browser the user already has means
 the common case needs **no multi-hundred-MB download** and **no elevation**,
 which is the project's simplicity and no-sudo priority. The earlier candidate of
-downloading a bundled Chromium was rejected (ADR-01 alternatives) because the
-download and its Linux system-library needs are the heaviest, most failure-prone
-part of the install — and unnecessary when a browser is already present.
+downloading a bundled Chromium as the primary path was rejected (ADR-01
+alternatives) because the download and its Linux system-library needs are the
+heaviest, most failure-prone part of the install — and unnecessary when a
+browser is already present. The separate Chromium-for-Testing fallback is a
+last-resort provisioning path governed by `artifacts.json` and the artifact
+freshness policy, not the common rendering path.
 
 **Validated.** A spike drove the system Firefox headless via geckodriver,
 rendered a document containing a default-`htmlLabels` Mermaid flowchart
@@ -92,6 +95,63 @@ flowchart LR
 5. **Write the output PDF** to the resolved output path, subject to the
    overwrite policy (§7). The PDF is written only after a full render succeeds.
 
+### Public conversion contracts
+
+C0 exposes a minimal conversion API before the full implementation exists. These
+contracts are the shared boundary between the CLI/batch orchestration and the
+single-document converter.
+
+```ts
+export interface ConvertOptions {
+  browserPath?: string;
+  renderTimeoutMs?: number;
+}
+
+export interface ConversionJob {
+  sourcePath: string;
+  outputPath: string;
+  originEntry: string;
+  options: ConvertOptions;
+}
+
+export type ConversionStatus = 'success' | 'failed' | 'skipped';
+
+export interface ConversionOutcome extends ConversionJob {
+  status: ConversionStatus;
+  error?: Md2pdfError;
+}
+
+export async function convertFile(
+  sourcePath: string,
+  outputPath: string,
+  options?: ConvertOptions,
+): Promise<void>;
+```
+
+`ConvertOptions` is the public, intentionally small option bag for one
+conversion. `browserPath` may pin a browser binary, and `renderTimeoutMs` limits
+browser rendering and Mermaid completion; C0 must document the default timeout
+before any production implementation relies on it.
+
+`ConversionJob` represents a planned conversion after path resolution and
+preflight. `sourcePath` and `outputPath` are already resolved for execution,
+`originEntry` preserves the user-supplied file or directory entry for reporting,
+and `options` carries the per-job conversion settings.
+
+`ConversionOutcome` is the batch-facing result used for stdout summaries and
+exit status decisions. It extends `ConversionJob` so every outcome preserves the
+resolved source path, resolved output path, original user entry, and conversion
+options that produced it. A successful outcome has `status: 'success'` and no
+`error`; a failed outcome carries the `Md2pdfError`; a skipped outcome has
+`status: 'skipped'` and preserves the output path that was not overwritten.
+
+`convertFile` converts exactly one Markdown source file to exactly one output
+path. It resolves no batch behavior and emits no summary. On failure it throws a
+typed `Md2pdfError`; callers such as `ConversionPipeline` catch that exception
+and turn it into a `ConversionOutcome`. The output PDF is written only after a
+complete render succeeds, so a failed conversion must not leave a partial PDF at
+the target path.
+
 ## 5. Component view
 
 Modules under `src/`. Each owns one concern (SRP) and stays within the
@@ -100,14 +160,17 @@ Modules under `src/`. Each owns one concern (SRP) and stays within the
 | Module | Component | Responsibility | Serves |
 |---|---|---|---|
 | `cli.ts` | command-line front end | Parse arguments with `node:util` `parseArgs`, wire components, set the process exit code. | FR-13, FR-17, FR-18, NFR-04 |
-| `pipeline.ts` | `ConversionPipeline` | Expand conversion entries to a file work-list, convert each, continue past failures, emit the outcome summary. | FR-08, FR-09, FR-10, FR-11 |
-| `converter.ts` | `DocumentConverter` | Convert one Markdown source file to one output PDF via the five pipeline stages. | FR-01, FR-04–07, FR-24 |
+| `pipeline.ts` | `ConversionPipeline` | Transform CLI entries into `ConversionJob[]`, reject global preflight conflicts, execute conversions, continue past per-document failures, collect `ConversionOutcome[]`, and emit the outcome summary. | FR-08, FR-09, FR-10, FR-11 |
+| `converter.ts` | `DocumentConverter` | Orchestrate one conversion through Markdown parsing, local HTML assembly, browser rendering, and atomic PDF writing. | FR-01, FR-04–07, FR-16, FR-24 |
 | `markdownRenderer.ts` | `MarkdownToHtmlRenderer` | Stages 1–3: Markdown to a full, self-contained local HTML document with code highlighting and the inlined Mermaid engine. | FR-04, FR-05, FR-06, FR-24 |
-| `browserLocator.ts` | `BrowserLocator` | Detect an installed Chromium-family or Firefox browser (resolving the real binary, including the snap wrapper case), and resolve the matching WebDriver (`chromedriver`/`geckodriver`). | FR-19, NFR-03 |
+| `browserLocator.ts` | `BrowserLocator` | Detect an installed Chromium-family or Firefox browser, resolve the real binary including snap wrappers, and find or request a compatible WebDriver. It does not own fallback browser policy. | FR-19, NFR-03 |
 | `pdfRenderer.ts` | `WebDriverPdfRenderer` | Stage 4: load the local HTML in the located browser via WebDriver, await Mermaid completion, and return PDF bytes from the Print command. | FR-07, FR-24, NFR-02 |
+| `releaseCatalog.ts` | `ReleaseCatalog` | Read `artifacts.json` and expose declared non-npm artifact releases, platforms, immutable URLs, sizes, checksums, and provenance. | NFR-05 |
+| `artifactPolicy.ts` | `ArtifactPolicy` | Validate artifact eligibility, 7-day freshness, checksum SHA-256, compatibility constraints, and `newest eligible` selection. | NFR-05 |
+| `fallbackBrowserProvisioner.ts` | `FallbackBrowserProvisioner` | Provision Chromium-for-Testing only as a last resort after `ReleaseCatalog` and `ArtifactPolicy` approve an eligible fallback artifact. | FR-19, NFR-03, NFR-05 |
 | `paths.ts` | `OutputPathResolver`, `ConversionEntryResolver` | Resolve default / explicit / `--output-dir` output paths; expand a directory entry to its top-level Markdown files. | FR-02, FR-03, FR-09, FR-23 |
 | `overwrite.ts` | `OverwritePolicy` | Decide overwrite vs preserve from the force flag and terminal interactivity. | FR-12, FR-13, FR-14 |
-| `errors.ts` | `Md2pdfError` hierarchy | Typed, fail-loud errors carrying the offending path or the missing-browser condition. | FR-15, FR-16 |
+| `errors.ts` | `Md2pdfError` hierarchy | Typed, fail-loud errors carrying offending paths, artifact context, missing-browser causes, and action hints. | FR-15, FR-16, FR-17 |
 | `assets/` | bundled resources | Default CSS, highlight.js theme CSS, fonts — all local. | NFR-01, NFR-02 |
 
 ## 6. Command-line surface
@@ -158,8 +221,11 @@ layer that converts errors to messages and exit codes.
   offending path. Inside a batch the pipeline catches them, records a failure,
   and continues (FR-10, FR-15, FR-16). No partial output PDF is written.
 - **No usable browser** → `BrowserNotFoundError` reported once on stderr with
-  guidance (install Chrome/Edge/Firefox, or set `MD2PDF_BROWSER`), and the
-  last-resort provisioning path (§11).
+  guidance (install Chrome/Edge/Firefox, or set `MD2PDF_BROWSER`). Its cause
+  must distinguish the observable reason: no compatible installed browser,
+  detected browser with no eligible driver, no Chromium-for-Testing fallback
+  declared in `artifacts.json`, fallback rejected by checksum/freshness/platform,
+  or an unusable provisioning cache.
 - **Exit status**, set once at process end:
   - `0` — every conversion succeeded (FR-18).
   - `1` — at least one conversion failed (FR-17).
@@ -167,15 +233,27 @@ layer that converts errors to messages and exit codes.
 
 ## 9. Local-only enforcement
 
-CON-02 / NFR-02 are enforced by construction. Because WebDriver does not offer
-Playwright-style request interception, the guarantee is structural:
+CON-02 / NFR-02 apply to conversion, not to artifact provisioning. md2pdf keeps
+these two phases separate:
+
+- **Provisioning** may use the network before conversion to retrieve an approved
+  driver or last-resort fallback browser. Provisioning never reads the Markdown
+  source or output PDF contents, and every provisioned artifact must pass
+  `ReleaseCatalog` and `ArtifactPolicy`.
+- **Conversion** is strictly local-only. Once a Markdown file is being converted
+  to a PDF, md2pdf performs no downloads and opens no outbound network
+  connection.
+
+Because WebDriver does not offer Playwright-style request interception, the
+conversion guarantee is structural:
 
 - All assets (stylesheets, fonts, the Mermaid engine) are inlined into the
   generated HTML; no CDN or external URL appears in it.
 - The HTML is loaded from a local `file:` path, and the browser is launched with
   offline/no-proxy preferences so it cannot reach the network.
 - A test asserts the assembled HTML contains no external (`http:`/`https:`) URL,
-  and that conversion succeeds with the host network disabled.
+  and that conversion succeeds with the host network disabled from a
+  pre-provisioned state.
 
 ## 10. Styling and assets
 
@@ -204,10 +282,17 @@ stylesheet styles the server-highlighted code. Theme selection is out of scope
 - **Browser and driver provisioning (ADR-05).** On first run `BrowserLocator`
   detects an installed Chromium-family or Firefox browser and resolves a matching
   WebDriver, provisioning `chromedriver`/`geckodriver` (small binaries, per-user
-  cache, no sudo) to match the detected browser version. The common case needs
-  **no browser download**. If no browser is found, md2pdf reports clearly and, as
-  a last resort, can provision a Chromium-for-Testing build plus its chromedriver
-  into the per-user cache.
+  cache, no sudo) only through artifacts accepted by `ReleaseCatalog` and
+  `ArtifactPolicy`. The common case needs **no browser download**.
+- **Chromium-for-Testing fallback.** If no installed browser path is usable,
+  `FallbackBrowserProvisioner` may provision Chromium-for-Testing plus its
+  chromedriver into the per-user cache, but only as a last resort. The fallback
+  is allowed only when the concrete artifact is declared in `artifacts.json`,
+  selected as `newest eligible`, compatible with the host platform, and verified
+  by SHA-256 checksum and freshness policy. If no eligible artifact exists,
+  md2pdf fails with `BrowserNotFoundError` whose cause states that no fallback
+  artifact is eligible. The current empty `artifacts.json` means the fallback is
+  planned but not available until a declared artifact is added.
 - **System-scope install (FR-20).** Installing the package into a system-shared
   location with elevation places the `md2pdf` entry point on every account's
   PATH; each user's browser/driver are resolved per-user on first run.
@@ -234,6 +319,9 @@ md2pdf/
     converter.ts             # DocumentConverter
     markdownRenderer.ts      # MarkdownToHtmlRenderer
     browserLocator.ts        # BrowserLocator
+    releaseCatalog.ts        # ReleaseCatalog
+    artifactPolicy.ts        # ArtifactPolicy
+    fallbackBrowserProvisioner.ts
     pdfRenderer.ts           # WebDriverPdfRenderer
     paths.ts                 # OutputPathResolver, ConversionEntryResolver
     overwrite.ts             # OverwritePolicy
@@ -255,10 +343,11 @@ md2pdf/
 *Context:* FR-24 requires faithful Mermaid; a real browser renders it natively
 (including `foreignObject`), and most desktops already have a browser. *Decision:*
 drive an installed browser over WebDriver and use its Print command for HTML→PDF,
-rather than bundling/downloading a Chromium or assembling the PDF without a
-browser. *Alternatives rejected:* (a) bundled Chromium via Playwright — heavy
-download and Linux system-library/no-sudo problems, and cannot drive stock
-Firefox; (b) browser-free Typst + resvg — needs `htmlLabels:false` (a
+rather than bundling/downloading a Chromium as the primary browser path or
+assembling the PDF without a browser. *Alternatives rejected:* (a) bundled
+Chromium via Playwright as the main path — heavy download and Linux
+system-library/no-sudo problems, and cannot drive stock Firefox; (b)
+browser-free Typst + resvg — needs `htmlLabels:false` (a
 fidelity risk on exotic diagram types) and a non-HTML body engine. *Consequences:*
 no browser download in the common case and full fidelity (positive); per-browser
 driver version management and slight output variation across browser versions
@@ -286,34 +375,43 @@ approval (2026-06-02). *Consequences:* one language and one runtime, `npx`
 zero-install distribution (positive); divergence from the team's Python tooling
 (negative, accepted). *Status:* accepted.
 
-**ADR-05 — Prefer an installed browser; provision a matching driver; download a
-browser only as a last resort.**
-*Context:* the WebDriver path needs a browser plus a matching WebDriver binary;
-most desktops have a browser, and drivers are small. *Decision:* detect an
-installed Chromium-family or Firefox browser and provision the matching
-`chromedriver`/`geckodriver` per-user; if no browser exists, report clearly and
-optionally provision a Chromium-for-Testing build as a fallback. *Consequences:*
-no-sudo and no large download on typical desktops, with coverage for browser-less
-hosts. *Status:* accepted.
+**ADR-05 — Prefer an installed browser; split browser detection from artifact
+policy and fallback provisioning.**
+*Context:* the WebDriver path needs a browser plus a compatible WebDriver binary;
+most desktops already have a browser, drivers are smaller than browsers, and all
+runtime provisioning is governed by `ARTIFACT_FRESHNESS_POLICY.md`. *Decision:*
+`BrowserLocator` detects installed Chromium-family or Firefox browsers and
+resolves compatible drivers; `ReleaseCatalog` reads declared non-npm artifacts
+from `artifacts.json`; `ArtifactPolicy` applies `newest eligible`, freshness and
+SHA-256 verification; `FallbackBrowserProvisioner` provisions
+Chromium-for-Testing only when no installed browser path is available and the
+fallback artifact passes policy. *Consequences:* no browser download in the
+common case, no sudo for per-user caches, and an auditable supply-chain boundary
+for fallback artifacts (positive); more modules and more artifact-policy tests
+for browser-less hosts (negative). *Status:* accepted.
 
 ## 14. Key risks
 
 - **R-1 — Browser/driver availability and version lockstep.** `chromedriver`'s
   major version must match the installed Chrome; `geckodriver` is version
-  tolerant. A host may have no browser at all. The snap-packaged Firefox on
-  Ubuntu exposes a wrapper script at `/usr/bin/firefox`; the real binary
-  (`/snap/firefox/current/usr/lib/firefox/firefox`) must be resolved. *Mitigations:*
-  auto-provision the driver matching the detected browser version; resolve the
-  real binary behind snap wrappers; `BrowserNotFoundError` with guidance plus the
-  last-resort Chromium-for-Testing download (ADR-05).
+  tolerant. A host may have no browser at all, may have a browser with no
+  eligible driver, or may have no eligible fallback artifact in `artifacts.json`.
+  The snap-packaged Firefox on Ubuntu exposes a wrapper script at
+  `/usr/bin/firefox`; the real binary
+  (`/snap/firefox/current/usr/lib/firefox/firefox`) must be resolved.
+  *Mitigations:* resolve the real binary behind snap wrappers; provision only
+  drivers accepted by `ArtifactPolicy`; use `FallbackBrowserProvisioner` only
+  after installed browsers fail; raise `BrowserNotFoundError` with a cause such
+  as no compatible browser, no eligible driver, or no eligible fallback artifact.
 - **R-2 — Output variation across browsers/versions.** Firefox and Chrome render
   slightly differently, and a user's browser auto-updates. *Mitigation:* document
-  this; offer the provisioned Chromium-for-Testing path for users who need
-  byte-stable output.
-- **R-3 — Offline guarantee is structural, not intercepted.** Without request
-  interception, local-only relies on inlined assets + offline launch.
+  this and test semantic rendering expectations rather than byte identity.
+- **R-3 — Conversion offline guarantee is structural, not intercepted.** Without
+  request interception, local-only rendering relies on inlined assets, `file:`
+  loading, and offline/no-proxy browser launch. This risk concerns conversion
+  only; provisioning is a separate pre-conversion artifact-policy concern.
   *Mitigation:* a test asserting no external URLs in the assembled HTML and a
-  network-disabled conversion test (NFR-02).
+  network-disabled conversion test from a pre-provisioned state (NFR-02).
 - **R-4 — Inlined engine/asset version drift.** The Mermaid engine and
   highlight.js are pinned dependencies updated deliberately. *Mitigation:* pin in
   `package.json`; treat updates as scoped dependency changes.
@@ -334,11 +432,29 @@ hosts. *Status:* accepted.
 | FR-19–21 | install demonstration on a non-privileged account; idempotent re-run exits 0 |
 | FR-24 | integration test: a `mermaid` block renders as vector graphics, not raw text (validated on stock Firefox) |
 | NFR-01 | integration test: conversion with no config file present |
-| NFR-02 | test: no external URL in assembled HTML; conversion with host network disabled |
+| NFR-02 | test: no external URL in assembled HTML; conversion with host network disabled from a pre-provisioned state |
 | NFR-03 | CI matrix: Linux, macOS, Windows on Node.js 20+, against Chromium and Firefox |
 | NFR-04 | contract test: `--help` lists every option |
+| NFR-05 | artifact-policy tests: `ReleaseCatalog`, `ArtifactPolicy`, checksum SHA-256, `newest eligible`, and fallback rejection when no declared artifact is eligible |
 
 Tests use a fast unit/contract path and a browser-backed integration path; the
 slow browser tests are isolated so the iteration loop stays fast. Each test is
 tagged with its requirement ID so the traceability matrix is generated from the
 suite.
+
+## 16. P0 alignment checklist
+
+This checklist is the documentation-level guard that `docs/architecture.md` no
+longer diverges from the v0.1.2 P0 plan before C0 starts.
+
+| P0 item | Architecture location |
+| --- | --- |
+| Public contracts `ConvertOptions`, `ConversionJob`, `ConversionOutcome`, `convertFile` | §4 Public conversion contracts |
+| `ConversionPipeline` and `DocumentConverter` responsibilities | §5 Component view |
+| `BrowserLocator` / `ReleaseCatalog` / `ArtifactPolicy` / `FallbackBrowserProvisioner` split | §5 Component view, §11 Packaging, §13 ADR-05 |
+| Chromium-for-Testing last-resort fallback, declared artifact, `newest eligible`, SHA-256 and freshness gates | §11 Packaging, §13 ADR-05, §14 R-1 |
+| `BrowserNotFoundError` causes for missing browser, missing driver and no eligible fallback | §8 Error handling, §14 R-1 |
+| Provisioning may use network; conversion is local-only with `file:` and inlined assets | §9 Local-only enforcement, §14 R-3 |
+| ADR-05 updated for separated responsibilities | §13 Architecture decision records |
+| R-1 and R-3 updated for fallback eligibility and conversion-only offline risk | §14 Key risks |
+| Release evidence remains outside architecture and is created under `docs/release-evidence/` | P0 phases 3-5 |
