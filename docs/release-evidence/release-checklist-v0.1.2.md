@@ -51,10 +51,10 @@ below.
 
 | Item | Status | Evidence / command | Notes |
 | --- | --- | --- | --- |
-| Contract test red state observed | `pending` | Commit, log, or note of failing contract test | Required before marking C0 complete. |
-| Contract gate green after C0 | `pending` | `npm run typecheck` and `npm run test:contracts` | Required after C0 contracts/stubs exist. |
-| `ConversionOutcome extends ConversionJob` verified | `pending` | Contract test import or type assertion | Must preserve `sourcePath`, `outputPath`, and `originEntry`. |
-| Shared error contracts importable and formattable | `pending` | Contract test | Must cover stable context fields, not message parsing. |
+| Contract test red state observed | `pass` | `audit/audit-c0-etape4.md`, lines 25 and 87-90 | C0 step 4 captured the red contract gate: `npm run test:contracts` failed with missing script before steps 5-6 existed. |
+| Contract gate green after C0 | `pass` | `npm run typecheck`; `npm run test:contracts` on 2026-06-04 | Both commands passed after C0 contracts, stubs, script, and contract tests were added. |
+| `ConversionOutcome extends ConversionJob` verified | `pass` | `tests/unit/contracts/contracts.test.ts`, `instantiates conversion contracts with the expected fields` | Verifies `sourcePath`, `outputPath`, `originEntry`, status, and typed error context. |
+| Shared error contracts importable and formattable | `pass` | `tests/unit/contracts/contracts.test.ts`, `C0 shared errors` | Covers stable `kind`, message, paths, artifact, hint, cause, and JSON context formatting. |
 
 ## Automated Release Gates
 
@@ -75,8 +75,8 @@ C0, P4, or the release candidate as indicated.
 
 | Exception | Status | Applies until | Required resolution |
 | --- | --- | --- | --- |
-| `npm run typecheck` fails with `TS18003` because `src/**/*.ts` does not exist. | `blocked` | C0 | Create C0 contract source/stubs, then run `npm run typecheck` successfully. |
-| C0 red/green contract evidence is not available yet. | `pending` | C0 | Record failing contract test first, then green `npm run typecheck` and `npm run test:contracts`. |
+| `npm run typecheck` fails with `TS18003` because `src/**/*.ts` does not exist. | `pass` | Resolved in C0 | C0 contract source/stubs now exist and `npm run typecheck` passed on 2026-06-04. |
+| C0 red/green contract evidence is not available yet. | `pass` | Resolved in C0 | Red gate captured in `audit/audit-c0-etape4.md`; green gate captured with `npm run typecheck` and `npm run test:contracts` on 2026-06-04. |
 | Release gates, browser tests, packlist, install evidence, and FR-20 proof are not runnable before a release candidate exists. | `pending` | P4/release candidate | Complete the automated and manual evidence sections below. |
 | Existing `dist/` content is non-normative and may not match `package.json` bin layout. | `blocked` | First valid build after C0/P3 | Regenerate `dist/` from `src/`; prove `bin.md2pdf` resolves to a real built `dist/cli.js` in `npm pack --json`. |
 
@@ -125,7 +125,7 @@ phase exists.
 | `--output-dir` basename collision blocks before render | `pending` | Stream A test | Example: `a/report.md` and `b/report.md`. |
 | Cache writes are atomic | `pending` | Stream B artifact test | `.tmp` then atomic rename after verification. |
 | Cache non-writable reports explicit artifact/browser error | `pending` | Stream B artifact test | Must not become a generic failure. |
-| C0 red then green evidence recorded | `pending` | C0 contract trace above | Required for C0 proof. |
+| C0 red then green evidence recorded | `pass` | C0 contract trace above | Required C0 proof is now recorded. |
 | FR-20 manual proof versioned | `pending` | FR-20 section above | Required for release. |
 
 ## Architecture Alignment

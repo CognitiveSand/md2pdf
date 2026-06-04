@@ -35,11 +35,12 @@ Définir les types partagés entre Stream A et Stream B.
 
 ### 3. Créer `src/artifactPolicy.ts` (contrat minimal + sélection C0)
 
-- Interface `ArtifactRelease` : `{ version: string; publishedAt: string; url: string; sha256: string; size: number }`
+- Interface `ArtifactRelease` : `{ version: string; publishedAt: string; url: string; sha256: string; size: number; provenance: string }`
 - Interface `ArtifactConstraints` : `{ quarantineDays: number; compatibleWith?: string }`
 - Interface `ReleaseCatalog` : fakeable en test, avec timestamps de publication (`publishedAt`)
 - Classe `ArtifactPolicy` avec méthode `selectNewestEligible(releases, constraints, now): ArtifactRelease | null`
 - `selectNewestEligible` est implémenté dès C0 : filtrer les releases compatibles sorties depuis au moins `quarantineDays`, puis retourner celle au `publishedAt` le plus récent
+- `compatibleWith` compare un major de version normalisé quand la release et la contrainte commencent par un numéro; sinon la compatibilité exige une égalité exacte
 - Toute autre logique artifact non couverte par C0 reste stub et lance `NotImplementedError`
 
 ### 4. Créer `src/fallbackBrowserProvisioner.ts` (interface uniquement)
