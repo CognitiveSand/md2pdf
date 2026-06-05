@@ -1,8 +1,9 @@
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { cp, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const QUARANTINE_DAYS = 7;
@@ -155,11 +156,103 @@ async function checkArtifactManifest() {
     assert(typeof location.kind === "string", "trackedLocations entries need a kind");
   }
 
+  for (const artifact of manifest.artifacts ?? []) {
+    await checkDeclaredArtifact(artifact);
+  }
+
   if (manifest.waivers !== undefined) {
     assert(
       Array.isArray(manifest.waivers),
       "artifacts.json waivers must be an array when present",
     );
+  }
+}
+
+async function checkDeclaredArtifact(artifact) {
+  const label = artifact?.name ?? artifact?.path ?? "<unnamed artifact>";
+  assert(typeof artifact?.name === "string", `artifact ${label} needs a name`);
+  assert(typeof artifact?.kind === "string", `artifact ${label} needs a kind`);
+  assert(typeof artifact?.path === "string", `artifact ${label} needs a path`);
+  assert(typeof artifact?.source === "string", `artifact ${label} needs a source`);
+  assert(
+    typeof artifact?.provenance === "string",
+    `artifact ${label} needs provenance`,
+  );
+  if (artifact?.version !== undefined || artifact?.releases === undefined) {
+    checkArtifactReleaseShape(artifact, label);
+  }
+  checkNestedArtifactReleases(artifact, label);
+
+  if (typeof artifact?.path !== "string") {
+    return;
+  }
+
+  const artifactPath = resolve(root, artifact.path);
+  const relativeArtifactPath = relative(root, artifactPath);
+  assert(
+    relativeArtifactPath === "" ||
+      (!relativeArtifactPath.startsWith("..") && !isAbsolute(relativeArtifactPath)),
+    `artifact ${label} path must stay inside the repository`,
+  );
+  if (!(await exists(artifactPath))) {
+    failures.push(`artifact ${label} path does not exist: ${artifact.path}`);
+    return;
+  }
+
+  const data = readFileSync(artifactPath);
+  const size = data.byteLength;
+  const sha256 = createHash("sha256").update(data).digest("hex");
+
+  assert(size === artifact.size, `artifact ${label} size does not match ${artifact.path}`);
+  assert(
+    sha256 === artifact.sha256,
+    `artifact ${label} sha256 does not match ${artifact.path}`,
+  );
+}
+
+function checkNestedArtifactReleases(artifact, label) {
+  if (artifact?.releases === undefined) {
+    return;
+  }
+
+  if (!Array.isArray(artifact.releases)) {
+    failures.push(`artifact ${label} releases must be an array`);
+    return;
+  }
+
+  for (const [index, release] of artifact.releases.entries()) {
+    checkArtifactReleaseShape(release, `${label} release[${index}]`, artifact);
+  }
+}
+
+function checkArtifactReleaseShape(release, label, parentArtifact = release) {
+  assert(typeof release?.version === "string", `artifact ${label} needs a version`);
+  assertValidPublishedAt(release?.publishedAt, `artifact ${label} needs a valid publishedAt`);
+  assertValidUrl(release?.url, `artifact ${label} needs an immutable url`);
+  assert(typeof release?.sha256 === "string", `artifact ${label} needs a sha256`);
+  assert(typeof release?.size === "number", `artifact ${label} needs a numeric size`);
+  assert(
+    typeof (release?.provenance ?? parentArtifact?.provenance) === "string",
+    `artifact ${label} needs provenance`,
+  );
+}
+
+function assertValidPublishedAt(value, message) {
+  assert(typeof value === "string" && Number.isFinite(new Date(value).getTime()), message);
+}
+
+function assertValidUrl(value, message) {
+  if (typeof value !== "string" || value.trim() === "") {
+    failures.push(message);
+    return;
+  }
+
+  try {
+    const url = new URL(value);
+    assert(url.protocol === "https:", message);
+    assert(!/[?&#]/u.test(value), message);
+  } catch {
+    failures.push(message);
   }
 }
 

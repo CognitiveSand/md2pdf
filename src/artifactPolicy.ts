@@ -5,6 +5,11 @@ export interface ArtifactRelease {
   sha256: string;
   size: number;
   provenance: string;
+  source?: string;
+  kind?: string;
+  path?: string;
+  platform?: string;
+  compatibleWith?: string;
 }
 
 export interface ArtifactConstraints {
