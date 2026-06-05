@@ -3,9 +3,10 @@ import os from "node:os";
 import path from "node:path";
 import { Readable } from "node:stream";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  isPromptInteractive,
   HELP_TEXT,
   type CliIo,
   main,
@@ -95,6 +96,12 @@ describe("Stream A P1 CLI", () => {
     });
   });
 
+  it("@req FR-12 bases prompt interactivity on stdin and stderr TTY state", () => {
+    expect(isPromptInteractive({ isTTY: true }, { isTTY: true })).toBe(true);
+    expect(isPromptInteractive({ isTTY: true }, { isTTY: false })).toBe(false);
+    expect(isPromptInteractive({ isTTY: false }, { isTTY: true })).toBe(false);
+  });
+
   it("@req FR-17 rejects mutually exclusive output location options as usage", async () => {
     const stdout = new MemoryWriter();
     const stderr = new MemoryWriter();
@@ -174,6 +181,95 @@ describe("Stream A P1 CLI", () => {
     });
   });
 
+  it("@req FR-17 returns exit 2 for preflight input errors before printing a summary", async () => {
+    const stdout = new MemoryWriter();
+    const stderr = new MemoryWriter();
+    const calls: string[] = [];
+
+    const exitCode = await main(
+      ["missing.md"],
+      fakeIo(stdout, stderr, tempRoot),
+      { convertFile: recordingConverter(calls) },
+    );
+
+    expect(exitCode).toBe(2);
+    expect(calls).toEqual([]);
+    expect(stdout.toString()).toBe("");
+    expect(stderr.toString()).toContain("[input] input entry was not found");
+    expect(stderr.toString()).toContain(`source: ${path.join(tempRoot, "missing.md")}`);
+    expect(stderr.toString()).toContain("hint: check that missing.md exists and is readable");
+  });
+
+  it("@req FR-14 @req FR-17 returns exit 2 for unreadable directory inputs", async () => {
+    await fs.mkdir(path.join(tempRoot, "locked"));
+    const stdout = new MemoryWriter();
+    const stderr = new MemoryWriter();
+    const calls: string[] = [];
+    const readdir = vi.spyOn(fs, "readdir").mockImplementation(async (target) => {
+      if (target === path.join(tempRoot, "locked")) {
+        throw Object.assign(new Error("permission denied"), { code: "EACCES" });
+      }
+
+      return [];
+    });
+
+    try {
+      const exitCode = await main(
+        ["locked"],
+        fakeIo(stdout, stderr, tempRoot),
+        { convertFile: recordingConverter(calls) },
+      );
+
+      expect(exitCode).toBe(2);
+      expect(calls).toEqual([]);
+      expect(stdout.toString()).toBe("");
+      expect(stderr.toString()).toContain("[input] input entry is not readable");
+      expect(stderr.toString()).toContain(`source: ${path.join(tempRoot, "locked")}`);
+      expect(stderr.toString()).toContain("hint: check that locked exists and is readable");
+    } finally {
+      readdir.mockRestore();
+    }
+  });
+
+  it("@req FR-09 @req FR-17 returns exit 2 for duplicate entries before rendering", async () => {
+    await writeFile("source.md");
+    const stdout = new MemoryWriter();
+    const stderr = new MemoryWriter();
+    const calls: string[] = [];
+
+    const exitCode = await main(
+      ["source.md", "source.md"],
+      fakeIo(stdout, stderr, tempRoot),
+      { convertFile: recordingConverter(calls) },
+    );
+
+    expect(exitCode).toBe(2);
+    expect(calls).toEqual([]);
+    expect(stdout.toString()).toBe("");
+    expect(stderr.toString()).toContain("[usage] multiple jobs resolve to the same output path");
+    expect(stderr.toString()).toContain(`output: ${path.join(tempRoot, "source.pdf")}`);
+  });
+
+  it("@req FR-17 returns exit 2 when output path equals source path before rendering", async () => {
+    await writeFile("source.md");
+    const stdout = new MemoryWriter();
+    const stderr = new MemoryWriter();
+    const calls: string[] = [];
+
+    const exitCode = await main(
+      ["--output", "source.md", "source.md"],
+      fakeIo(stdout, stderr, tempRoot),
+      { convertFile: recordingConverter(calls) },
+    );
+
+    expect(exitCode).toBe(2);
+    expect(calls).toEqual([]);
+    expect(stdout.toString()).toBe("");
+    expect(stderr.toString()).toContain("[usage] output path must differ from source path");
+    expect(stderr.toString()).toContain(`source: ${path.join(tempRoot, "source.md")}`);
+    expect(stderr.toString()).toContain(`output: ${path.join(tempRoot, "source.md")}`);
+  });
+
   it("@req FR-10 @req FR-18 returns exit 1 when one batch conversion fails and continues", async () => {
     await writeFile("bad.md");
     await writeFile("ok.md");
@@ -206,16 +302,141 @@ describe("Stream A P1 CLI", () => {
     expect(stderr.toString()).toContain(`source: ${path.join(tempRoot, "bad.md")}`);
     expect(stderr.toString()).toContain(`output: ${path.join(tempRoot, "bad.pdf")}`);
   });
+
+  it("@req FR-12 @req FR-18 reports non-interactive overwrite skips in the summary without failing", async () => {
+    await writeFile("existing.md");
+    await fs.writeFile(path.join(tempRoot, "existing.pdf"), "already here\n", "utf8");
+    const stdout = new MemoryWriter();
+    const stderr = new MemoryWriter();
+    const calls: string[] = [];
+
+    const exitCode = await main(
+      ["existing.md"],
+      fakeIo(stdout, stderr, tempRoot),
+      { convertFile: recordingConverter(calls) },
+    );
+
+    expect(exitCode).toBe(0);
+    expect(calls).toEqual([]);
+    expect(stdout.toString()).toBe("0 succeeded, 0 failed, 1 skipped\n");
+    expect(stderr.toString()).toBe(`Skipping existing output: ${path.join(tempRoot, "existing.pdf")}\n`);
+    await expect(fs.readFile(path.join(tempRoot, "existing.pdf"), "utf8")).resolves.toBe("already here\n");
+  });
+
+  it("@req FR-13 lets --force-overwrite convert an existing output without prompting", async () => {
+    await writeFile("existing.md");
+    await fs.writeFile(path.join(tempRoot, "existing.pdf"), "already here\n", "utf8");
+    const stdout = new MemoryWriter();
+    const stderr = new MemoryWriter();
+    const calls: string[] = [];
+
+    const exitCode = await main(
+      ["--force-overwrite", "existing.md"],
+      fakeIo(stdout, stderr, tempRoot),
+      { convertFile: recordingConverter(calls) },
+    );
+
+    expect(exitCode).toBe(0);
+    expect(calls).toEqual([
+      `${path.join(tempRoot, "existing.md")} -> ${path.join(tempRoot, "existing.pdf")} default`,
+    ]);
+    expect(stdout.toString()).toBe("1 succeeded, 0 failed, 0 skipped\n");
+    expect(stderr.toString()).toBe("");
+  });
+
+  it("@req FR-12 prompts from the CLI and converts when the user confirms", async () => {
+    await writeFile("existing.md");
+    await fs.writeFile(path.join(tempRoot, "existing.pdf"), "already here\n", "utf8");
+    const stdout = new MemoryWriter();
+    const stderr = new MemoryWriter();
+    const calls: string[] = [];
+
+    const exitCode = await main(
+      ["existing.md"],
+      fakeIo(stdout, stderr, tempRoot, {
+        stdin: Readable.from(["yes\n"]),
+        isInteractive: true,
+      }),
+      { convertFile: recordingConverter(calls) },
+    );
+
+    expect(exitCode).toBe(0);
+    expect(calls).toEqual([
+      `${path.join(tempRoot, "existing.md")} -> ${path.join(tempRoot, "existing.pdf")} default`,
+    ]);
+    expect(stdout.toString()).toBe("1 succeeded, 0 failed, 0 skipped\n");
+    expect(stderr.toString()).toBe(`Overwrite existing output ${path.join(tempRoot, "existing.pdf")}? [y/N] `);
+  });
+
+  it("@req FR-12 keeps the existing output unchanged when the interactive prompt reaches EOF", async () => {
+    await writeFile("existing.md");
+    await fs.writeFile(path.join(tempRoot, "existing.pdf"), "already here\n", "utf8");
+    const stdout = new MemoryWriter();
+    const stderr = new MemoryWriter();
+    const calls: string[] = [];
+
+    const exitCode = await main(
+      ["existing.md"],
+      fakeIo(stdout, stderr, tempRoot, {
+        stdin: Readable.from([]),
+        isInteractive: true,
+      }),
+      { convertFile: recordingConverter(calls) },
+    );
+
+    expect(exitCode).toBe(0);
+    expect(calls).toEqual([]);
+    expect(stdout.toString()).toBe("0 succeeded, 0 failed, 1 skipped\n");
+    expect(stderr.toString()).toBe(
+      `Overwrite existing output ${path.join(tempRoot, "existing.pdf")}? [y/N] ` +
+        `\nSkipping existing output: ${path.join(tempRoot, "existing.pdf")}\n`,
+    );
+    await expect(fs.readFile(path.join(tempRoot, "existing.pdf"), "utf8")).resolves.toBe("already here\n");
+  });
+
+  it("@req FR-12 keeps the existing output unchanged when the interactive answer is not affirmative", async () => {
+    await writeFile("existing.md");
+    await fs.writeFile(path.join(tempRoot, "existing.pdf"), "already here\n", "utf8");
+    const stdout = new MemoryWriter();
+    const stderr = new MemoryWriter();
+    const calls: string[] = [];
+
+    const exitCode = await main(
+      ["existing.md"],
+      fakeIo(stdout, stderr, tempRoot, {
+        stdin: Readable.from(["no\n"]),
+        isInteractive: true,
+      }),
+      { convertFile: recordingConverter(calls) },
+    );
+
+    expect(exitCode).toBe(0);
+    expect(calls).toEqual([]);
+    expect(stdout.toString()).toBe("0 succeeded, 0 failed, 1 skipped\n");
+    expect(stderr.toString()).toBe(
+      `Overwrite existing output ${path.join(tempRoot, "existing.pdf")}? [y/N] ` +
+        `\nSkipping existing output: ${path.join(tempRoot, "existing.pdf")}\n`,
+    );
+    await expect(fs.readFile(path.join(tempRoot, "existing.pdf"), "utf8")).resolves.toBe("already here\n");
+  });
 });
 
-function fakeIo(stdout: MemoryWriter, stderr: MemoryWriter, cwd = "/work"): CliIo {
+function fakeIo(
+  stdout: MemoryWriter,
+  stderr: MemoryWriter,
+  cwd = "/work",
+  options: {
+    stdin?: NodeJS.ReadableStream;
+    isInteractive?: boolean;
+  } = {},
+): CliIo {
   return {
-    stdin: Readable.from([]),
+    stdin: options.stdin ?? Readable.from([]),
     stdout,
     stderr,
     env: {},
     cwd,
-    isInteractive: false,
+    isInteractive: options.isInteractive ?? false,
   };
 }
 

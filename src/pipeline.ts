@@ -5,6 +5,11 @@ import {
 } from "./contracts.js";
 import { ConversionError, Md2PdfError } from "./errors.js";
 import {
+  evaluateOverwrite,
+  type OverwriteMode,
+  type OverwritePromptIo,
+} from "./overwrite.js";
+import {
   resolveConversionJobs,
   type ResolveJobsOptions,
 } from "./paths.js";
@@ -18,6 +23,13 @@ export type ConvertFile = (
 export interface ConversionPipelineOptions extends ResolveJobsOptions {
   entries: string[];
   convertOptions?: ConvertOptions;
+  overwrite?: PipelineOverwriteOptions;
+}
+
+export interface PipelineOverwriteOptions {
+  forceOverwrite: boolean;
+  mode: OverwriteMode;
+  promptIo: OverwritePromptIo;
 }
 
 export class ConversionPipeline {
@@ -26,23 +38,40 @@ export class ConversionPipeline {
   async run(options: ConversionPipelineOptions): Promise<ConversionOutcome[]> {
     const jobs = await resolveConversionJobs(options.entries, options);
 
-    return this.convertJobs(jobs, options.convertOptions);
+    return this.convertJobs(jobs, options);
   }
 
   private async convertJobs(
     jobs: ConversionJob[],
-    options: ConvertOptions | undefined,
+    pipelineOptions: ConversionPipelineOptions,
   ): Promise<ConversionOutcome[]> {
     const outcomes: ConversionOutcome[] = [];
 
     for (const job of jobs) {
-      outcomes.push(await this.convertJob(job, options));
+      outcomes.push(await this.convertJob(job, pipelineOptions));
     }
 
     return outcomes;
   }
 
   private async convertJob(
+    job: ConversionJob,
+    pipelineOptions: ConversionPipelineOptions,
+  ): Promise<ConversionOutcome> {
+    const overwrite = pipelineOptions.overwrite;
+
+    if (overwrite !== undefined) {
+      const evaluation = await evaluateOverwrite(job, overwrite);
+
+      if (!evaluation.shouldConvert) {
+        return { ...job, status: "skipped" };
+      }
+    }
+
+    return this.runConverter(job, pipelineOptions.convertOptions);
+  }
+
+  private async runConverter(
     job: ConversionJob,
     options: ConvertOptions | undefined,
   ): Promise<ConversionOutcome> {

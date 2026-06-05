@@ -96,8 +96,15 @@ export function createProcessIo(): CliIo {
     stderr: process.stderr,
     env: process.env,
     cwd: process.cwd(),
-    isInteractive: Boolean(process.stdin.isTTY && process.stdout.isTTY),
+    isInteractive: isPromptInteractive(process.stdin, process.stderr),
   };
+}
+
+export function isPromptInteractive(
+  stdin: { isTTY?: boolean },
+  stderr: { isTTY?: boolean },
+): boolean {
+  return Boolean(stdin.isTTY && stderr.isTTY);
 }
 
 function parseCliArgs(argv: string[]): ReturnType<typeof parseArgs> {
@@ -165,6 +172,14 @@ async function executeCommand(
     convertOptions: {
       browserPath: command.browserPath,
     },
+    overwrite: {
+      forceOverwrite: command.forceOverwrite,
+      mode: io.isInteractive ? "interactive" : "non-interactive",
+      promptIo: {
+        stdin: io.stdin,
+        stderr: io.stderr,
+      },
+    },
   });
 
   writeFailedOutcomes(outcomes, io);
@@ -209,7 +224,7 @@ function toMd2PdfError(error: unknown): Md2PdfError {
 }
 
 function exitCodeFor(error: Md2PdfError): number {
-  if (error.kind === "usage") {
+  if (error.kind === "usage" || error.kind === "input") {
     return 2;
   }
 

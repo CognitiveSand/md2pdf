@@ -1,4 +1,5 @@
 import { promises as fs, type Dirent } from "node:fs";
+import { constants as fsConstants } from "node:fs";
 import path from "node:path";
 
 import type { ConversionJob } from "./contracts.js";
@@ -72,6 +73,7 @@ async function resolveEntry(entry: string, cwd: string): Promise<ResolvedSource[
       });
     }
 
+    await ensureReadableFile(entryPath, entry);
     return [{ sourcePath: entryPath, originEntry: entry }];
   }
 
@@ -100,7 +102,18 @@ async function statEntry(entryPath: string, originEntry: string): Promise<{ isFi
 }
 
 async function resolveDirectory(directoryPath: string, originEntry: string): Promise<ResolvedSource[]> {
-  const dirents = await fs.readdir(directoryPath, { withFileTypes: true });
+  let dirents: Dirent[];
+
+  try {
+    dirents = await fs.readdir(directoryPath, { withFileTypes: true });
+  } catch (error) {
+    throw new InputNotFoundError({
+      message: "input entry is not readable",
+      sourcePath: directoryPath,
+      actionHint: `check that ${originEntry} exists and is readable`,
+      cause: error,
+    });
+  }
 
   return dirents
     .filter((dirent) => isTopLevelMarkdownFile(dirent))
@@ -172,19 +185,40 @@ function validateJobs(jobs: ConversionJob[]): void {
 }
 
 async function createOutputParents(jobs: ConversionJob[]): Promise<void> {
-  const parents = [...new Set(jobs.map((job) => canonicalPath(path.dirname(job.outputPath))))];
+  const parents = new Map<string, ConversionJob>();
 
-  for (const parent of parents) {
+  for (const job of jobs) {
+    const parent = canonicalPath(path.dirname(job.outputPath));
+    if (!parents.has(parent)) {
+      parents.set(parent, job);
+    }
+  }
+
+  for (const [parent, job] of parents) {
     try {
       await fs.mkdir(parent, { recursive: true });
+      await fs.access(parent, fsConstants.W_OK);
     } catch (error) {
       throw new ConversionError({
-        message: "could not create output directory",
-        outputPath: parent,
+        message: "output directory is not writable",
+        outputPath: job.outputPath,
         actionHint: "check output directory permissions",
         cause: error,
       });
     }
+  }
+}
+
+async function ensureReadableFile(sourcePath: string, originEntry: string): Promise<void> {
+  try {
+    await fs.access(sourcePath, fsConstants.R_OK);
+  } catch (error) {
+    throw new InputNotFoundError({
+      message: "input entry is not readable",
+      sourcePath,
+      actionHint: `check that ${originEntry} exists and is readable`,
+      cause: error,
+    });
   }
 }
 

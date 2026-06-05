@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { Readable } from "node:stream";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -19,6 +20,19 @@ beforeEach(async () => {
 afterEach(async () => {
   await fs.rm(tempRoot, { recursive: true, force: true });
 });
+
+class MemoryWriter {
+  private readonly chunks: string[] = [];
+
+  write(chunk: string | Uint8Array): boolean {
+    this.chunks.push(String(chunk));
+    return true;
+  }
+
+  toString(): string {
+    return this.chunks.join("");
+  }
+}
 
 describe("Stream A P1 conversion pipeline preflight", () => {
   it("@req FR-08 resolves every job before invoking the converter", async () => {
@@ -139,6 +153,38 @@ describe("Stream A P1 conversion pipeline preflight", () => {
         sourcePath: path.join(tempRoot, "ok.md"),
         outputPath: path.join(tempRoot, "ok.pdf"),
         status: "success",
+      },
+    ]);
+  });
+
+  it("@req FR-12 records non-interactive overwrite preserves as skipped outcomes", async () => {
+    await writeFile("existing.md");
+    await fs.writeFile(path.join(tempRoot, "existing.pdf"), "already here\n", "utf8");
+    const calls: string[] = [];
+    const stderr = new MemoryWriter();
+    const pipeline = new ConversionPipeline(recordingConverter(calls));
+
+    const outcomes = await pipeline.run({
+      entries: ["existing.md"],
+      cwd: tempRoot,
+      overwrite: {
+        forceOverwrite: false,
+        mode: "non-interactive",
+        promptIo: {
+          stdin: Readable.from([]),
+          stderr,
+        },
+      },
+    });
+
+    expect(calls).toEqual([]);
+    expect(stderr.toString()).toBe(`Skipping existing output: ${path.join(tempRoot, "existing.pdf")}\n`);
+    expect(outcomes).toEqual([
+      {
+        sourcePath: path.join(tempRoot, "existing.md"),
+        outputPath: path.join(tempRoot, "existing.pdf"),
+        originEntry: "existing.md",
+        status: "skipped",
       },
     ]);
   });

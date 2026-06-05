@@ -2,7 +2,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { resolveConversionJobs } from "../../../src/paths.js";
 
@@ -58,6 +58,52 @@ describe("Stream A P1 path resolution", () => {
     await expect(fs.stat(path.join(tempRoot, "out"))).resolves.toMatchObject({});
   });
 
+  it("@req FR-14 reports unreadable inputs with source path and action hint", async () => {
+    await writeFile("source.md");
+    const access = vi.spyOn(fs, "access").mockImplementation(async (target) => {
+      if (target === path.join(tempRoot, "source.md")) {
+        throw Object.assign(new Error("permission denied"), { code: "EACCES" });
+      }
+    });
+
+    try {
+      await expect(resolveConversionJobs(["source.md"], { cwd: tempRoot })).rejects.toMatchObject({
+        kind: "input",
+        context: {
+          message: "input entry is not readable",
+          sourcePath: path.join(tempRoot, "source.md"),
+          actionHint: "check that source.md exists and is readable",
+        },
+      });
+    } finally {
+      access.mockRestore();
+    }
+  });
+
+  it("@req FR-14 reports unreadable directory inputs with source path and action hint", async () => {
+    await fs.mkdir(path.join(tempRoot, "locked"));
+    const readdir = vi.spyOn(fs, "readdir").mockImplementation(async (target) => {
+      if (target === path.join(tempRoot, "locked")) {
+        throw Object.assign(new Error("permission denied"), { code: "EACCES" });
+      }
+
+      return [];
+    });
+
+    try {
+      await expect(resolveConversionJobs(["locked"], { cwd: tempRoot })).rejects.toMatchObject({
+        kind: "input",
+        context: {
+          message: "input entry is not readable",
+          sourcePath: path.join(tempRoot, "locked"),
+          actionHint: "check that locked exists and is readable",
+        },
+      });
+    } finally {
+      readdir.mockRestore();
+    }
+  });
+
   it("@req FR-23 supports --output-dir for single and batch jobs", async () => {
     await writeFile("a.md");
     await writeFile("b.md");
@@ -72,6 +118,34 @@ describe("Stream A P1 path resolution", () => {
       path.join(tempRoot, "build", "b.pdf"),
     ]);
     await expect(fs.stat(path.join(tempRoot, "build"))).resolves.toMatchObject({});
+  });
+
+  it("@req FR-15 reports non-writable output parents with output path and action hint", async () => {
+    await writeFile("source.md");
+    const outputPath = path.join(tempRoot, "locked", "source.pdf");
+    const access = vi.spyOn(fs, "access").mockImplementation(async (target) => {
+      if (canonicalTestPath(String(target)) === canonicalTestPath(path.join(tempRoot, "locked"))) {
+        throw Object.assign(new Error("permission denied"), { code: "EACCES" });
+      }
+    });
+
+    try {
+      await expect(
+        resolveConversionJobs(["source.md"], {
+          cwd: tempRoot,
+          outputDir: "locked",
+        }),
+      ).rejects.toMatchObject({
+        kind: "conversion",
+        context: {
+          message: "output directory is not writable",
+          outputPath,
+          actionHint: "check output directory permissions",
+        },
+      });
+    } finally {
+      access.mockRestore();
+    }
   });
 
   it("@req FR-03 rejects --output unless exactly one Markdown file is resolved", async () => {
@@ -144,4 +218,9 @@ async function writeFile(relativePath: string): Promise<void> {
   const fullPath = path.join(tempRoot, relativePath);
   await fs.mkdir(path.dirname(fullPath), { recursive: true });
   await fs.writeFile(fullPath, "# title\n", "utf8");
+}
+
+function canonicalTestPath(filePath: string): string {
+  const normalized = path.normalize(filePath);
+  return path.sep === "\\" ? normalized.toLowerCase() : normalized;
 }
