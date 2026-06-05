@@ -2,7 +2,20 @@
   "schemaVersion": 1,
   "quarantineDays": 7,
   "policy": "ARTIFACT_FRESHNESS_POLICY.md",
-  "artifacts": [],
+  "artifacts": [
+    {
+      "name": "highlight.js GitHub Light theme stylesheet",
+      "kind": "bundled-stylesheet",
+      "path": "assets/highlight.css",
+      "source": "highlight.js",
+      "version": "11.11.1",
+      "publishedAt": "2024-12-25T17:53:19.490Z",
+      "url": "https://registry.npmjs.org/highlight.js/-/highlight.js-11.11.1.tgz",
+      "sha256": "c3c4ac152532aa6d9cfdeb8fd9562c13c432e5685ac58bf02d5a72e58760be1e",
+      "size": 1419,
+      "provenance": "Vendored highlight.js GitHub Light theme adapted from locked npm package highlight.js@11.11.1"
+    }
+  ],
   "waivers": [],
   "trackedLocations": [
     {
@@ -33,4 +46,3 @@
     "Chromium-for-Testing fallback build"
   ]
 }
-

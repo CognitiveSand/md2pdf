@@ -85,7 +85,7 @@ flowchart LR
 3. **Assemble local HTML.** The fragment is wrapped in a full HTML document with
    the default stylesheet, the highlight.js theme, fonts, and the Mermaid engine
    (resolved from the installed `mermaid` dependency) all inlined. The document
-   references no external URL, and the base directory is the source file's
+   references no external resource URL, and the base directory is the source file's
    directory so relative images resolve (FR-06). The file is written to a
    per-run temporary path.
 4. **Render and print.** md2pdf launches the located browser headless via
@@ -247,7 +247,7 @@ Because WebDriver does not offer Playwright-style request interception, the
 conversion guarantee is structural:
 
 - All assets (stylesheets, fonts, the Mermaid engine) are inlined into the
-  generated HTML; no CDN or external URL appears in it.
+  generated HTML; no CDN or external resource URL is referenced from it.
 - The HTML is loaded from a local `file:` path, and the browser is launched with
   offline/no-proxy preferences so it cannot reach the network.
 - A test asserts the assembled HTML contains no external (`http:`/`https:`) URL,
