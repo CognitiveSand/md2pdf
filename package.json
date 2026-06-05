@@ -1,6 +1,6 @@
 {
   "name": "md2pdf",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Convert Markdown to PDF locally, without TeX/LaTeX",
   "type": "module",
   "license": "MIT",

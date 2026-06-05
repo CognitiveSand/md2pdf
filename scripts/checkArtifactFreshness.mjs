@@ -11,6 +11,15 @@ const cutoff = new Date(Date.now() - QUARANTINE_DAYS * 24 * 60 * 60 * 1000);
 const npmExecutable = process.platform === "win32" ? "npm.cmd" : "npm";
 const failures = [];
 
+function runNpm(args, options) {
+  if (process.platform === "win32") {
+    execFileSync("cmd.exe", ["/d", "/s", "/c", npmExecutable, ...args], options);
+    return;
+  }
+
+  execFileSync(npmExecutable, args, options);
+}
+
 function readJson(path) {
   return JSON.parse(readFileSync(path, "utf8"));
 }
@@ -176,8 +185,7 @@ async function checkNpmLockFreshness() {
     await cp(packageJsonPath, join(temp, "package.json"));
     await cp(lockPath, join(temp, "package-lock.json"));
 
-    execFileSync(
-      npmExecutable,
+    runNpm(
       [
         "install",
         "--package-lock-only",

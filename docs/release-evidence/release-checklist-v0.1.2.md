@@ -115,14 +115,14 @@ phase exists.
 
 | Decision | Status | Evidence / reference | Notes |
 | --- | --- | --- | --- |
-| Empty directory exits `0` with `0 succeeded, 0 failed, 0 skipped` | `pending` | Stream A test | From plan v0.1.2 defensive decisions. |
-| `.MD` extension is accepted case-insensitively | `pending` | Stream A test | From plan v0.1.2 defensive decisions. |
-| Explicit output extension is used verbatim | `pending` | Stream A test and README | From plan v0.1.2 defensive decisions. |
-| Output parent is created when possible | `pending` | Stream A test | From plan v0.1.2 defensive decisions. |
+| Empty directory exits `0` with `0 succeeded, 0 failed, 0 skipped` | `pass` | `tests/unit/cli/cli.test.ts`, `@req FR-09 @req FR-11 keeps an empty Markdown directory successful` | From plan v0.1.2 defensive decisions. |
+| `.MD` extension is accepted case-insensitively | `pass` | `tests/unit/paths/paths.test.ts`, `@req FR-02 accepts Markdown file extensions case-insensitively`; `tests/unit/cli/cli.test.ts`, valid single-file command | From plan v0.1.2 defensive decisions. |
+| Explicit output extension is used verbatim | `pass` | `tests/unit/paths/paths.test.ts`, `@req FR-03 uses --output verbatim`; `tests/unit/cli/cli.test.ts`, valid single-file command | README documentation remains a P4 item. |
+| Output parent is created when possible | `pass` | `tests/unit/paths/paths.test.ts`, `@req FR-03 uses --output verbatim and creates a missing parent directory` | From plan v0.1.2 defensive decisions. |
 | Output parent non-writable reports clear error | `pending` | Stream A test | Must include `outputPath` and `actionHint`. |
 | Skipped outputs count in summary without causing failure | `pending` | Stream A test | From plan v0.1.2 defensive decisions. |
-| Duplicate entries or duplicate outputs fail preflight | `pending` | Stream A test | Includes duplicates and output collisions. |
-| `--output-dir` basename collision blocks before render | `pending` | Stream A test | Example: `a/report.md` and `b/report.md`. |
+| Duplicate entries or duplicate outputs fail preflight | `pass` | `tests/unit/paths/paths.test.ts`, duplicate entries; `tests/unit/pipeline/pipeline.test.ts`, output collisions; `tests/unit/cli/cli.test.ts`, CLI preflight collision | Includes duplicates and output collisions. |
+| `--output-dir` basename collision blocks before render | `pass` | `tests/unit/paths/paths.test.ts`, `@req FR-23 rejects basename collisions`; `tests/unit/cli/cli.test.ts`, CLI preflight collision | Example: `a/report.md` and `b/report.md`. |
 | Cache writes are atomic | `pending` | Stream B artifact test | `.tmp` then atomic rename after verification. |
 | Cache non-writable reports explicit artifact/browser error | `pending` | Stream B artifact test | Must not become a generic failure. |
 | C0 red then green evidence recorded | `pass` | C0 contract trace above | Required C0 proof is now recorded. |
