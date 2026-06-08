@@ -1,62 +1,55 @@
-**Verdict**
+**Audit Recadré**
 
-Audit `teamcompleteaudit` lancé et consolidé. Verdict global: **AUDIT_FAIL bloquant**.
+Oui, cette fois l’audit prend bien comme scope réel:
 
-Totaux dédupliqués: **Critique 1 · High 7 · Medium 4 · Low 1**. Aucun fichier modifié.
+- **Stream A livré attendu**: P1 + P2, donc CLI, paths, pipeline, overwrite, faux converter en tests.
+- **Stream B livré attendu**: P1 seulement, donc Markdown -> HTML local, assets inline, Mermaid préparé pour navigateur, release catalog fakeable.
+- **Hors-scope volontaire**: vrai `convertFile`, WebDriver/PDF, fallback browser, `test:browser`, `npm pack`, packaging final, Stream A P3/P4, Stream B P2/P3.
 
-**Index Des Sous-Audits**
+Verdict: **AUDIT_PASS avec avertissements** pour ce jalon intermédiaire.  
+Totaux confirmés: **Critique 0 · High 0 · Medium 2 · Low 1**.
 
-| Division | Statut | Synthèse |
-| --- | --- | --- |
-| Métier | Bloquant | Le produit ne convertit pas encore un Markdown en PDF réel. |
-| Qualité | Bloquant | Les tests unitaires passent, mais principalement via convertisseur fake/stub. |
-| Architecture | Bloquant | Modules WebDriver/PDF/converter documentés mais absents ou non branchés. |
-| Cyber / Supply Chain | Avertissement fort | Freshness repo OK, mais intégrité runtime driver non vérifiée. |
+**Matrice Courte**
 
-**Top Findings**
+| Contrat du jalon | Statut |
+| --- | --- |
+| Stream A P1 CLI testable | Conforme |
+| Stream A P1 path/job resolution | Conforme |
+| Stream A P2 overwrite + skipped summary | Conforme |
+| Stream A P2 batch continue-on-conversion-error | Conforme |
+| Stream B P1 Markdown -> HTML local | Conforme |
+| Stream B P1 temp HTML cleanup | Conforme |
+| Stream B P1 release catalog fakeable | Conforme |
+| Gates P1/P2 | Conforme |
 
-1. **Critique** - `convertFile` est encore un stub, mais la CLI l’utilise en production.  
-   Preuve: [src/contracts.ts](/Users/samirtamboura/Desktop/md2pdf/src/contracts.ts:8), [src/contracts.ts](/Users/samirtamboura/Desktop/md2pdf/src/contracts.ts:15), [src/cli.ts](/Users/samirtamboura/Desktop/md2pdf/src/cli.ts:166).  
-   Impact: FR-01, FR-04 à FR-07, FR-16, FR-24 et NFR-01 ne sont pas livrables.
+Commandes exécutées:
 
-2. **High** - Modules de rendu réel absents: `converter.ts`, `pdfRenderer.ts`, `webDriverClient.ts`.  
-   Preuve: [docs/architecture.md](/Users/samirtamboura/Desktop/md2pdf/docs/architecture.md:163), [docs/architecture.md](/Users/samirtamboura/Desktop/md2pdf/docs/architecture.md:166), [docs/plan_stream_b.md](/Users/samirtamboura/Desktop/md2pdf/docs/plan_stream_b.md:16).  
-   Impact: le chemin Markdown -> HTML -> navigateur -> PDF n’existe pas.
+- `npm run typecheck`: pass
+- `npm run test:contracts`: pass, 11 tests
+- `npm test`: pass, 88 tests
+- `npm run check:artifacts`: pass
 
-3. **High** - `npm run test:browser` échoue car il n’y a aucun test d’intégration.  
-   Preuve: [vitest.browser.config.ts](/Users/samirtamboura/Desktop/md2pdf/vitest.browser.config.ts:5), [docs/plan_stream_b.md](/Users/samirtamboura/Desktop/md2pdf/docs/plan_stream_b.md:157).  
-   Résultat commande: `No test files found`, exit `1`.
+**Findings Confirmés**
 
-4. **High** - `npm run test:artifacts` est requis par Stream B mais le script n’existe pas.  
-   Preuve: [docs/plan_stream_b.md](/Users/samirtamboura/Desktop/md2pdf/docs/plan_stream_b.md:178), [package.json](/Users/samirtamboura/Desktop/md2pdf/package.json:35).  
-   Résultat commande: `Missing script: "test:artifacts"`.
+1. **Medium - Interactivité calculée sur `stderr` au lieu de `stdout`**  
+   Preuve: [docs/project_requirements.md](/Users/samirtamboura/Desktop/md2pdf/docs/project_requirements.md:29) définit une session interactive comme `stdin` + `stdout` TTY. Le code utilise `stdin` + `stderr`: [src/cli.ts](/Users/samirtamboura/Desktop/md2pdf/src/cli.ts:99), [src/cli.ts](/Users/samirtamboura/Desktop/md2pdf/src/cli.ts:103). Le test fige aussi ce comportement: [tests/unit/cli/cli.test.ts](/Users/samirtamboura/Desktop/md2pdf/tests/unit/cli/cli.test.ts:99).  
+   Impact: dans un script avec `stdout` redirigé mais `stderr` attaché, md2pdf peut prompter alors que le contrat global dit non-interactif.  
+   Correction attendue: calculer `isInteractive` avec `process.stdin` + `process.stdout`, tout en gardant le prompt écrit sur `stderr`.
 
-5. **High** - Batch: un input manquant bloque les fichiers valides avant conversion.  
-   Preuve: [docs/architecture.md](/Users/samirtamboura/Desktop/md2pdf/docs/architecture.md:218), [tests/unit/pipeline/pipeline.test.ts](/Users/samirtamboura/Desktop/md2pdf/tests/unit/pipeline/pipeline.test.ts:38), [tests/unit/pipeline/pipeline.test.ts](/Users/samirtamboura/Desktop/md2pdf/tests/unit/pipeline/pipeline.test.ts:54).  
-   Impact: contradiction avec le comportement “per-document failures continue”.
+2. **Medium - Tags `@req` incorrects dans plusieurs tests**  
+   Preuve: la traçabilité doit être générée depuis les tags [docs/project_requirements.md](/Users/samirtamboura/Desktop/md2pdf/docs/project_requirements.md:150). Mais un test qui attend `exitCode === 1` est taggé `FR-18` succès: [tests/unit/cli/cli.test.ts](/Users/samirtamboura/Desktop/md2pdf/tests/unit/cli/cli.test.ts:273), [tests/unit/cli/cli.test.ts](/Users/samirtamboura/Desktop/md2pdf/tests/unit/cli/cli.test.ts:298). Des tests d’input illisible sont taggés `FR-14` au lieu de `FR-15`: [tests/unit/paths/paths.test.ts](/Users/samirtamboura/Desktop/md2pdf/tests/unit/paths/paths.test.ts:61), [tests/unit/paths/paths.test.ts](/Users/samirtamboura/Desktop/md2pdf/tests/unit/paths/paths.test.ts:83). Des erreurs d’output non remplaçable sont taggées `FR-15`, qui parle d’input manquant/illisible: [tests/unit/overwrite/overwrite.test.ts](/Users/samirtamboura/Desktop/md2pdf/tests/unit/overwrite/overwrite.test.ts:179).  
+   Impact: la matrice de couverture peut déclarer des exigences couvertes par de mauvais tests.  
+   Correction attendue: corriger les tags, probablement `FR-17` pour exit `1`, `FR-15` pour input illisible, et retirer ou remplacer `FR-15` sur les cas d’output non remplaçable.
 
-6. **High** - Runtime artifact policy: driver accepté sans vérifier SHA-256/taille avant usage.  
-   Preuve: [ARTIFACT_FRESHNESS_POLICY.md](/Users/samirtamboura/Desktop/md2pdf/ARTIFACT_FRESHNESS_POLICY.md:95), [src/artifactPolicy.ts](/Users/samirtamboura/Desktop/md2pdf/src/artifactPolicy.ts:24), [src/browserLocator.ts](/Users/samirtamboura/Desktop/md2pdf/src/browserLocator.ts:209).  
-   Impact: un driver corrompu au chemin déclaré peut être exécuté.
-
-7. **Medium** - Détection interactive basée sur `stderr` au lieu de `stdout`.  
-   Preuve: [docs/architecture.md](/Users/samirtamboura/Desktop/md2pdf/docs/architecture.md:199), [src/cli.ts](/Users/samirtamboura/Desktop/md2pdf/src/cli.ts:99).  
-   Impact: risque de prompt/hang en script quand stdout est redirigé.
-
-8. **Medium** - FR-07 documentée, mais la règle CSS `break-after: avoid-page` manque.  
-   Preuve: [docs/architecture.md](/Users/samirtamboura/Desktop/md2pdf/docs/architecture.md:264), [assets/default.css](/Users/samirtamboura/Desktop/md2pdf/assets/default.css:30).
-
-9. **High** - Packaging courant cassé: `package.json` pointe `bin` vers `dist/cli.js`, absent du `dist/` actuel.  
-   Preuve: [package.json](/Users/samirtamboura/Desktop/md2pdf/package.json:22).  
-   Vérification: `find dist ...` ne retourne aucun `dist/cli.js`.
+3. **Low - Worktree non clean / fichiers non suivis dans le scope audité**  
+   Preuve: `git status --short --branch` montre `.agents/`, `audit/audit_premiermergestreamAB.md`, `src/browserLocator.ts`, `tests/unit/browserLocator/` non suivis.  
+   Impact: l’audit porte sur le code de travail actuel, pas seulement sur le commit merge `75a9a50`.  
+   Correction attendue: décider si ces fichiers font partie du merge à committer ou s’ils doivent rester hors audit de merge.
 
 **Points Conformes**
 
-`npm run typecheck` passe.  
-`npm test` passe: 9 fichiers, 88 tests, durée observée 438.81s.  
-`npm run check:artifacts` passe.  
-Les couches Stream A sont plutôt propres: CLI, paths, overwrite, pipeline séparés; overwrite non interactif, collisions d’outputs, images relatives inlinées et URLs image distantes sont couverts.
+Stream A P1/P2 est en bon état pour le jalon: `main(argv, io)` est testable, les erreurs d’usage sortent en `2`, les outputs par défaut/`--output`/`--output-dir` sont couverts, les collisions sont stoppées avant rendu, l’overwrite non-interactif skippe et compte dans le summary, le batch continue bien sur erreur de conversion injectée.
 
-**Limites**
+Stream B P1 est également cohérent: CommonMark/tables/task lists/footnotes, highlight, images relatives en data URI, Mermaid rendu comme bloc HTML local avec engine inline, CSP sans ressources externes exploitables, temp HTML nettoyé sur succès/erreur/timeout, `JsonReleaseCatalog` + `InMemoryReleaseCatalog` testés.
 
-Le sous-agent sécurité a été fermé après timeout, donc la consolidation cyber repose sur l’audit local + findings corroborés Métier/Qualité/Architecture. Je n’ai pas lancé `npm run build`, `npm pack` ni smoke install, car ils écrivent des artefacts.
+Les anciens gros rouges comme `convertFile` stub, absence `pdfRenderer.ts`, `test:browser` vide, fallback stub, packaging `dist/cli.js` ne sont **pas des défauts de ce jalon**. Ils redeviennent bloquants uniquement si on prétend avoir livré Stream A P3/P4, Stream B P2/P3, ou le MVP release-ready.
