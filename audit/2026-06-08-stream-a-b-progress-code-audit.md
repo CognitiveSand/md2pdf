@@ -2,9 +2,10 @@
 
 Verdict global: **NO-GO pour declarer les Streams A et B complets**.
 
-Stream A est fonctionnellement arrive a **P2 point 7 accepte**, mais **P2 global
-reste non valide** tant que la gate `check:artifacts` echoue. Stream B est au
-mieux **P1 point 3 accepte**; P2/P3 ne sont pas encore implementes ni
+Stream A est fonctionnellement arrive a **P2 point 7 accepte** et le travail
+est maintenant **en cours sur P3**; P3 n'est toutefois pas encore validee par le
+chemin utilisateur complet et **P4 n'est pas encore implemente**. Stream B a
+seulement **P1 implemente et accepte**; P2/P3 ne sont pas encore implementes ni
 validables. Les tests TypeScript/unitaires rapportes par les agents passent,
 mais la gate artifacts est rouge et les preuves release sont stale.
 
@@ -29,6 +30,10 @@ Agents utilises:
 - Audit Stream B: avancement moteur local vs plan et audits.
 - Audit transverse: P0, release evidence, artifact policy, scripts et gates.
 
+Mise a jour demandee par le responsable projet: l'etat d'avancement a retenir
+pour la lecture de cet audit est **Stream A en cours sur P3, Stream A P4 non
+implemente, Stream B limite a P1 implemente**.
+
 Note d'execution: les agents ont rapporte les validations courantes suivantes:
 `npm.cmd run typecheck` PASS, `npm.cmd run test:contracts` PASS, `npm.cmd test`
 PASS avec 78 tests, `npm.cmd run check:artifacts` FAIL. `npm.cmd run
@@ -41,12 +46,12 @@ fichiers `tests/integration/**/*.test.ts`.
 | --- | --- | --- | --- |
 | Stream A P1 | Accepte | OK | `audit/2026-06-05-stream-a-p1-point1-cli-audit.md:19`, `audit/2026-06-05-stream-a-p1-point2-paths-audit.md:19`, `audit/2026-06-05-stream-a-p1-point3-pipeline-audit.md:19` |
 | Stream A P2 points 4-7 | Fonctionnellement accepte | OK local, gate globale KO | `audit/2026-06-05-stream-a-p2-point4-overwrite-reaudit.md:3`, `audit/2026-06-05-stream-a-p2-point5-batch-audit.md:3`, `audit/2026-06-05-stream-a-p2-point6-edge-cases-audit.md:3`, `audit/2026-06-05-stream-a-p2-point7-permissions-reaudit.md:3` |
-| Stream A P2 global | Non valide | NO-GO | `docs/plan_stream_a.md:165` exige `typecheck && npm test && check:artifacts`; `check:artifacts` echoue |
-| Stream A P3 | Non atteint / non validable | NO-GO | P3 exige le vrai converter dans `docs/implementation_plan_v0.1.2.md:500-505`; `src/contracts.ts:15-16` reste un stub `NotImplementedError` |
-| Stream A P4/release | Non prouve | NO-GO | FR-19/FR-20/FR-21 restent pending dans `docs/release-evidence/release-checklist-v0.1.2.md:88`, `:99`, `:100` et `docs/release-evidence/fr-20-system-scope.md:6`, `:16-21` |
-| Stream B P1 points 1-3 | Accepte | OK | `src/markdownRenderer.ts:56`, `src/markdownRenderer.ts:63`, `src/releaseCatalog.ts:20`, `src/releaseCatalog.ts:56`, tests unitaires associes |
+| Stream A P2 global | Non valide par gate globale | NO-GO gate | `docs/plan_stream_a.md:165` exige `typecheck && npm test && check:artifacts`; `check:artifacts` echoue |
+| Stream A P3 | En cours, non encore valide | En cours / NO-GO completion | P3 exige le vrai converter dans `docs/implementation_plan_v0.1.2.md:500-505`; `src/contracts.ts:15-16` reste un stub `NotImplementedError` dans l'etat audite |
+| Stream A P4/release | Non implemente | NO-GO | FR-19/FR-20/FR-21 restent pending dans `docs/release-evidence/release-checklist-v0.1.2.md:88`, `:99`, `:100` et `docs/release-evidence/fr-20-system-scope.md:6`, `:16-21` |
+| Stream B P1 points 1-3 | Seul perimetre Stream B implemente | OK P1 | `src/markdownRenderer.ts:56`, `src/markdownRenderer.ts:63`, `src/releaseCatalog.ts:20`, `src/releaseCatalog.ts:56`, tests unitaires associes |
 | Stream B P2 | Non implemente | NO-GO | `docs/plan_stream_b.md:58`, `:78`, `:95`, `:106`; modules `browserLocator.ts`, `webDriverClient.ts`, `pdfRenderer.ts` absents; `src/fallbackBrowserProvisioner.ts:19` lance `NotImplementedError` |
-| Stream B P3 | Non validable | NO-GO | `docs/plan_stream_b.md:120`, `:179`; `vitest.browser.config.ts:5` cible des tests d'integration absents |
+| Stream B P3 | Non implemente / non validable | NO-GO | `docs/plan_stream_b.md:120`, `:179`; `vitest.browser.config.ts:5` cible des tests d'integration absents |
 | P0/release evidence | Stale et incoherent avec le code courant | NO-GO documentaire | `docs/release-evidence/release-checklist-v0.1.2.md:40`, `:48`, `:67`, `:68`, `:122-123` |
 
 ## Findings
@@ -150,7 +155,7 @@ Test needed:
 `npm.cmd run typecheck`, `npm.cmd test`, `npm.cmd run check:artifacts` dans le
 meme run de preuve.
 
-### 4. Le vrai `convertFile` n'existe pas encore, donc P3 Stream A est bloquee
+### 4. P3 Stream A est en cours mais pas encore validable par le chemin complet
 
 Severity: **High**
 
@@ -165,6 +170,7 @@ Problem:
 
 La CLI est testable avec injection, mais le chemin utilisateur reel
 `md2pdf ENTRY` ne peut pas encore produire un PDF complet hors doubles de test.
+P3 doit donc etre consideree **en cours**, pas acceptee.
 
 Risk:
 
@@ -173,15 +179,15 @@ reste absente.
 
 Suggested fix:
 
-Attendre Stream B P2/P3, puis brancher le vrai converter dans le default
-runtime avant de relancer l'audit P3.
+Finaliser le branchement du vrai converter dans le default runtime, puis
+relancer l'audit P3 quand le chemin CLI -> rendu PDF reel est observable.
 
 Test needed:
 
 Test d'integration CLI -> converter reel -> PDF, avec au moins un cas succes et
 un cas erreur riche.
 
-### 5. Stream B P2/P3 n'est pas implemente
+### 5. Stream B est limite a P1; P2/P3 ne sont pas implementes
 
 Severity: **High**
 
@@ -199,6 +205,8 @@ Problem:
 
 Stream B a livre la base HTML locale et le catalogue, mais pas le rendu PDF
 browser-backed ni le provisioning runtime qui font le coeur du moteur local.
+Le statut a retenir est donc: **Stream B P1 implemente, rien au-dela de P1
+accepte**.
 
 Risk:
 
@@ -381,7 +389,7 @@ devenu non writable entre preflight et write.
 
 ### Stream A
 
-Avancement reel: **P2 point 7 accepte, P2 global bloque par gate artifacts**.
+Avancement reel: **P2 point 7 accepte, P3 en cours, P4 non implemente**.
 
 Ce qui est solide:
 
@@ -392,12 +400,12 @@ Ce qui est solide:
 Ce qui bloque:
 
 - `check:artifacts` rouge.
-- Pas de vrai converter branche pour P3.
-- FR-19/FR-20/FR-21 et P4 non prouves.
+- P3 n'est pas encore validee par un chemin CLI -> PDF reel complet.
+- FR-19/FR-20/FR-21 et P4 non implementes/non prouves.
 
 ### Stream B
 
-Avancement reel: **P1 point 3 accepte, P2/P3 non implementes**.
+Avancement reel: **seul P1 est implemente et accepte; P2/P3 non implementes**.
 
 Ce qui est solide:
 
@@ -424,19 +432,21 @@ Ce qui bloque:
    gates encore rouges.
 4. Finaliser Stream B P2: locator, WebDriver, PDF renderer, provisioner,
    scripts `test:artifacts` et tests associes.
-5. Brancher Stream A P3 sur le vrai converter seulement apres Stream B P2/P3.
+5. Continuer Stream A P3 jusqu'a un chemin CLI -> PDF reel auditable.
 6. Rejouer un audit P3 vertical avec ecriture reelle, overwrite, permissions,
    Mermaid/PDF et offline strict.
-7. Produire les preuves P4 FR-19/FR-20/FR-21.
+7. Implementer puis produire les preuves P4 FR-19/FR-20/FR-21.
 
 ## Conclusion
 
 Le projet a une base Stream A P1/P2 locale beaucoup plus avancee que la
-checklist release ne le montre, et Stream B a livre une P1 utile. Mais le statut
-release actuel est **non conforme**: la gate artifact freshness echoue, le hook
-pre-commit obligatoire manque, Stream B n'a pas encore le moteur PDF local, et
-les preuves P4 restent ouvertes.
+checklist release ne le montre, Stream A est maintenant en cours sur P3, et
+Stream B a livre uniquement P1. Mais le statut release actuel est **non
+conforme**: la gate artifact freshness echoue, le hook pre-commit obligatoire
+manque, Stream B n'a pas encore le moteur PDF local, et P4 n'est pas encore
+implemente.
 
 Decision d'audit: **ne pas poursuivre vers une declaration de completion
-Streams A/B**. Corriger d'abord les gates transverses, puis continuer Stream B
-P2/P3 avant de brancher Stream A P3.
+Streams A/B**. Corriger d'abord les gates transverses, continuer Stream A P3
+jusqu'a une preuve verticale, puis implementer Stream B P2/P3 et Stream A P4
+selon le plan.
