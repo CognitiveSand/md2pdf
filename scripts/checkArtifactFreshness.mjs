@@ -11,6 +11,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const cutoff = new Date(Date.now() - QUARANTINE_DAYS * 24 * 60 * 60 * 1000);
 const npmExecutable = process.platform === "win32" ? "npm.cmd" : "npm";
 const failures = [];
+const CHECK_SCOPE_STAGED = "staged";
 
 function runNpm(args, options) {
   if (process.platform === "win32") {
@@ -23,6 +24,172 @@ function runNpm(args, options) {
 
 function readJson(path) {
   return JSON.parse(readFileSync(path, "utf8"));
+}
+
+function normalizeRepoPath(path) {
+  return path.replace(/\\/g, "/").replace(/^\.\//u, "");
+}
+
+function matchesRepoPath(changedPath, trackedPath) {
+  const changed = normalizeRepoPath(changedPath);
+  const tracked = normalizeRepoPath(trackedPath);
+
+  if (tracked.endsWith("/")) {
+    return changed.startsWith(tracked);
+  }
+
+  return changed === tracked;
+}
+
+function artifactFreshnessPaths(manifest) {
+  const paths = new Set([
+    "AGENTS.md",
+    "ARTIFACT_FRESHNESS_POLICY.md",
+    "artifacts.json",
+    "package.json",
+    "package-lock.json",
+    "renovate.json",
+  ]);
+
+  for (const artifact of manifest?.artifacts ?? []) {
+    if (typeof artifact?.path === "string") {
+      paths.add(normalizeRepoPath(artifact.path));
+    }
+  }
+
+  for (const location of manifest?.trackedLocations ?? []) {
+    if (typeof location?.path === "string") {
+      paths.add(normalizeRepoPath(location.path));
+    }
+  }
+
+  return [...paths].sort();
+}
+
+export function artifactFreshnessRelevantChangedPaths(changedPaths, manifest) {
+  const trackedPaths = artifactFreshnessPaths(manifest);
+  return changedPaths
+    .map(normalizeRepoPath)
+    .filter((changedPath) =>
+      trackedPaths.some((trackedPath) => matchesRepoPath(changedPath, trackedPath)),
+    );
+}
+
+function shouldUseStagedScope() {
+  return (
+    process.argv.includes("--staged") ||
+    process.argv.includes("--pre-commit") ||
+    process.env.MD2PDF_ARTIFACT_CHECK_SCOPE === CHECK_SCOPE_STAGED ||
+    process.env.GIT_INDEX_FILE !== undefined
+  );
+}
+
+function stagedPaths() {
+  try {
+    return execFileSync(
+      "git",
+      ["diff", "--cached", "--name-only", "--diff-filter=ACMR"],
+      { cwd: root, encoding: "utf8" },
+    )
+      .split(/\r?\n/u)
+      .map((path) => path.trim())
+      .filter(Boolean);
+  } catch (error) {
+    failures.push(`failed to read staged paths: ${error.message}`);
+    return [];
+  }
+}
+
+function includesPath(paths, path) {
+  return paths.some((changedPath) => matchesRepoPath(changedPath, path));
+}
+
+function isUnderTrackedLocation(path, manifest, kindPattern) {
+  return (manifest?.trackedLocations ?? []).some(
+    (location) =>
+      typeof location?.path === "string" &&
+      typeof location?.kind === "string" &&
+      kindPattern.test(location.kind) &&
+      matchesRepoPath(path, location.path),
+  );
+}
+
+async function runStagedScope() {
+  if (!shouldUseStagedScope()) {
+    return false;
+  }
+
+  const manifestPath = join(root, "artifacts.json");
+  const manifest = existsSync(manifestPath) ? readJson(manifestPath) : {};
+  const relevantPaths = artifactFreshnessRelevantChangedPaths(stagedPaths(), manifest);
+
+  if (failures.length > 0) {
+    return true;
+  }
+
+  if (relevantPaths.length > 0) {
+    console.log(
+      `Artifact freshness policy checking staged artifact-relevant changes: ${relevantPaths.join(", ")}`,
+    );
+  } else {
+    console.log(
+      "Artifact freshness policy skipped: no staged dependency, artifact, bundled asset, or runtime provisioning changes.",
+    );
+    return true;
+  }
+
+  const checkAllArtifacts = includesPath(relevantPaths, "artifacts.json");
+  const changedArtifactPaths = new Set();
+  const declaredArtifactPaths = new Set(
+    (manifest?.artifacts ?? [])
+      .map((artifact) =>
+        typeof artifact?.path === "string" ? normalizeRepoPath(artifact.path) : null,
+      )
+      .filter(Boolean),
+  );
+
+  for (const changedPath of relevantPaths) {
+    for (const declaredPath of declaredArtifactPaths) {
+      if (matchesRepoPath(changedPath, declaredPath)) {
+        changedArtifactPaths.add(declaredPath);
+      }
+    }
+
+    if (
+      isUnderTrackedLocation(changedPath, manifest, /asset/u) &&
+      ![...declaredArtifactPaths].some((declaredPath) =>
+        matchesRepoPath(changedPath, declaredPath),
+      )
+    ) {
+      failures.push(`staged bundled asset is not declared in artifacts.json: ${changedPath}`);
+    }
+  }
+
+  if (
+    includesPath(relevantPaths, "AGENTS.md") ||
+    includesPath(relevantPaths, "ARTIFACT_FRESHNESS_POLICY.md") ||
+    includesPath(relevantPaths, "renovate.json")
+  ) {
+    await checkPolicyFiles();
+  }
+
+  if (checkAllArtifacts) {
+    await checkArtifactManifest();
+  } else if (
+    changedArtifactPaths.size > 0 ||
+    relevantPaths.some((path) => isUnderTrackedLocation(path, manifest, /runtime/u))
+  ) {
+    await checkArtifactManifest({ artifactPathFilter: changedArtifactPaths });
+  }
+
+  if (
+    includesPath(relevantPaths, "package.json") ||
+    includesPath(relevantPaths, "package-lock.json")
+  ) {
+    await checkNpmLockFreshness();
+  }
+
+  return true;
 }
 
 async function exists(path) {
@@ -137,7 +304,7 @@ function assert(condition, message) {
   }
 }
 
-async function checkArtifactManifest() {
+async function checkArtifactManifest({ artifactPathFilter = null } = {}) {
   const manifestPath = join(root, "artifacts.json");
   assert(await exists(manifestPath), "Missing artifacts.json");
   if (!(await exists(manifestPath))) {
@@ -166,7 +333,11 @@ async function checkArtifactManifest() {
   }
 
   for (const artifact of manifest.artifacts ?? []) {
-    await checkDeclaredArtifact(artifact);
+    const shouldVerifyContent =
+      artifactPathFilter === null ||
+      (typeof artifact?.path === "string" &&
+        artifactPathFilter.has(normalizeRepoPath(artifact.path)));
+    await checkDeclaredArtifact(artifact, { verifyContent: shouldVerifyContent });
   }
 
   if (manifest.waivers !== undefined) {
@@ -177,7 +348,7 @@ async function checkArtifactManifest() {
   }
 }
 
-async function checkDeclaredArtifact(artifact) {
+async function checkDeclaredArtifact(artifact, { verifyContent = true } = {}) {
   const label = artifact?.name ?? artifact?.path ?? "<unnamed artifact>";
   assert(typeof artifact?.name === "string", `artifact ${label} needs a name`);
   assert(typeof artifact?.kind === "string", `artifact ${label} needs a kind`);
@@ -205,6 +376,10 @@ async function checkDeclaredArtifact(artifact) {
   );
   if (!(await exists(artifactPath))) {
     failures.push(`artifact ${label} path does not exist: ${artifact.path}`);
+    return;
+  }
+
+  if (!verifyContent) {
     return;
   }
 
@@ -334,6 +509,18 @@ async function checkPolicyFiles() {
 }
 
 async function main() {
+  const handledByStagedScope = await runStagedScope();
+  if (handledByStagedScope) {
+    if (failures.length > 0) {
+      console.error("Artifact freshness policy failed:");
+      for (const failure of failures) {
+        console.error(`- ${failure}`);
+      }
+      process.exitCode = 1;
+    }
+    return;
+  }
+
   await checkPolicyFiles();
   await checkArtifactManifest();
   await checkNpmLockFreshness();
