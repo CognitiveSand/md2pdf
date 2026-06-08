@@ -176,7 +176,7 @@ describe("Stream A P2 overwrite policy", () => {
     expect(stderr.toString()).toBe(`Overwrite existing output ${job.outputPath}? [y/N] `);
   });
 
-  it("@req FR-15 reports an existing output that cannot be replaced", async () => {
+  it("reports an existing output that cannot be replaced", async () => {
     const job = await existingOutputJob();
     const access = vi.spyOn(fs, "access").mockRejectedValue(
       Object.assign(new Error("permission denied"), { code: "EACCES" }),
@@ -205,7 +205,7 @@ describe("Stream A P2 overwrite policy", () => {
     }
   });
 
-  it("@req FR-15 rejects an existing output directory as not replaceable", async () => {
+  it("rejects an existing output directory as not replaceable", async () => {
     const job = await existingOutputDirectoryJob();
 
     await expect(
@@ -227,7 +227,7 @@ describe("Stream A P2 overwrite policy", () => {
     });
   });
 
-  it("@req FR-15 rejects an existing output directory after interactive confirmation", async () => {
+  it("rejects an existing output directory after interactive confirmation", async () => {
     const job = await existingOutputDirectoryJob();
     const stderr = new MemoryWriter();
 

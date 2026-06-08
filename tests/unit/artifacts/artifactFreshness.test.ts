@@ -30,21 +30,25 @@ describe("artifact freshness staged path filter", () => {
     ).toEqual([]);
   });
 
-  it("keeps dependency, artifact, bundled asset, and runtime provisioning changes", () => {
+  it("keeps dependency, artifact, bundled asset, runtime provisioning, and enforcement changes", () => {
     expect(
       artifactFreshnessRelevantChangedPaths(
         [
+          ".githooks/pre-commit",
           "package-lock.json",
           "artifacts.json",
           "assets/highlight.css",
+          "scripts/checkArtifactFreshness.mjs",
           "src/browserLocator.ts",
         ],
         manifest,
       ),
     ).toEqual([
+      ".githooks/pre-commit",
       "package-lock.json",
       "artifacts.json",
       "assets/highlight.css",
+      "scripts/checkArtifactFreshness.mjs",
       "src/browserLocator.ts",
     ]);
   });

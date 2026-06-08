@@ -96,15 +96,15 @@ export function createProcessIo(): CliIo {
     stderr: process.stderr,
     env: process.env,
     cwd: process.cwd(),
-    isInteractive: isPromptInteractive(process.stdin, process.stderr),
+    isInteractive: isPromptInteractive(process.stdin, process.stdout),
   };
 }
 
 export function isPromptInteractive(
   stdin: { isTTY?: boolean },
-  stderr: { isTTY?: boolean },
+  stdout: { isTTY?: boolean },
 ): boolean {
-  return Boolean(stdin.isTTY && stderr.isTTY);
+  return Boolean(stdin.isTTY && stdout.isTTY);
 }
 
 function parseCliArgs(argv: string[]): ReturnType<typeof parseArgs> {

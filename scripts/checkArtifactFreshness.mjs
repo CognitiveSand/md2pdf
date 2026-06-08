@@ -12,6 +12,10 @@ const cutoff = new Date(Date.now() - QUARANTINE_DAYS * 24 * 60 * 60 * 1000);
 const npmExecutable = process.platform === "win32" ? "npm.cmd" : "npm";
 const failures = [];
 const CHECK_SCOPE_STAGED = "staged";
+const enforcementPaths = [
+  ".githooks/pre-commit",
+  "scripts/checkArtifactFreshness.mjs",
+];
 
 function runNpm(args, options) {
   if (process.platform === "win32") {
@@ -43,6 +47,7 @@ function matchesRepoPath(changedPath, trackedPath) {
 
 function artifactFreshnessPaths(manifest) {
   const paths = new Set([
+    ...enforcementPaths,
     "AGENTS.md",
     "ARTIFACT_FRESHNESS_POLICY.md",
     "artifacts.json",
@@ -104,6 +109,10 @@ function includesPath(paths, path) {
   return paths.some((changedPath) => matchesRepoPath(changedPath, path));
 }
 
+function includesEnforcementPath(paths) {
+  return enforcementPaths.some((path) => includesPath(paths, path));
+}
+
 function isUnderTrackedLocation(path, manifest, kindPattern) {
   return (manifest?.trackedLocations ?? []).some(
     (location) =>
@@ -139,6 +148,7 @@ async function runStagedScope() {
   }
 
   const checkAllArtifacts = includesPath(relevantPaths, "artifacts.json");
+  const checkFullPolicy = includesEnforcementPath(relevantPaths);
   const changedArtifactPaths = new Set();
   const declaredArtifactPaths = new Set(
     (manifest?.artifacts ?? [])
@@ -166,6 +176,7 @@ async function runStagedScope() {
   }
 
   if (
+    checkFullPolicy ||
     includesPath(relevantPaths, "AGENTS.md") ||
     includesPath(relevantPaths, "ARTIFACT_FRESHNESS_POLICY.md") ||
     includesPath(relevantPaths, "renovate.json")
@@ -173,7 +184,7 @@ async function runStagedScope() {
     await checkPolicyFiles();
   }
 
-  if (checkAllArtifacts) {
+  if (checkFullPolicy || checkAllArtifacts) {
     await checkArtifactManifest();
   } else if (
     changedArtifactPaths.size > 0 ||
@@ -183,6 +194,7 @@ async function runStagedScope() {
   }
 
   if (
+    checkFullPolicy ||
     includesPath(relevantPaths, "package.json") ||
     includesPath(relevantPaths, "package-lock.json")
   ) {

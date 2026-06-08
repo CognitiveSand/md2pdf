@@ -58,7 +58,7 @@ describe("Stream A P1 path resolution", () => {
     await expect(fs.stat(path.join(tempRoot, "out"))).resolves.toMatchObject({});
   });
 
-  it("@req FR-14 reports unreadable inputs with source path and action hint", async () => {
+  it("@req FR-15 reports unreadable inputs with source path and action hint", async () => {
     await writeFile("source.md");
     const access = vi.spyOn(fs, "access").mockImplementation(async (target) => {
       if (target === path.join(tempRoot, "source.md")) {
@@ -80,7 +80,7 @@ describe("Stream A P1 path resolution", () => {
     }
   });
 
-  it("@req FR-14 reports unreadable directory inputs with source path and action hint", async () => {
+  it("@req FR-15 reports unreadable directory inputs with source path and action hint", async () => {
     await fs.mkdir(path.join(tempRoot, "locked"));
     const readdir = vi.spyOn(fs, "readdir").mockImplementation(async (target) => {
       if (target === path.join(tempRoot, "locked")) {
@@ -120,7 +120,7 @@ describe("Stream A P1 path resolution", () => {
     await expect(fs.stat(path.join(tempRoot, "build"))).resolves.toMatchObject({});
   });
 
-  it("@req FR-15 reports non-writable output parents with output path and action hint", async () => {
+  it("reports non-writable output parents with output path and action hint", async () => {
     await writeFile("source.md");
     const outputPath = path.join(tempRoot, "locked", "source.pdf");
     const access = vi.spyOn(fs, "access").mockImplementation(async (target) => {

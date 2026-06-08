@@ -37,6 +37,7 @@
     "prepack": "npm run build && npm run check:artifacts",
     "test": "vitest run --reporter=verbose",
     "test:contracts": "vitest run tests/unit/contracts --reporter=verbose",
+    "test:artifacts": "vitest run tests/unit/artifacts --reporter=verbose",
     "test:watch": "vitest",
     "test:browser": "vitest run --config vitest.browser.config.ts",
     "test:all": "vitest run --reporter=verbose && vitest run --config vitest.browser.config.ts",

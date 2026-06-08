@@ -96,7 +96,7 @@ describe("Stream A P1 CLI", () => {
     });
   });
 
-  it("@req FR-12 bases prompt interactivity on stdin and stderr TTY state", () => {
+  it("@req FR-12 bases prompt interactivity on stdin and stdout TTY state", () => {
     expect(isPromptInteractive({ isTTY: true }, { isTTY: true })).toBe(true);
     expect(isPromptInteractive({ isTTY: true }, { isTTY: false })).toBe(false);
     expect(isPromptInteractive({ isTTY: false }, { isTTY: true })).toBe(false);
@@ -200,7 +200,7 @@ describe("Stream A P1 CLI", () => {
     expect(stderr.toString()).toContain("hint: check that missing.md exists and is readable");
   });
 
-  it("@req FR-14 @req FR-17 returns exit 2 for unreadable directory inputs", async () => {
+  it("@req FR-15 @req FR-17 returns exit 2 for unreadable directory inputs", async () => {
     await fs.mkdir(path.join(tempRoot, "locked"));
     const stdout = new MemoryWriter();
     const stderr = new MemoryWriter();
@@ -270,7 +270,7 @@ describe("Stream A P1 CLI", () => {
     expect(stderr.toString()).toContain(`output: ${path.join(tempRoot, "source.md")}`);
   });
 
-  it("@req FR-10 @req FR-18 returns exit 1 when one batch conversion fails and continues", async () => {
+  it("@req FR-10 @req FR-17 returns exit 1 when one batch conversion fails and continues", async () => {
     await writeFile("bad.md");
     await writeFile("ok.md");
     const stdout = new MemoryWriter();
