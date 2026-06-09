@@ -78,7 +78,7 @@ C0, P4, or the release candidate as indicated.
 | `npm run typecheck` fails with `TS18003` because `src/**/*.ts` does not exist. | `pass` | Resolved in C0 | C0 contract source/stubs now exist and `npm run typecheck` passed on 2026-06-04. |
 | C0 red/green contract evidence is not available yet. | `pass` | Resolved in C0 | Red gate captured in `audit/audit-c0-etape4.md`; green gate captured with `npm run typecheck` and `npm run test:contracts` on 2026-06-04. |
 | Release gates, browser tests, packlist, install evidence, and FR-20 proof are not runnable before a release candidate exists. | `pending` | P4/release candidate | Complete the automated and manual evidence sections below. |
-| Existing `dist/` content is non-normative and may not match `package.json` bin layout. | `blocked` | First valid build after C0/P3 | Regenerate `dist/` from `src/`; prove `bin.md2pdf` resolves to a real built `dist/cli.js` in `npm pack --json`. |
+| Existing `dist/` content is non-normative and may not match `package.json` bin layout. | `pass` | Stream A Phase 6, 2026-06-09 | Resolved by `npm.cmd run build` and `npm.cmd pack --json`; `package.json` maps `bin.md2pdf` to `./dist/cli.js`, and the packlist includes the built `dist/cli.js`. |
 
 ## FR-20 System-Scope Evidence
 
@@ -94,10 +94,10 @@ C0, P4, or the release candidate as indicated.
 
 | Item | Status | Evidence / command | Notes |
 | --- | --- | --- | --- |
-| `dist/` regenerated from `src/` | `pending` | `npm run build` plus commit/diff note | `dist/` must not be a source of truth. |
-| npm packlist verified | `pending` | `npm pack --json` | Must include `dist/`, `assets/`, `README.md`, `ARTIFACT_FRESHNESS_POLICY.md`, and `artifacts.json`. |
-| User-scope install works | `pending` | Temporary npm prefix install and `md2pdf --help` | Covers FR-19. |
-| Reinstall is idempotent | `pending` | Second install of same tarball exits `0` | Covers FR-21. |
+| `dist/` regenerated from `src/` | `pass` | `npm.cmd run build`, 2026-06-09 | Build regenerated `dist/` from `src/`; `dist/cli.js` exists and starts with the CLI shebang. |
+| npm packlist verified | `pass` | `npm.cmd pack --json`, 2026-06-09 | Tarball `md2pdf-0.1.2.tgz`, shasum `fb8fc5f856797cf492e61e22c18af756e5f724b4`, integrity `sha512-KwRtaWNPIusd1wj/aMLAMi3HYTkeqTpY2PEgHAeLxWi8BbIYtz5KyOHSbDSE4IcMI7hvIuDuy5B4zBSINOTLXA==`; packlist includes `dist/`, `assets/`, `README.md`, `ARTIFACT_FRESHNESS_POLICY.md`, `artifacts.json`, and `package.json`. |
+| User-scope install works | `pass` | `npm.cmd install --global --prefix .tmp\phase6-prefix --cache .tmp\phase6-cache .\md2pdf-0.1.2.tgz --no-audit --no-fund`; `cmd.exe /d /c "set PATH=<prefix>;%PATH%&& md2pdf --help"` | Covers FR-19 in a temporary user-scope prefix. Windows PowerShell in this environment resolves `md2pdf` to the generated `.ps1` shim first and blocks it under the local ExecutionPolicy; the npm `.cmd` shim is invocable by command name through `cmd.exe`. |
+| Reinstall is idempotent | `pass` | Second `npm.cmd install --global --prefix .tmp\phase6-prefix --cache .tmp\phase6-cache .\md2pdf-0.1.2.tgz --no-audit --no-fund`, 2026-06-09 | Covers FR-21; second install exited `0` with `changed 123 packages`, and `md2pdf --help` remained invocable through the npm `.cmd` shim. |
 
 ## README And CLI Options
 
