@@ -60,12 +60,12 @@ below.
 
 | Item | Status | Evidence / command | Notes |
 | --- | --- | --- | --- |
-| TypeScript typecheck | `pending` | `npm run typecheck` | Required for release candidate. |
-| Unit tests | `pending` | `npm test` or scoped unit command | Include requirement tags where applicable. |
-| Contract tests | `pending` | `npm run test:contracts` | Required after C0. |
-| Integration tests | `pending` | Integration test command | Required before release. |
-| Browser-backed tests | `pending` | `npm run test:browser` or equivalent | Must prove at least one real PDF and Mermaid as diagram. |
-| Artifact freshness gate | `pending` | `npm run check:artifacts` or equivalent | Must enforce `ARTIFACT_FRESHNESS_POLICY.md` and `artifacts.json`. |
+| TypeScript typecheck | `pass` | `npm.cmd run typecheck`; `audit/2026-06-08-stream-a-phase1-point2-p2-global-audit.md` | P2 global gate passed on 2026-06-08. Final release candidate should rerun the gate. |
+| Unit tests | `pass` | `npm.cmd test`; `audit/2026-06-08-stream-a-phase1-point2-p2-global-audit.md`; Stream A Phase 3 local replay | P2 global gate passed; after Phase 3, the current unit suite passes with 10 test files and 84 tests. Final release candidate should rerun the gate. |
+| Contract tests | `pass` | `npm.cmd run test:contracts`; `audit/2026-06-08-stream-a-phase1-point2-p2-global-audit.md`; Stream A Phase 3 local replay | P2 global gate passed; after Phase 3, the current contract suite passes with 1 test file and 10 tests. Final release candidate should rerun the gate. |
+| Integration tests | `pass` | `npm.cmd run test:browser`; `tests/integration/cli-pdf.test.ts` | Stream A P3/P5 integration gate passes with 1 test file and 10 tests covering CLI -> runtime converter -> PDF renderer contract plus late write failure protections. |
+| Browser-backed tests | `blocked` | Real installed-browser/Mermaid test still required | `test:browser` now covers the browser command contract with a deterministic fake browser. A real installed browser and Mermaid-as-diagram proof remain required before release. |
+| Artifact freshness gate | `pass` | `npm.cmd run check:artifacts`; `audit/2026-06-08-stream-a-phase1-point1-artifacts-audit.md`; `audit/2026-06-08-stream-a-phase1-point2-p2-global-audit.md` | P2 global gate passed after restoring the declared `assets/highlight.css` bytes. Final release candidate should rerun the gate. |
 | CI matrix | `pending` | CI run URL, logs, or committed summary | Linux, macOS, Windows on Node.js 20+. |
 
 ## Accepted Pre-C0 Exceptions
@@ -103,7 +103,7 @@ C0, P4, or the release candidate as indicated.
 
 | Item | Status | Evidence / command | Notes |
 | --- | --- | --- | --- |
-| `md2pdf --help` lists supported options | `pending` | Help output from built package | Covers NFR-04. |
+| `md2pdf --help` lists supported options | `pass` | `tests/unit/cli/cli.test.ts`, `@req NFR-04 prints one help line for each supported option` | Unit proof covers CLI help formatting. Built-package help output remains part of P4 packaging evidence. |
 | README options match CLI help | `pending` | Review note or comparison output | README must not document stale or missing CLI options. |
 | FR-20 help output captured | `pending` | `fr-20-system-scope.md` | Should be the output from the tested system-scope account context. |
 
@@ -115,14 +115,14 @@ phase exists.
 
 | Decision | Status | Evidence / reference | Notes |
 | --- | --- | --- | --- |
-| Empty directory exits `0` with `0 succeeded, 0 failed, 0 skipped` | `pass` | `tests/unit/cli/cli.test.ts`, `@req FR-09 @req FR-11 keeps an empty Markdown directory successful` | From plan v0.1.2 defensive decisions. |
-| `.MD` extension is accepted case-insensitively | `pass` | `tests/unit/paths/paths.test.ts`, `@req FR-02 accepts Markdown file extensions case-insensitively`; `tests/unit/cli/cli.test.ts`, valid single-file command | From plan v0.1.2 defensive decisions. |
-| Explicit output extension is used verbatim | `pass` | `tests/unit/paths/paths.test.ts`, `@req FR-03 uses --output verbatim`; `tests/unit/cli/cli.test.ts`, valid single-file command | README documentation remains a P4 item. |
-| Output parent is created when possible | `pass` | `tests/unit/paths/paths.test.ts`, `@req FR-03 uses --output verbatim and creates a missing parent directory` | From plan v0.1.2 defensive decisions. |
-| Output parent non-writable reports clear error | `pending` | Stream A test | Must include `outputPath` and `actionHint`. |
-| Skipped outputs count in summary without causing failure | `pending` | Stream A test | From plan v0.1.2 defensive decisions. |
-| Duplicate entries or duplicate outputs fail preflight | `pass` | `tests/unit/paths/paths.test.ts`, duplicate entries; `tests/unit/pipeline/pipeline.test.ts`, output collisions; `tests/unit/cli/cli.test.ts`, CLI preflight collision | Includes duplicates and output collisions. |
-| `--output-dir` basename collision blocks before render | `pass` | `tests/unit/paths/paths.test.ts`, `@req FR-23 rejects basename collisions`; `tests/unit/cli/cli.test.ts`, CLI preflight collision | Example: `a/report.md` and `b/report.md`. |
+| Empty directory exits `0` with `0 succeeded, 0 failed, 0 skipped` | `pass` | `tests/unit/cli/cli.test.ts`, `@req FR-09 @req FR-11 keeps an empty Markdown directory successful` | Covered by Stream A P1/P2 unit tests. |
+| `.MD` extension is accepted case-insensitively | `pass` | `tests/unit/paths/paths.test.ts`, `@req FR-02 accepts Markdown file extensions case-insensitively`; `tests/unit/cli/cli.test.ts`, valid single-file command | Covered by Stream A P1/P2 unit tests. |
+| Explicit output extension is used verbatim | `pass` | `tests/unit/paths/paths.test.ts`, `@req FR-03 uses --output verbatim`; `tests/unit/cli/cli.test.ts`, valid single-file command | Covered by Stream A P1/P2 unit tests. README documentation remains a P4 item. |
+| Output parent is created when possible | `pass` | `tests/unit/paths/paths.test.ts`, `@req FR-03 uses --output verbatim and creates a missing parent directory` | Covered by Stream A P1/P2 unit tests. |
+| Output parent non-writable reports clear error | `pass` | `tests/unit/paths/paths.test.ts`, `reports non-writable output parents with output path and action hint` | Unit proof covers `outputPath` and `actionHint`. Real write-time permission failures remain a later P3/P5 integration concern. |
+| Skipped outputs count in summary without causing failure | `pass` | `tests/unit/cli/cli.test.ts`, `@req FR-12 @req FR-18 reports non-interactive overwrite skips in the summary without failing` | Covered by Stream A P1/P2 unit tests. |
+| Duplicate entries or duplicate outputs fail preflight | `pass` | `tests/unit/paths/paths.test.ts`, duplicate entries; `tests/unit/pipeline/pipeline.test.ts`, output collisions; `tests/unit/cli/cli.test.ts`, CLI preflight collision | Covered by Stream A P1/P2 unit tests; includes duplicates and output collisions. |
+| `--output-dir` basename collision blocks before render | `pass` | `tests/unit/paths/paths.test.ts`, `@req FR-23 rejects basename collisions`; `tests/unit/cli/cli.test.ts`, CLI preflight collision | Covered by Stream A P1/P2 unit tests. Example: `a/report.md` and `b/report.md`. |
 | Cache writes are atomic | `pending` | Stream B artifact test | `.tmp` then atomic rename after verification. |
 | Cache non-writable reports explicit artifact/browser error | `pending` | Stream B artifact test | Must not become a generic failure. |
 | C0 red then green evidence recorded | `pass` | C0 contract trace above | Required C0 proof is now recorded. |

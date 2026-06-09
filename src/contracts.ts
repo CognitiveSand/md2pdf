@@ -1,22 +1,8 @@
-import { type Md2PdfError, NotImplementedError } from "./errors.js";
+import { type Md2PdfError } from "./errors.js";
 
 export interface ConvertOptions {
   browserPath?: string;
   renderTimeoutMs?: number;
-}
-
-export async function convertFile(
-  sourcePath: string,
-  outputPath: string,
-  options?: ConvertOptions,
-): Promise<void> {
-  void options;
-
-  throw new NotImplementedError({
-    message: "convertFile is not implemented yet",
-    sourcePath,
-    outputPath,
-  });
 }
 
 export interface ConversionJob {
@@ -31,3 +17,5 @@ export interface ConversionOutcome extends ConversionJob {
   status: ConversionStatus;
   error?: Md2PdfError;
 }
+
+export { convertFile } from "./converter.js";

@@ -96,6 +96,41 @@ describe("Stream A P1 CLI", () => {
     });
   });
 
+  it("@req FR-01 @req FR-18 uses the runtime converter when no converter is injected", async () => {
+    await writeFile("source.md");
+    const stdout = new MemoryWriter();
+    const stderr = new MemoryWriter();
+
+    const exitCode = await main(["source.md"], fakeIo(stdout, stderr, tempRoot));
+
+    expect(exitCode).toBe(1);
+    expect(stdout.toString()).toBe("0 succeeded, 1 failed, 0 skipped\n");
+    expect(stderr.toString()).toContain("[conversion]");
+    expect(stderr.toString()).toContain(`source: ${path.join(tempRoot, "source.md")}`);
+    expect(stderr.toString()).toContain(`output: ${path.join(tempRoot, "source.pdf")}`);
+    expect(stderr.toString()).not.toContain("[not-implemented]");
+  });
+
+  it("@req FR-01 passes MD2PDF_BROWSER to the selected converter", async () => {
+    await writeFile("source.md");
+    const stdout = new MemoryWriter();
+    const stderr = new MemoryWriter();
+    const calls: string[] = [];
+
+    const exitCode = await main(
+      ["source.md"],
+      fakeIo(stdout, stderr, tempRoot, {
+        env: { MD2PDF_BROWSER: "/browser" },
+      }),
+      { convertFile: recordingConverter(calls) },
+    );
+
+    expect(exitCode).toBe(0);
+    expect(calls).toEqual([
+      `${path.join(tempRoot, "source.md")} -> ${path.join(tempRoot, "source.pdf")} /browser`,
+    ]);
+  });
+
   it("@req FR-12 bases prompt interactivity on stdin and stdout TTY state", () => {
     expect(isPromptInteractive({ isTTY: true }, { isTTY: true })).toBe(true);
     expect(isPromptInteractive({ isTTY: true }, { isTTY: false })).toBe(false);
@@ -428,13 +463,14 @@ function fakeIo(
   options: {
     stdin?: NodeJS.ReadableStream;
     isInteractive?: boolean;
+    env?: NodeJS.ProcessEnv;
   } = {},
 ): CliIo {
   return {
     stdin: options.stdin ?? Readable.from([]),
     stdout,
     stderr,
-    env: {},
+    env: options.env ?? {},
     cwd,
     isInteractive: options.isInteractive ?? false,
   };
