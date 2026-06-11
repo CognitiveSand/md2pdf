@@ -154,16 +154,98 @@ describe("ArtifactPolicy.selectNewestEligible", () => {
     ).toMatchObject({ version: "stable-119" });
   });
 
-  it("returns null when no release is eligible", () => {
+  it("selects the newest eligible artifact for the requested platform", () => {
     const policy = new ArtifactPolicy();
 
     expect(
       policy.selectNewestEligible(
+        [
+          { ...release("120.0.0", "2026-05-21T12:00:00.000Z"), platform: "linux-x64" },
+          { ...release("119.0.0", "2026-05-20T12:00:00.000Z"), platform: "darwin-arm64" },
+        ],
+        { quarantineDays: 7, platform: "darwin-arm64" },
+        now,
+      ),
+    ).toMatchObject({ version: "119.0.0", platform: "darwin-arm64" });
+  });
+
+  it("throws ArtifactFreshnessError when no release is eligible", () => {
+    const policy = new ArtifactPolicy();
+
+    expect(
+      () => policy.selectNewestEligible(
         [release("119.0.3", "2026-06-01T12:00:00.000Z")],
         { quarantineDays: 7, compatibleWith: "119" },
         now,
       ),
-    ).toBeNull();
+    ).toThrow(ArtifactFreshnessError);
+  });
+
+  it("rejects caller-controlled quarantine values instead of allowing freshness bypasses", () => {
+    const policy = new ArtifactPolicy();
+    const releases = [release("119.0.3", "2026-06-04T12:00:00.000Z")];
+
+    for (const quarantineDays of [0, 6, 14]) {
+      expectArtifactPolicyError(
+        () => policy.selectNewestEligible(
+          releases,
+          { quarantineDays },
+          now,
+        ),
+        "invalid-quarantine-days",
+      );
+    }
+  });
+
+  it("rejects floating artifact versions instead of selecting latest-like tags", () => {
+    const policy = new ArtifactPolicy();
+
+    expectInvalidArtifact(
+      () => policy.selectNewestEligible(
+        [release("latest", "2026-05-20T12:00:00.000Z")],
+        { quarantineDays: 7 },
+        now,
+      ),
+      { artifactName: "latest" },
+    );
+  });
+
+  it("rejects mutable or non-https artifact URLs", () => {
+    const policy = new ArtifactPolicy();
+
+    for (const url of [
+      "http://downloads.example.invalid/120.zip",
+      "https://downloads.example.invalid/120.zip?channel=stable",
+      "https://downloads.example.invalid/120.zip#fragment",
+    ]) {
+      expectInvalidArtifact(() =>
+        policy.selectNewestEligible(
+          [{ ...release("120.0.0", "2026-05-20T12:00:00.000Z"), url }],
+          { quarantineDays: 7 },
+          now,
+        ),
+      );
+    }
+  });
+
+  it("rejects artifact releases missing checksum, size, provenance, or exact version", () => {
+    const policy = new ArtifactPolicy();
+    const validRelease = release("120.0.0", "2026-05-20T12:00:00.000Z");
+
+    for (const malformedRelease of [
+      { ...validRelease, version: "" },
+      { ...validRelease, sha256: "not-a-sha" },
+      { ...validRelease, size: 0 },
+      { ...validRelease, provenance: "" },
+    ] as ArtifactRelease[]) {
+      expectInvalidArtifact(() =>
+        policy.selectNewestEligible(
+          [malformedRelease],
+          { quarantineDays: 7 },
+          now,
+        ),
+      );
+    }
   });
 });
 
@@ -178,7 +260,7 @@ describe("C0 stubs", () => {
     });
   });
 
-  it("provisionFallbackBrowser throws NotImplementedError with artifact context", async () => {
+  it("provisionFallbackBrowser reports missing eligible fallback artifact", async () => {
     const policy = new ArtifactPolicy();
     const catalog: ReleaseCatalog = {
       async listReleases(): Promise<ArtifactRelease[]> {
@@ -187,7 +269,7 @@ describe("C0 stubs", () => {
     };
 
     await expect(provisionFallbackBrowser(policy, catalog)).rejects.toMatchObject({
-      kind: "not-implemented",
+      kind: "artifact",
       context: {
         artifactName: "chromium-for-testing",
       },
@@ -198,12 +280,43 @@ describe("C0 stubs", () => {
     const result: FallbackBrowserResult = {
       browserPath: "/cache/browser",
       driverPath: "/cache/driver",
+      release: release("120.0.0", "2026-05-20T12:00:00.000Z"),
     };
 
     expect(result.browserPath).toBe("/cache/browser");
     expect(result.driverPath).toBe("/cache/driver");
+    expect(result.release.version).toBe("120.0.0");
   });
 });
+
+function expectInvalidArtifact(
+  action: () => unknown,
+  expectedContext: Partial<ArtifactFreshnessError["context"]> = {},
+): void {
+  expectArtifactPolicyError(action, "invalid-artifact-manifest", expectedContext);
+}
+
+function expectArtifactPolicyError(
+  action: () => unknown,
+  cause: unknown,
+  expectedContext: Partial<ArtifactFreshnessError["context"]> = {},
+): void {
+  try {
+    action();
+  } catch (error) {
+    expect(error).toBeInstanceOf(ArtifactFreshnessError);
+    expect(error).toMatchObject({
+      kind: "artifact",
+      context: {
+        cause,
+        ...expectedContext,
+      },
+    });
+    return;
+  }
+
+  throw new Error("Expected ArtifactFreshnessError");
+}
 
 function release(version: string, publishedAt: string): ArtifactRelease {
   return {
