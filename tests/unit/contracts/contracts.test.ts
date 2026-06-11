@@ -250,16 +250,6 @@ describe("ArtifactPolicy.selectNewestEligible", () => {
 });
 
 describe("C0 stubs", () => {
-  it("convertFile throws NotImplementedError with source and output paths", async () => {
-    await expect(convertFile("input.md", "output.pdf")).rejects.toMatchObject({
-      kind: "not-implemented",
-      context: {
-        sourcePath: "input.md",
-        outputPath: "output.pdf",
-      },
-    });
-  });
-
   it("provisionFallbackBrowser reports missing eligible fallback artifact", async () => {
     const policy = new ArtifactPolicy();
     const catalog: ReleaseCatalog = {

@@ -396,3 +396,352 @@ summary minimal et tests avec faux converter sont en place et verts.
 Les reserves restantes ne bloquent pas P1, mais elles doivent etre traitees
 avant les gates suivants: overwrite/permissions en P2, raccord au vrai converter
 en P3, packaging/install/version `0.1.2` en P4.
+
+---
+
+# Audit Stream A strict - Point 1 FR-20 CLI invocability - 2026-06-11
+
+## Requirement and User Story Compliance
+
+| Requirement / Story | Status | Evidence | Problem |
+| --- | --- | --- | --- |
+| Complete FR-20 evidence with package metadata | Respected | `docs/release-evidence/fr-20-system-scope.md:17-23` | None blocking. |
+| Generate or reuse valid tarball after build | Respected | `docs/release-evidence/fr-20-system-scope.md:19`, `docs/release-evidence/fr-20-system-scope.md:113-118` | None blocking. |
+| Prove command-name resolution and `md2pdf --help` execution | Respected for Stream A strict simulation | `docs/release-evidence/fr-20-system-scope.md:40`, `docs/release-evidence/fr-20-system-scope.md:60-82`, `docs/release-evidence/fr-20-system-scope.md:96-99`, `docs/release-evidence/fr-20-system-scope.md:124-130` | Not a real elevated multi-account install; documented as simulation. |
+| Document simulation reason and limits | Respected | `docs/release-evidence/fr-20-system-scope.md:39`, `docs/release-evidence/fr-20-system-scope.md:55`, `docs/release-evidence/fr-20-system-scope.md:99` | None blocking. |
+| Avoid hiding dirty working-tree provenance | Respected | `docs/release-evidence/fr-20-system-scope.md:106-110` | None blocking. |
+
+## Negative Findings
+
+No blocking finding for Stream A strict point 1.
+
+### Finding 1
+
+Severity: Low
+
+File: `docs/release-evidence/fr-20-system-scope.md`
+
+Line: 99
+
+Problem: The evidence is a valid CLI-invocability simulation, not a real
+host-wide system install visible to a secondary Windows account.
+
+Risk: This cannot be reused as proof that machine-level ACLs, system PATH
+propagation, or every account on the host can invoke md2pdf.
+
+Evidence: The deviation is explicitly documented at
+`docs/release-evidence/fr-20-system-scope.md:99`.
+
+Suggested fix: For a global release, rerun FR-20 with an elevated system-scope
+install and a real secondary account. For Stream A strict, no change is needed
+because the plan allows a documented simulation of the observable CLI contract.
+
+Test needed: Manual system-scope smoke on the release candidate, outside Stream
+A strict if global release evidence is required.
+
+## Open Questions
+
+- Does the project owner want a later real Windows secondary-account FR-20 run
+  before global release approval?
+
+## Summary
+
+Point 1 can continue. The modified evidence file is internally consistent,
+records the generated tarball metadata, proves command-name invocation and
+`md2pdf --help` exit `0` through a global-style npm prefix, and keeps the
+simulation limits visible instead of overstating them.
+
+---
+
+# Audit Stream A strict - Point 2 README/CLI alignment - 2026-06-11
+
+## Requirement and User Story Compliance
+
+| Requirement / Story | Status | Evidence | Problem |
+| --- | --- | --- | --- |
+| README documents every `--help` option | Respected | `README.md:64-70`, `README.md:90-102` | None blocking. |
+| README does not document a nonexistent `--browser` option | Respected | `README.md:31-32` states `MD2PDF_BROWSER` is an environment variable, not a CLI option. | None blocking. |
+| README documents Stream A CLI behavior only | Respected | `README.md:13-15`, `README.md:85-113` | None blocking. |
+| Stream B capabilities are not presented as delivered by Stream A | Respected | `README.md:18-21`, `README.md:123-128`, `README.md:141-143` | None blocking. |
+| README documents verbatim `--output` extension behavior | Respected | `README.md:93-96` | None blocking. |
+
+## Negative Findings
+
+No blocking finding for Stream A strict point 2.
+
+### Finding 1
+
+Severity: Low
+
+File: `README.md`
+
+Line: 24
+
+Problem: The README still says actual PDF rendering needs a supported local
+browser runtime, but the exact supported runtime matrix is intentionally not
+specified in Stream A strict.
+
+Risk: This is acceptable for Stream A strict, but global release documentation
+will still need a precise Stream B-backed browser support statement.
+
+Evidence: `README.md:18-21` marks browser rendering, WebDriver, Firefox,
+fallback provisioning, and compatibility evidence as outside Stream A strict.
+
+Suggested fix: After Stream B closes browser/rendering evidence, replace the
+generic runtime requirement with the exact supported browser/runtime matrix.
+
+Test needed: README/help comparison is sufficient for Stream A strict; global
+release needs browser/runtime documentation review after Stream B.
+
+## Open Questions
+
+- Should `MD2PDF_BROWSER` eventually be added to `--help`, or remain documented
+  only as an environment variable?
+
+## Summary
+
+Point 2 can continue. README and CLI help are aligned for the Stream A strict
+surface, and browser/Mermaid/WebDriver/fallback promises are no longer written
+as delivered Stream A behavior.
+
+---
+
+# Audit Stream A strict - Point 3 Windows PowerShell caveat - 2026-06-11
+
+## Requirement and User Story Compliance
+
+| Requirement / Story | Status | Evidence | Problem |
+| --- | --- | --- | --- |
+| README documents npm `.cmd` and `.ps1` shims on Windows | Respected | `README.md:61-65` | None blocking. |
+| README explains local ExecutionPolicy can block the PowerShell shim | Respected | `README.md:63-65` | None blocking. |
+| README gives explicit `.cmd` workaround | Respected | `README.md:67-75` | None blocking. |
+| Release checklist carries the same Windows nuance where installation evidence is used | Respected | `docs/release-evidence/release-checklist-v0.1.2.md:99` | None blocking. |
+
+## Negative Findings
+
+No blocking finding for Stream A strict point 3.
+
+### Finding 1
+
+Severity: Low
+
+File: `README.md`
+
+Line: 63
+
+Problem: The caveat is Windows-specific and based on the observed local
+PowerShell behavior, not a cross-version Windows matrix.
+
+Risk: Some Windows environments may resolve shims differently, but the advice is
+still accurate for the known failure mode and does not overstate a failure as a
+Stream A blocker.
+
+Evidence: `docs/release-evidence/release-checklist-v0.1.2.md:99` records the
+same observed PowerShell `.ps1` behavior and `.cmd` workaround.
+
+Suggested fix: No Stream A strict change needed. Global release evidence can add
+more Windows shell variants if required.
+
+Test needed: Optional Windows smoke under PowerShell and `cmd.exe` during global
+release validation.
+
+## Open Questions
+
+- Should the final release checklist require both PowerShell and `cmd.exe`
+  invocation, or is `.cmd` invocability sufficient for FR-19/FR-20?
+
+## Summary
+
+Point 3 can continue. The Windows PowerShell shim caveat is documented without
+turning the `.ps1` policy block into a false Stream A failure, because the npm
+`.cmd` shim remains invocable.
+
+---
+
+# Audit Stream A strict - Point 4 release checklist separation - 2026-06-11
+
+## Requirement and User Story Compliance
+
+| Requirement / Story | Status | Evidence | Problem |
+| --- | --- | --- | --- |
+| Stream A strict evidence is marked separately from global release readiness | Respected | `docs/release-evidence/release-checklist-v0.1.2.md:3`, `docs/release-evidence/release-checklist-v0.1.2.md:21`, `docs/release-evidence/release-checklist-v0.1.2.md:146-150` | None blocking. |
+| FR-20 proof is closed with documented simulation limits | Respected | `docs/release-evidence/release-checklist-v0.1.2.md:88-91` | None blocking. |
+| README/help comparison is marked complete | Respected | `docs/release-evidence/release-checklist-v0.1.2.md:107-108` | None blocking. |
+| Stream B/global browser evidence remains separate | Respected | `docs/release-evidence/release-checklist-v0.1.2.md:67`, `docs/release-evidence/release-checklist-v0.1.2.md:69`, `docs/release-evidence/release-checklist-v0.1.2.md:126-127` | None blocking. |
+| Final pack metadata is not falsely reused after README edits | Respected | `docs/release-evidence/release-checklist-v0.1.2.md:26`, `docs/release-evidence/release-checklist-v0.1.2.md:98` | None blocking; intentionally deferred to Point 5. |
+
+## Negative Findings
+
+No blocking finding for Stream A strict point 4.
+
+### Finding 1
+
+Severity: Low
+
+File: `docs/release-evidence/release-checklist-v0.1.2.md`
+
+Line: 98
+
+Problem: `npm packlist verified` is still `pending`.
+
+Risk: This would block final Stream A strict closure if left as-is, because the
+README changed after the previous tarball was generated.
+
+Evidence: The checklist explicitly says Point 5 must replay
+`npm.cmd pack --json`.
+
+Suggested fix: Complete Point 5 and update the tarball metadata from the final
+pack output.
+
+Test needed: Point 5 gate replay.
+
+## Open Questions
+
+- None blocking for Point 4.
+
+## Summary
+
+Point 4 can continue. The checklist no longer assigns browser, Mermaid,
+WebDriver, fallback provisioning, or compatibility matrix evidence to Stream A
+strict, and it keeps the final package metadata honestly pending until the
+Point 5 gate replay.
+
+---
+
+# Audit Stream A strict - Point 5 gate replay - 2026-06-11
+
+## Requirement and User Story Compliance
+
+| Requirement / Story | Status | Evidence | Problem |
+| --- | --- | --- | --- |
+| Run `npm.cmd run typecheck` | Respected | Point 5 replay output; `docs/release-evidence/release-checklist-v0.1.2.md:63` | None. |
+| Run `npm.cmd test` | Not respected | Point 5 replay output; `docs/release-evidence/release-checklist-v0.1.2.md:64` | Unit suite failed before the remaining gates could be replayed. |
+| Continue to `test:contracts`, `check:artifacts`, `build`, `pack`, and `help` only if earlier gates pass | Respected by stopping | This audit | Stopped after the unit-test failure instead of manufacturing later evidence. |
+
+## Negative Findings
+
+### Finding 1
+
+Severity: High
+
+File: `tests/unit/cli/cli.test.ts`
+
+Line: 99
+
+Problem: `npm.cmd test` times out on `@req FR-01 @req FR-18 uses the runtime
+converter when no converter is injected`.
+
+Risk: Stream A strict cannot be finalized because the required unit gate is red.
+The failing test exercises the default runtime converter path from a unit suite;
+that path can now wait on real browser/rendering behavior instead of failing
+quickly and deterministically.
+
+Evidence: Point 5 replay result:
+
+```text
+npm.cmd test
+FAIL
+Test Files: 1 failed, 10 passed
+Tests: 1 failed, 84 passed, 2 skipped
+Failure: tests/unit/cli/cli.test.ts:99 timed out in 5000ms
+```
+
+Suggested fix: Make the test deterministic again without hiding the runtime
+boundary. Options include injecting a bounded fake browser/converter for unit
+scope, adding a short explicit timeout to the runtime failure path expected by
+the test, or moving this proof to the integration suite and replacing the unit
+test with a narrower assertion that `main()` uses the default converter factory.
+
+Test needed: Rerun `npm.cmd test`, then continue the Point 5 gates only after it
+passes.
+
+## Open Questions
+
+- Should this unit test remain responsible for the real default converter path,
+  or should that proof live only in Stream A integration tests?
+
+## Summary
+
+Point 5 is blocked. I stopped before `test:contracts`, `check:artifacts`,
+`build`, `pack`, and `node dist\cli.js --help` because the required unit gate is
+red. The checklist has been updated to show the current failure instead of
+claiming a stale pass.
+
+---
+
+# Re-audit Stream A strict - Point 5 gate replay correction - 2026-06-11
+
+## Requirement and User Story Compliance
+
+| Requirement / Story | Status | Evidence | Problem |
+| --- | --- | --- | --- |
+| Make the unit test deterministic without hiding the runtime boundary | Respected | `tests/unit/cli/cli.test.ts:99` | None blocking. |
+| Rerun `npm.cmd test` after correction | Respected | `npm.cmd test`: 11 files passed, 85 tests passed, 2 skipped | None. |
+| Continue remaining Point 5 gates only after unit tests pass | Respected | `npm.cmd run test:contracts`, `npm.cmd run check:artifacts`, `npm.cmd run build`, `npm.cmd pack --json`, `node dist\cli.js --help` all passed | None. |
+| Refresh final tarball evidence after README/test changes | Respected | `docs/release-evidence/release-checklist-v0.1.2.md:26`, `docs/release-evidence/release-checklist-v0.1.2.md:98`, `docs/release-evidence/fr-20-system-scope.md:19` | None. |
+
+## Negative Findings
+
+No blocking finding for Stream A strict point 5 after correction.
+
+### Finding 1
+
+Severity: Low
+
+File: `tests/unit/cli/cli.test.ts`
+
+Line: 107
+
+Problem: The unit test proves the default runtime converter is no longer the
+old `NotImplementedError` stub by forcing a missing configured browser path,
+not by producing a PDF.
+
+Risk: This is appropriate for Stream A strict unit scope, but it must not be
+misread as browser rendering proof.
+
+Evidence: `docs/release-evidence/release-checklist-v0.1.2.md:67` keeps real
+installed-browser/Mermaid evidence outside Stream A strict and blocked by
+Stream B/global release validation.
+
+Suggested fix: No Point 5 change needed. Keep real browser rendering proof in
+Stream B/global release gates.
+
+Test needed: None for Stream A strict. Global release still needs real browser
+tests.
+
+## Gates Replayed
+
+```text
+npm.cmd run typecheck
+PASS
+
+npm.cmd test
+PASS - 11 test files, 85 tests passed, 2 skipped
+
+npm.cmd run test:contracts
+PASS - 1 test file, 10 tests
+
+npm.cmd run check:artifacts
+PASS - Artifact freshness policy passed.
+
+npm.cmd run build
+PASS
+
+npm.cmd pack --json
+PASS - md2pdf-0.1.2.tgz
+shasum cc11a64ec297c708b2178727bd372f753fabee33
+integrity sha512-KUOkmzNX9/0yaqlkpGBFWwu/WqoWHizE4Fe1xG43cuf8JQfnGmBFaA+s3uOvQRIr3cQraFXhNlqJdO9Kk6bGdw==
+
+node dist\cli.js --help
+PASS
+```
+
+## Open Questions
+
+- None blocking for Stream A strict.
+
+## Summary
+
+Point 5 can continue to Point 6. The red unit gate is fixed, every Stream A
+strict gate listed in the plan passes, and release evidence now points at the
+final tarball produced after the README/test updates.

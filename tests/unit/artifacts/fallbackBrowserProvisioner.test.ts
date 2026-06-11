@@ -20,6 +20,7 @@ const payload = Buffer.from("chromium archive");
 const payloadSha = sha256(payload);
 const testPlatform = `${process.platform}-${process.arch}`;
 const tempRoots: string[] = [];
+const itOnPosix = process.platform === "win32" ? it.skip : it;
 
 afterEach(async () => {
   await Promise.all(tempRoots.map((root) => rm(root, { recursive: true, force: true })));
@@ -277,7 +278,7 @@ describe("fallback browser provisioning", () => {
     await expect(readFile(second.browserPath, "utf8")).resolves.toBe("browser");
   });
 
-  it("@req NFR-05 re-provisions a non-executable cached browser", async () => {
+  itOnPosix("@req NFR-05 re-provisions a non-executable cached browser", async () => {
     const cacheDir = await tempRoot();
     const downloader = new RecordingDownloader(payload);
     const extractor = new FixtureExtractor();

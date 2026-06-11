@@ -40,6 +40,7 @@
     "test:artifacts": "vitest run tests/unit/artifacts --reporter=verbose",
     "test:watch": "vitest",
     "test:browser": "vitest run --config vitest.browser.config.ts",
+    "test:real-browser": "vitest run --config vitest.real-browser.config.ts",
     "test:all": "vitest run --reporter=verbose && vitest run --config vitest.browser.config.ts",
     "check:artifacts": "node scripts/checkArtifactFreshness.mjs",
     "typecheck": "tsc --noEmit"

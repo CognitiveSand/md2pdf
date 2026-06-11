@@ -2,10 +2,9 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    include: ['tests/integration/**/*.test.ts'],
-    exclude: ['tests/integration/real-browser-mermaid.test.ts'],
+    include: ['tests/integration/real-browser-mermaid.test.ts'],
     environment: 'node',
-    testTimeout: 60_000,
+    testTimeout: 90_000,
     hookTimeout: 30_000,
     reporters: ['verbose'],
   },
