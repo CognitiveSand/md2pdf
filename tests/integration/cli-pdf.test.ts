@@ -129,6 +129,77 @@ describe("Stream A P3 CLI PDF integration", () => {
     await expect(fs.readFile(logPath, "utf8")).resolves.toContain("--print-to-pdf=");
   });
 
+  it("rejects Mermaid when the browser DOM dump only contains SVG text inside scripts", async () => {
+    await writeMarkdown(
+      "source.md",
+      ["# Diagram", "", "```mermaid", "flowchart TD", "  A --> B", "```"].join("\n"),
+    );
+    vi.stubEnv(
+      "MD2PDF_FAKE_BROWSER_DUMP_DOM",
+      [
+        '<html data-mermaid-status="done">',
+        "<body>",
+        '<main><div class="mermaid">flowchart TD A --&gt; B</div></main>',
+        '<script>const falsePositive = "<svg>";</script>',
+        "</body>",
+        "</html>",
+      ].join(""),
+    );
+    const stdout = new MemoryWriter();
+    const stderr = new MemoryWriter();
+
+    const exitCode = await main(["source.md"], fakeIo(stdout, stderr));
+
+    expect(exitCode).toBe(1);
+    expect(stderr.toString()).toContain(
+      "[conversion] Mermaid diagrams were not rendered before PDF output",
+    );
+  });
+
+  it("accepts Mermaid when the rendered DOM contains an SVG in the Mermaid container", async () => {
+    await writeMarkdown(
+      "source.md",
+      ["# Diagram", "", "```mermaid", "flowchart TD", "  A --> B", "```"].join("\n"),
+    );
+    vi.stubEnv(
+      "MD2PDF_FAKE_BROWSER_DUMP_DOM",
+      [
+        '<html data-mermaid-status="done">',
+        "<body>",
+        '<main><div class="mermaid"><svg role="graphics-document"></svg></div></main>',
+        '<script>const bundleText = "<svg>";</script>',
+        "</body>",
+        "</html>",
+      ].join(""),
+    );
+    const stdout = new MemoryWriter();
+    const stderr = new MemoryWriter();
+
+    const exitCode = await main(["source.md"], fakeIo(stdout, stderr));
+
+    expect(exitCode).toBe(0);
+    expect(stderr.toString()).toBe("");
+    await expectPdf(path.join(tempRoot, "source.pdf"));
+  });
+
+  it("reports a browser-rendered HTML timeout before the temporary HTML timeout", async () => {
+    await writeMarkdown(
+      "source.md",
+      ["# Diagram", "", "```mermaid", "flowchart TD", "  A --> B", "```"].join("\n"),
+    );
+    vi.stubEnv("MD2PDF_FAKE_BROWSER_HANG_DUMP_DOM", "1");
+    const stdout = new MemoryWriter();
+    const stderr = new MemoryWriter();
+
+    const exitCode = await main(["source.md"], fakeIo(stdout, stderr));
+
+    expect(exitCode).toBe(1);
+    expect(stderr.toString()).toContain(
+      "[conversion] Timed out waiting for browser-rendered HTML",
+    );
+    expect(stderr.toString()).not.toContain("Timed out while using temporary HTML");
+  });
+
   it("preserves an existing PDF when late rendering produces invalid output", async () => {
     await writeMarkdown("source.md", "# Preserve\n");
     const outputPath = path.join(tempRoot, "source.pdf");
@@ -217,6 +288,13 @@ async function createFakeBrowser(root: string): Promise<string> {
     '  process.exit(7);',
     '}',
     'const outputArg = args.find((arg) => arg.startsWith("--print-to-pdf="));',
+    'if (args.includes("--dump-dom")) {',
+    '  if (process.env.MD2PDF_FAKE_BROWSER_HANG_DUMP_DOM === "1") {',
+    '    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0);',
+    '  }',
+    '  console.log(process.env.MD2PDF_FAKE_BROWSER_DUMP_DOM ?? "<html data-mermaid-status=\\"done\\"><body><main><div class=\\"mermaid\\"><svg></svg></div></main></body></html>");',
+    '  process.exit(0);',
+    '}',
     'if (!outputArg) {',
     '  console.error("missing --print-to-pdf");',
     '  process.exit(2);',

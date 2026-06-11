@@ -101,7 +101,12 @@ describe("Stream A P1 CLI", () => {
     const stdout = new MemoryWriter();
     const stderr = new MemoryWriter();
 
-    const exitCode = await main(["source.md"], fakeIo(stdout, stderr, tempRoot));
+    const exitCode = await main(
+      ["source.md"],
+      fakeIo(stdout, stderr, tempRoot, {
+        env: { MD2PDF_BROWSER: path.join(tempRoot, "missing-browser.exe") },
+      }),
+    );
 
     expect(exitCode).toBe(1);
     expect(stdout.toString()).toBe("0 succeeded, 1 failed, 0 skipped\n");

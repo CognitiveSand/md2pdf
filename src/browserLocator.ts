@@ -1,3 +1,4 @@
+import { constants } from "node:fs";
 import { access } from "node:fs/promises";
 import { delimiter, isAbsolute, join } from "node:path";
 
@@ -10,6 +11,12 @@ const WINDOWS_BROWSER_PATHS = [
   ["ProgramFiles", "Google", "Chrome", "Application", "chrome.exe"],
   ["ProgramFiles(x86)", "Google", "Chrome", "Application", "chrome.exe"],
   ["LOCALAPPDATA", "Google", "Chrome", "Application", "chrome.exe"],
+  ["ProgramFiles", "BraveSoftware", "Brave-Browser", "Application", "brave.exe"],
+  ["ProgramFiles(x86)", "BraveSoftware", "Brave-Browser", "Application", "brave.exe"],
+  ["LOCALAPPDATA", "BraveSoftware", "Brave-Browser", "Application", "brave.exe"],
+  ["ProgramFiles", "Vivaldi", "Application", "vivaldi.exe"],
+  ["ProgramFiles(x86)", "Vivaldi", "Application", "vivaldi.exe"],
+  ["LOCALAPPDATA", "Vivaldi", "Application", "vivaldi.exe"],
 ];
 
 const POSIX_BROWSER_NAMES = [
@@ -19,6 +26,10 @@ const POSIX_BROWSER_NAMES = [
   "chromium-browser",
   "microsoft-edge",
   "msedge",
+  "brave-browser",
+  "brave",
+  "vivaldi",
+  "vivaldi-stable",
 ];
 
 export async function locateBrowser(explicitBrowserPath?: string): Promise<string> {
@@ -35,7 +46,7 @@ export async function locateBrowser(explicitBrowserPath?: string): Promise<strin
   throw new BrowserNotFoundError({
     message: "No supported browser executable was found",
     actionHint:
-      "Install Chrome, Chromium, or Edge, or set MD2PDF_BROWSER to a browser executable path.",
+      "Install a Chromium-family browser, or set MD2PDF_BROWSER to a browser executable path.",
   });
 }
 
@@ -65,7 +76,9 @@ function windowsCandidates(): string[] {
     }
   }
 
-  candidates.push(...pathCandidates(["msedge.exe", "chrome.exe", "chromium.exe"]));
+  candidates.push(
+    ...pathCandidates(["msedge.exe", "chrome.exe", "chromium.exe", "brave.exe", "vivaldi.exe"]),
+  );
 
   return candidates;
 }
@@ -88,7 +101,7 @@ async function isUsableExecutable(path: string): Promise<boolean> {
   }
 
   try {
-    await access(path);
+    await access(path, process.platform === "win32" ? constants.F_OK : constants.X_OK);
     return true;
   } catch {
     return false;

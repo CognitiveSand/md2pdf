@@ -1,6 +1,6 @@
 # md2pdf v0.1.2 Release Checklist
 
-Release status: `pending`
+Release status: `blocked`
 
 P0 closure status: `pass`
 
@@ -18,12 +18,12 @@ explicitly accepted in this checklist.
 | Field | Value |
 | --- | --- |
 | md2pdf version | `0.1.2` |
-| Checklist status | `pending` for release; P0 closure `pass` |
+| Checklist status | `blocked` for global release; Stream A strict `pass` |
 | Date opened | `2026-06-04` |
-| Date completed | `pending` |
-| Owner | `pending` |
-| Commit SHA | `pending` |
-| npm tarball or package source | `pending` |
+| Date completed | Stream A strict completed `2026-06-11`; global release pending |
+| Owner | `Codex` |
+| Commit SHA | `b58c45775b5e25926d7567a230034576949bd603` |
+| npm tarball or package source | `md2pdf-0.1.2.tgz`; shasum `cc11a64ec297c708b2178727bd372f753fabee33`; integrity `sha512-KUOkmzNX9/0yaqlkpGBFWwu/WqoWHizE4Fe1xG43cuf8JQfnGmBFaA+s3uOvQRIr3cQraFXhNlqJdO9Kk6bGdw==` |
 
 ## P0 Scope Check
 
@@ -60,13 +60,13 @@ below.
 
 | Item | Status | Evidence / command | Notes |
 | --- | --- | --- | --- |
-| TypeScript typecheck | `pass` | `npm.cmd run typecheck`; `audit/2026-06-08-stream-a-phase1-point2-p2-global-audit.md` | P2 global gate passed on 2026-06-08. Final release candidate should rerun the gate. |
-| Unit tests | `pass` | `npm.cmd test`; `audit/2026-06-08-stream-a-phase1-point2-p2-global-audit.md`; Stream A Phase 3 local replay | P2 global gate passed; after Phase 3, the current unit suite passes with 10 test files and 84 tests. Final release candidate should rerun the gate. |
+| TypeScript typecheck | `pass` | `npm.cmd run typecheck`; Point 5 replay on 2026-06-11 | `tsc --noEmit` passed during Stream A strict gate replay. |
+| Unit tests | `pass` | `npm.cmd test`; Point 5 replay on 2026-06-11 | 11 test files passed; 85 tests passed and 2 POSIX-only browser locator tests were skipped on Windows. |
 | Contract tests | `pass` | `npm.cmd run test:contracts`; `audit/2026-06-08-stream-a-phase1-point2-p2-global-audit.md`; Stream A Phase 3 local replay | P2 global gate passed; after Phase 3, the current contract suite passes with 1 test file and 10 tests. Final release candidate should rerun the gate. |
-| Integration tests | `pass` | `npm.cmd run test:browser`; `tests/integration/cli-pdf.test.ts` | Stream A P3/P5 integration gate passes with 1 test file and 10 tests covering CLI -> runtime converter -> PDF renderer contract plus late write failure protections. |
-| Browser-backed tests | `blocked` | Real installed-browser/Mermaid test still required | `test:browser` now covers the browser command contract with a deterministic fake browser. A real installed browser and Mermaid-as-diagram proof remain required before release. |
+| Integration tests | `pass` | `npm.cmd run test:browser`; `tests/integration/cli-pdf.test.ts` | Stream A P3/P5 integration gate passes with 1 test file and 10 tests covering CLI -> runtime converter -> PDF renderer contract plus late write failure protections. This is not the real installed-browser/Mermaid proof. |
+| Browser-backed tests | `blocked` | Stream B / global release evidence required | Real installed-browser, Mermaid-as-diagram, WebDriver/Firefox, fallback provisioning, and browser-family compatibility evidence are outside Stream A strict. |
 | Artifact freshness gate | `pass` | `npm.cmd run check:artifacts`; `audit/2026-06-08-stream-a-phase1-point1-artifacts-audit.md`; `audit/2026-06-08-stream-a-phase1-point2-p2-global-audit.md` | P2 global gate passed after restoring the declared `assets/highlight.css` bytes. Final release candidate should rerun the gate. |
-| CI matrix | `pending` | CI run URL, logs, or committed summary | Linux, macOS, Windows on Node.js 20+. |
+| CI matrix | `blocked` | Global release CI run URL, logs, or committed summary | Linux, macOS, Windows on Node.js 20+. This remains global release evidence, not a Stream A strict implementation task. |
 
 ## Accepted Pre-C0 Exceptions
 
@@ -77,7 +77,7 @@ C0, P4, or the release candidate as indicated.
 | --- | --- | --- | --- |
 | `npm run typecheck` fails with `TS18003` because `src/**/*.ts` does not exist. | `pass` | Resolved in C0 | C0 contract source/stubs now exist and `npm run typecheck` passed on 2026-06-04. |
 | C0 red/green contract evidence is not available yet. | `pass` | Resolved in C0 | Red gate captured in `audit/audit-c0-etape4.md`; green gate captured with `npm run typecheck` and `npm run test:contracts` on 2026-06-04. |
-| Release gates, browser tests, packlist, install evidence, and FR-20 proof are not runnable before a release candidate exists. | `pending` | P4/release candidate | Complete the automated and manual evidence sections below. |
+| Release gates, browser tests, packlist, install evidence, and FR-20 proof are not runnable before a release candidate exists. | `pass` | Resolved or separated during Stream A strict finalization | FR-20 simulation and install evidence are versioned; final pack replay is tracked in Point 5; real browser/rendering evidence is explicitly Stream B/global release scope. |
 | Existing `dist/` content is non-normative and may not match `package.json` bin layout. | `pass` | Stream A Phase 6, 2026-06-09 | Resolved by `npm.cmd run build` and `npm.cmd pack --json`; `package.json` maps `bin.md2pdf` to `./dist/cli.js`, and the packlist includes the built `dist/cli.js`. |
 
 ## FR-20 System-Scope Evidence
@@ -85,17 +85,17 @@ C0, P4, or the release candidate as indicated.
 | Item | Status | Evidence / command | Notes |
 | --- | --- | --- | --- |
 | FR-20 evidence file present | `pass` | `docs/release-evidence/fr-20-system-scope.md` | Template exists from P0 phase 4. |
-| FR-20 evidence completed for release candidate | `pending` | `docs/release-evidence/fr-20-system-scope.md` | Required before release. |
-| Command resolves by name in tested account | `pending` | Windows: `where md2pdf`; POSIX: `command -v md2pdf` or `which md2pdf` | Proves PATH availability; absolute path alone is diagnostic, not sufficient. |
-| `md2pdf --help` runs by command name in tested account | `pending` | Exact command and output in FR-20 evidence | Required to prove invocability for the account. |
-| Secondary account or valid simulation documented | `pending` | FR-20 account coverage section | Prefer standard non-admin secondary account. Simulation must explain why a real account was unavailable and prove equivalent PATH/invocation behavior. |
+| FR-20 evidence completed for release candidate | `pass` | `docs/release-evidence/fr-20-system-scope.md` | Completed as a documented Stream A strict simulation; not a real elevated multi-account install. |
+| Command resolves by name in tested account | `pass` | `docs/release-evidence/fr-20-system-scope.md`, `where md2pdf` | Temporary global-style npm prefix was placed on `PATH`; `where md2pdf` resolved the command by name. |
+| `md2pdf --help` runs by command name in tested account | `pass` | `docs/release-evidence/fr-20-system-scope.md` | `md2pdf --help` exited `0` and printed the supported CLI options. |
+| Secondary account or valid simulation documented | `pass` | `docs/release-evidence/fr-20-system-scope.md` account coverage section | Simulation reason, equivalence, and limitations are documented. |
 
 ## Packaging And Distribution
 
 | Item | Status | Evidence / command | Notes |
 | --- | --- | --- | --- |
 | `dist/` regenerated from `src/` | `pass` | `npm.cmd run build`, 2026-06-09 | Build regenerated `dist/` from `src/`; `dist/cli.js` exists and starts with the CLI shebang. |
-| npm packlist verified | `pass` | `npm.cmd pack --json`, 2026-06-09 | Tarball `md2pdf-0.1.2.tgz`, shasum `fb8fc5f856797cf492e61e22c18af756e5f724b4`, integrity `sha512-KwRtaWNPIusd1wj/aMLAMi3HYTkeqTpY2PEgHAeLxWi8BbIYtz5KyOHSbDSE4IcMI7hvIuDuy5B4zBSINOTLXA==`; packlist includes `dist/`, `assets/`, `README.md`, `ARTIFACT_FRESHNESS_POLICY.md`, `artifacts.json`, and `package.json`. |
+| npm packlist verified | `pass` | `npm.cmd pack --json`, Point 5 replay on 2026-06-11 | Tarball `md2pdf-0.1.2.tgz`, shasum `cc11a64ec297c708b2178727bd372f753fabee33`, integrity `sha512-KUOkmzNX9/0yaqlkpGBFWwu/WqoWHizE4Fe1xG43cuf8JQfnGmBFaA+s3uOvQRIr3cQraFXhNlqJdO9Kk6bGdw==`; packlist includes `dist/`, `assets/`, `README.md`, `ARTIFACT_FRESHNESS_POLICY.md`, `artifacts.json`, and `package.json`. |
 | User-scope install works | `pass` | `npm.cmd install --global --prefix .tmp\phase6-prefix --cache .tmp\phase6-cache .\md2pdf-0.1.2.tgz --no-audit --no-fund`; `cmd.exe /d /c "set PATH=<prefix>;%PATH%&& md2pdf --help"` | Covers FR-19 in a temporary user-scope prefix. Windows PowerShell in this environment resolves `md2pdf` to the generated `.ps1` shim first and blocks it under the local ExecutionPolicy; the npm `.cmd` shim is invocable by command name through `cmd.exe`. |
 | Reinstall is idempotent | `pass` | Second `npm.cmd install --global --prefix .tmp\phase6-prefix --cache .tmp\phase6-cache .\md2pdf-0.1.2.tgz --no-audit --no-fund`, 2026-06-09 | Covers FR-21; second install exited `0` with `changed 123 packages`, and `md2pdf --help` remained invocable through the npm `.cmd` shim. |
 
@@ -104,8 +104,8 @@ C0, P4, or the release candidate as indicated.
 | Item | Status | Evidence / command | Notes |
 | --- | --- | --- | --- |
 | `md2pdf --help` lists supported options | `pass` | `tests/unit/cli/cli.test.ts`, `@req NFR-04 prints one help line for each supported option` | Unit proof covers CLI help formatting. Built-package help output remains part of P4 packaging evidence. |
-| README options match CLI help | `pending` | Review note or comparison output | README must not document stale or missing CLI options. |
-| FR-20 help output captured | `pending` | `fr-20-system-scope.md` | Should be the output from the tested system-scope account context. |
+| README options match CLI help | `pass` | `README.md`; `node dist\cli.js --help`; `audit.md` Stream A strict point 2 audit | README documents `ENTRY`, `--output`, `--output-dir`, `--force-overwrite`, and `--help`; it does not document a nonexistent `--browser` option. |
+| FR-20 help output captured | `pass` | `docs/release-evidence/fr-20-system-scope.md` | Help output from the tested Stream A strict simulation context is recorded. |
 
 ## Defensive Decisions
 
@@ -123,10 +123,10 @@ phase exists.
 | Skipped outputs count in summary without causing failure | `pass` | `tests/unit/cli/cli.test.ts`, `@req FR-12 @req FR-18 reports non-interactive overwrite skips in the summary without failing` | Covered by Stream A P1/P2 unit tests. |
 | Duplicate entries or duplicate outputs fail preflight | `pass` | `tests/unit/paths/paths.test.ts`, duplicate entries; `tests/unit/pipeline/pipeline.test.ts`, output collisions; `tests/unit/cli/cli.test.ts`, CLI preflight collision | Covered by Stream A P1/P2 unit tests; includes duplicates and output collisions. |
 | `--output-dir` basename collision blocks before render | `pass` | `tests/unit/paths/paths.test.ts`, `@req FR-23 rejects basename collisions`; `tests/unit/cli/cli.test.ts`, CLI preflight collision | Covered by Stream A P1/P2 unit tests. Example: `a/report.md` and `b/report.md`. |
-| Cache writes are atomic | `pending` | Stream B artifact test | `.tmp` then atomic rename after verification. |
-| Cache non-writable reports explicit artifact/browser error | `pending` | Stream B artifact test | Must not become a generic failure. |
+| Cache writes are atomic | `blocked` | Stream B artifact test | Stream B/provisioning responsibility; outside Stream A strict. |
+| Cache non-writable reports explicit artifact/browser error | `blocked` | Stream B artifact test | Stream B/provisioning responsibility; outside Stream A strict. |
 | C0 red then green evidence recorded | `pass` | C0 contract trace above | Required C0 proof is now recorded. |
-| FR-20 manual proof versioned | `pending` | FR-20 section above | Required for release. |
+| FR-20 manual proof versioned | `pass` | FR-20 section above; `docs/release-evidence/fr-20-system-scope.md` | Versioned Stream A strict simulation evidence is present. |
 
 ## Architecture Alignment
 
@@ -143,8 +143,8 @@ phase exists.
 
 | Field | Value |
 | --- | --- |
-| Release decision | `pending` |
+| Release decision | `GO Stream A strict`; `NO-GO global release` pending Stream B/browser evidence |
 | Reviewer | `pending` |
-| Decision date | `pending` |
-| Blocking items remaining | `pending` |
-| Notes | `pending` |
+| Decision date | `2026-06-11` |
+| Blocking items remaining | Stream B browser/rendering evidence; real installed-browser/Mermaid proof; fallback/provisioning evidence; browser compatibility matrix; CI matrix |
+| Notes | Stream A strict final audit: `audit/2026-06-11-stream-a-strict-final-audit.md`. Stream A strict is limited to CLI, orchestration, packaging, install evidence, README/help alignment, and command invocability. It does not close global browser/rendering release readiness. |
