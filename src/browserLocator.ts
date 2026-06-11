@@ -1,3 +1,4 @@
+import { execFile } from "node:child_process";
 import { constants } from "node:fs";
 import { access, realpath as fsRealpath, stat } from "node:fs/promises";
 import { basename, delimiter, join, resolve } from "node:path";
@@ -7,7 +8,7 @@ import {
   type ArtifactRelease,
   type ReleaseCatalog,
 } from "./artifactPolicy.js";
-import { BrowserNotFoundError } from "./errors.js";
+import { ArtifactFreshnessError, BrowserNotFoundError } from "./errors.js";
 
 export type BrowserKind = "chrome" | "chromium" | "edge" | "brave" | "firefox";
 export type DriverArtifactName = "chromedriver" | "geckodriver";
@@ -18,6 +19,8 @@ export interface BrowserLocatorOptions {
   candidatePaths?: string[];
   fileSystem?: BrowserLocatorFileSystem;
   driverResolver?: BrowserDriverResolver;
+  fallbackBrowserResolver?: FallbackBrowserResolver;
+  browserProbe?: BrowserProbe;
 }
 
 export interface BrowserLocatorFileSystem {
@@ -30,10 +33,26 @@ export interface BrowserDriverResolver {
   resolveDriver(browser: BrowserCandidate): Promise<LocatedDriver | null>;
 }
 
+export interface BrowserProbe {
+  isLaunchable(browser: BrowserCandidate): Promise<boolean>;
+  version?(browser: BrowserCandidate): Promise<string | null>;
+  inspect?(browser: BrowserCandidate): Promise<BrowserProbeInspection>;
+}
+
+export interface BrowserProbeInspection {
+  isLaunchable: boolean;
+  version: string | null;
+}
+
+export interface FallbackBrowserResolver {
+  resolveFallbackBrowser(): Promise<LocatedBrowser | null>;
+}
+
 export interface BrowserCandidate {
   browserPath: string;
   kind: BrowserKind;
   displayName: string;
+  version?: string;
 }
 
 export interface LocatedDriver {
@@ -64,12 +83,16 @@ export class BrowserLocator {
   private readonly candidatePaths: string[];
   private readonly fileSystem: BrowserLocatorFileSystem;
   private readonly driverResolver: BrowserDriverResolver;
+  private readonly fallbackBrowserResolver: FallbackBrowserResolver | undefined;
+  private readonly browserProbe: BrowserProbe;
 
   constructor(options: BrowserLocatorOptions = {}) {
     this.env = options.env ?? process.env;
     this.platform = options.platform ?? process.platform;
     this.fileSystem = options.fileSystem ?? nodeFileSystem;
     this.driverResolver = options.driverResolver ?? new NullDriverResolver();
+    this.fallbackBrowserResolver = options.fallbackBrowserResolver;
+    this.browserProbe = options.browserProbe ?? nodeBrowserProbe;
     this.candidatePaths = options.candidatePaths ?? defaultBrowserCandidates(this.platform);
   }
 
@@ -114,13 +137,44 @@ export class BrowserLocator {
       sawSupportedBrowserWithoutDriver = true;
     }
 
+    const fallback = await this.locateFallbackBrowser();
+    if (fallback !== null) {
+      return fallback;
+    }
+
+    if (sawSupportedBrowserWithoutDriver) {
+      throw browserError({
+        message: "No eligible WebDriver was found for an installed supported browser",
+        cause: "no-eligible-driver",
+        actionHint: `Install one of ${supportedBrowsers.join(", ")} with an eligible WebDriver, or set ${envBrowserVariable}.`,
+      });
+    }
+
     throw browserError({
-      message: sawSupportedBrowserWithoutDriver
-        ? "No eligible WebDriver was found for an installed supported browser"
-        : "No supported browser was found",
-      cause: sawSupportedBrowserWithoutDriver ? "no-eligible-driver" : "no-compatible-browser",
+      message: "No supported browser was found",
+      cause: "no-compatible-browser",
       actionHint: `Install one of ${supportedBrowsers.join(", ")} with an eligible WebDriver, or set ${envBrowserVariable}.`,
     });
+  }
+
+  private async locateFallbackBrowser(): Promise<LocatedBrowser | null> {
+    if (this.fallbackBrowserResolver === undefined) {
+      return null;
+    }
+
+    try {
+      return await this.fallbackBrowserResolver.resolveFallbackBrowser();
+    } catch (error) {
+      if (error instanceof ArtifactFreshnessError) {
+        throw browserError({
+          message: "No supported browser was found and no eligible fallback browser artifact is available",
+          cause: error,
+          actionHint: `Install one of ${supportedBrowsers.join(", ")} or declare an eligible fallback browser artifact.`,
+        });
+      }
+
+      throw error;
+    }
   }
 
   private async validateExplicitBrowser(browserPath: string): Promise<BrowserCandidate> {
@@ -154,7 +208,17 @@ export class BrowserLocator {
       });
     }
 
-    return { ...candidate, browserPath: realBrowserPath };
+    const browser = { ...candidate, browserPath: realBrowserPath };
+    const inspection = await inspectBrowser(browser, this.browserProbe);
+    if (!inspection.isLaunchable) {
+      throw browserError({
+        message: "Pinned browser path is not launchable as a supported browser",
+        cause: "env-browser-not-launchable",
+        actionHint: `${envBrowserVariable} must point to a launchable Chrome, Chromium, Edge, Brave, or Firefox binary: ${realBrowserPath}`,
+      });
+    }
+
+    return withBrowserInspection(browser, inspection);
   }
 
   private async candidateFromPath(candidatePath: string): Promise<BrowserCandidate | null> {
@@ -176,7 +240,13 @@ export class BrowserLocator {
       return null;
     }
 
-    return { ...candidate, browserPath: realBrowserPath };
+    const browser = { ...candidate, browserPath: realBrowserPath };
+    const inspection = await inspectBrowser(browser, this.browserProbe);
+    if (!inspection.isLaunchable) {
+      return null;
+    }
+
+    return withBrowserInspection(browser, inspection);
   }
 }
 
@@ -198,11 +268,25 @@ export class ArtifactPolicyDriverResolver implements BrowserDriverResolver {
   async resolveDriver(browser: BrowserCandidate): Promise<LocatedDriver | null> {
     const artifactName = driverArtifactNameForBrowser(browser.kind);
     const releases = await this.catalog.listReleases(artifactName);
-    const release = this.policy.selectNewestEligible(releases, {
-      quarantineDays: this.quarantineDays,
-    }, this.now);
+    let release: ArtifactRelease;
+    try {
+      release = this.policy.selectNewestEligible(
+        releases,
+        {
+          quarantineDays: this.quarantineDays,
+          ...driverCompatibilityConstraint(browser),
+        },
+        this.now,
+      );
+    } catch (error) {
+      if (isNoEligibleArtifact(error)) {
+        return null;
+      }
 
-    if (release === null || release.path === undefined) {
+      throw error;
+    }
+
+    if (release.path === undefined) {
       return null;
     }
 
@@ -252,6 +336,35 @@ const nodeFileSystem: BrowserLocatorFileSystem = {
   },
 };
 
+const nodeBrowserProbe: BrowserProbe = {
+  async inspect(browser: BrowserCandidate): Promise<BrowserProbeInspection> {
+    try {
+      const output = await execBrowserVersion(browser.browserPath);
+      return {
+        isLaunchable: browserVersionMatchesKind(output, browser.kind),
+        version: parseBrowserVersion(output),
+      };
+    } catch {
+      return { isLaunchable: false, version: null };
+    }
+  },
+  async isLaunchable(browser: BrowserCandidate): Promise<boolean> {
+    try {
+      const output = await execBrowserVersion(browser.browserPath);
+      return browserVersionMatchesKind(output, browser.kind);
+    } catch {
+      return false;
+    }
+  },
+  async version(browser: BrowserCandidate): Promise<string | null> {
+    try {
+      return parseBrowserVersion(await execBrowserVersion(browser.browserPath));
+    } catch {
+      return null;
+    }
+  },
+};
+
 function locatedBrowser(candidate: BrowserCandidate, driver: LocatedDriver): LocatedBrowser {
   return {
     ...candidate,
@@ -262,7 +375,7 @@ function locatedBrowser(candidate: BrowserCandidate, driver: LocatedDriver): Loc
 
 function browserError(input: {
   message: string;
-  cause: string;
+  cause: unknown;
   actionHint: string;
 }): BrowserNotFoundError {
   return new BrowserNotFoundError({
@@ -270,6 +383,50 @@ function browserError(input: {
     actionHint: input.actionHint,
     cause: input.cause,
   });
+}
+
+function isNoEligibleArtifact(error: unknown): boolean {
+  return error instanceof ArtifactFreshnessError && error.context.cause === "no-eligible-release";
+}
+
+async function execBrowserVersion(browserPath: string): Promise<string> {
+  return new Promise((resolveVersion, rejectVersion) => {
+    execFile(
+      browserPath,
+      ["--version"],
+      { timeout: 3_000, windowsHide: true },
+      (error, stdout, stderr) => {
+        if (error !== null) {
+          rejectVersion(error);
+          return;
+        }
+
+        resolveVersion(`${stdout}\n${stderr}`.trim());
+      },
+    );
+  });
+}
+
+function browserVersionMatchesKind(output: string, kind: BrowserKind): boolean {
+  const normalized = output.toLowerCase();
+
+  if (kind === "chrome") {
+    return normalized.includes("google chrome") || /^chrome\s+\d/u.test(normalized);
+  }
+
+  if (kind === "chromium") {
+    return normalized.includes("chromium");
+  }
+
+  if (kind === "edge") {
+    return normalized.includes("microsoft edge") || normalized.includes("msedge");
+  }
+
+  if (kind === "brave") {
+    return normalized.includes("brave");
+  }
+
+  return normalized.includes("firefox");
 }
 
 function browserKindFromPath(path: string): Omit<BrowserCandidate, "browserPath"> | null {
@@ -318,6 +475,48 @@ function browserKindFromPath(path: string): Omit<BrowserCandidate, "browserPath"
 
 function driverArtifactNameForBrowser(kind: BrowserKind): DriverArtifactName {
   return kind === "firefox" ? "geckodriver" : "chromedriver";
+}
+
+function driverCompatibilityConstraint(browser: BrowserCandidate): { compatibleWith?: string } {
+  if (browser.kind === "firefox" || browser.version === undefined) {
+    return {};
+  }
+
+  return { compatibleWith: browser.version };
+}
+
+async function inspectBrowser(
+  browser: BrowserCandidate,
+  probe: BrowserProbe,
+): Promise<BrowserProbeInspection> {
+  if (probe.inspect !== undefined) {
+    return probe.inspect(browser);
+  }
+
+  if (!(await probe.isLaunchable(browser))) {
+    return { isLaunchable: false, version: null };
+  }
+
+  return {
+    isLaunchable: true,
+    version: await probe.version?.(browser) ?? null,
+  };
+}
+
+function withBrowserInspection(
+  browser: BrowserCandidate,
+  inspection: BrowserProbeInspection,
+): BrowserCandidate {
+  if (inspection.version === null || inspection.version === "") {
+    return browser;
+  }
+
+  return { ...browser, version: inspection.version };
+}
+
+function parseBrowserVersion(output: string): string | null {
+  const match = /(\d+(?:[.]\d+)+|\d+)/u.exec(output);
+  return match?.[1] ?? null;
 }
 
 function defaultBrowserCandidates(platform: NodeJS.Platform): string[] {

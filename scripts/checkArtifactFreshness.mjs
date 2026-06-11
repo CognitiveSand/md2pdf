@@ -274,6 +274,29 @@ export function freshnessFailures(committedLock, regeneratedLock, waivers, audit
       continue;
     }
 
+    const auditReport = normalizeRepoPath(waiver.auditReport);
+    const expectedAuditReport = normalizeRepoPath(
+      `security/audits/${waiver.package}@${waiver.version}.md`,
+    );
+    if (
+      auditReport !== expectedAuditReport ||
+      auditReport.startsWith("../") ||
+      isAbsolute(auditReport) ||
+      !auditReport.endsWith(".md")
+    ) {
+      failures.push(
+        `quarantine waiver ${label} auditReport must be ${expectedAuditReport}`,
+      );
+      continue;
+    }
+
+    if (!isIsoDateOnly(waiver.approvedOn)) {
+      failures.push(
+        `quarantine waiver ${label} approvedOn must be an ISO date (YYYY-MM-DD)`,
+      );
+      continue;
+    }
+
     const path = `node_modules/${waiver.package}`;
     const locked = committedLock.packages?.[path];
     if (!locked) {
@@ -288,9 +311,9 @@ export function freshnessFailures(committedLock, regeneratedLock, waivers, audit
       );
       continue;
     }
-    if (!auditExists(waiver.auditReport)) {
+    if (!auditExists(auditReport)) {
       failures.push(
-        `quarantine waiver ${label} references a missing audit report: ${waiver.auditReport}`,
+        `quarantine waiver ${label} references a missing audit report: ${auditReport}`,
       );
       continue;
     }
@@ -308,6 +331,23 @@ export function freshnessFailures(committedLock, regeneratedLock, waivers, audit
   }
 
   return failures;
+}
+
+function isIsoDateOnly(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(value);
+  if (match === null) {
+    return false;
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return (
+    parsed.getUTCFullYear() === year &&
+    parsed.getUTCMonth() === month - 1 &&
+    parsed.getUTCDate() === day
+  );
 }
 
 function assert(condition, message) {
@@ -423,14 +463,36 @@ function checkNestedArtifactReleases(artifact, label) {
 
 function checkArtifactReleaseShape(release, label, parentArtifact = release) {
   assert(typeof release?.version === "string", `artifact ${label} needs a version`);
+  if (typeof release?.version === "string") {
+    assert(
+      release.version.trim() !== "" && !isFloatingVersion(release.version),
+      `artifact ${label} needs an exact version`,
+    );
+  }
   assertValidPublishedAt(release?.publishedAt, `artifact ${label} needs a valid publishedAt`);
+  if (typeof release?.publishedAt === "string") {
+    assert(
+      new Date(release.publishedAt).getTime() <= cutoff.getTime(),
+      `artifact ${label} has not completed the ${QUARANTINE_DAYS}-day quarantine`,
+    );
+  }
   assertValidUrl(release?.url, `artifact ${label} needs an immutable url`);
-  assert(typeof release?.sha256 === "string", `artifact ${label} needs a sha256`);
-  assert(typeof release?.size === "number", `artifact ${label} needs a numeric size`);
+  assert(
+    typeof release?.sha256 === "string" && /^[a-f0-9]{64}$/iu.test(release.sha256),
+    `artifact ${label} needs a sha256`,
+  );
+  assert(
+    typeof release?.size === "number" && Number.isFinite(release.size) && release.size > 0,
+    `artifact ${label} needs a positive numeric size`,
+  );
   assert(
     typeof (release?.provenance ?? parentArtifact?.provenance) === "string",
     `artifact ${label} needs provenance`,
   );
+}
+
+function isFloatingVersion(version) {
+  return /^(latest|stable|beta|canary|dev|nightly)$/iu.test(version.trim());
 }
 
 function assertValidPublishedAt(value, message) {

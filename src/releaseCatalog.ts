@@ -137,6 +137,8 @@ function parseRelease(
   const path = optionalString(release.path ?? artifact.path);
   const platform = optionalString(release.platform ?? artifact.platform);
   const compatibleWith = optionalString(release.compatibleWith ?? artifact.compatibleWith);
+  const browserPath = optionalString(release.browserPath ?? artifact.browserPath);
+  const driverPath = optionalString(release.driverPath ?? artifact.driverPath);
 
   return {
     version,
@@ -150,6 +152,8 @@ function parseRelease(
     ...(path === undefined ? {} : { path }),
     ...(platform === undefined ? {} : { platform }),
     ...(compatibleWith === undefined ? {} : { compatibleWith }),
+    ...(browserPath === undefined ? {} : { browserPath }),
+    ...(driverPath === undefined ? {} : { driverPath }),
   };
 }
 

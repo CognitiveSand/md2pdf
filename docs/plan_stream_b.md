@@ -88,6 +88,12 @@ Module isolé, indépendant de `browserLocator.ts`.
   5. Si cache non writable : lever `ArtifactFreshnessError` ou `BrowserNotFoundError` avec cause explicite.
 - Vérification checksum avant chaque utilisation, même si déjà en cache.
 - Nettoyage automatique en cas de cache partiel ou version devenue non-éligible.
+- Portée de l'étape 6 : livrer le moteur de provisioning, cache, intégrité et
+  tests fake catalog. L'ajout d'un artifact Chromium-for-Testing réel dans
+  `artifacts.json` est un travail supply-chain séparé : il doit déclarer le
+  newest eligible exact après quarantaine, avec URL immuable, SHA-256, taille,
+  provenance et plateforme. En attendant, le catalogue réel doit échouer
+  explicitement plutôt que télécharger un fallback non déclaré.
 
 Gate P2 spécifique fallback :
 
