@@ -1,8 +1,8 @@
 # Audit Team Complete - Efficacite des corrections Phase 1
 
-Date: 2026-06-12 14:38 CEST  
-Branche auditee: `plan/v0.1.1_restart`  
-Base commit: `48d6e46f6b8645a70da97c8287aba45992d43257`  
+Date: 2026-06-12 14:38 CEST
+Branche auditee: `plan/v0.1.1_restart`
+Base commit: `48d6e46f6b8645a70da97c8287aba45992d43257`
 Etat audite: working tree courant avec corrections non commitees dans `src/` et `tests/`.
 
 ## Resume Global

@@ -18,6 +18,7 @@ export interface FallbackBrowserResult {
   browserPath: string;
   driverPath: string;
   release: ArtifactRelease;
+  driverRelease?: ArtifactRelease;
 }
 
 export interface ArtifactDownloader {
@@ -38,7 +39,9 @@ export interface FallbackBrowserProvisionerOptions {
 }
 
 const defaultArtifactName = "chromium-for-testing";
+const defaultDriverArtifactName = "chromedriver-for-testing";
 const archiveFileName = "artifact.zip";
+const driverArchiveFileName = "driver-artifact.zip";
 const metadataFileName = "cache-metadata.json";
 const requiredQuarantineDays = 7;
 const maxArchiveEntries = 20_000;
@@ -49,6 +52,9 @@ interface CacheMetadata {
   archiveSize: number;
   browserPath: string;
   browserSha256: string;
+  driverArchiveSha256?: string;
+  driverArchiveSize?: number;
+  driverReleaseVersion?: string;
   driverPath: string;
   driverSha256: string;
 }
@@ -61,23 +67,40 @@ export async function provisionFallbackBrowser(
   const artifactName = options.artifactName ?? defaultArtifactName;
   const now = options.now ?? new Date();
   const platform = options.platform ?? currentArtifactPlatform();
-  const cacheRoot = resolve(options.cacheDir ?? join(homedir(), ".cache", "md2pdf"));
+  const cacheRoot = resolve(
+    options.cacheDir ?? process.env.MD2PDF_ARTIFACT_CACHE ?? join(homedir(), ".cache", "md2pdf"),
+  );
   const downloader = options.downloader ?? defaultDownloader;
   const extractor = options.extractor ?? defaultExtractor;
   const release = await selectRelease(policy, catalog, artifactName, platform, now);
+  const driverRelease = await selectFallbackDriverRelease(
+    policy,
+    catalog,
+    defaultDriverArtifactName,
+    release,
+    platform,
+    now,
+  );
   const artifactRoot = join(cacheRoot, artifactName);
   const releaseCacheDir = join(artifactRoot, safeSegment(release.version));
 
   await ensureCacheRoot(cacheRoot, artifactName);
   await purgeStaleCaches(artifactRoot, releaseCacheDir, artifactName);
 
-  const cached = await usableCache(release, releaseCacheDir, artifactName);
+  const cached = await usableCache(release, driverRelease, releaseCacheDir, artifactName);
   if (cached !== null) {
-    return { ...cached, release };
+    return { ...cached, release, ...(driverRelease === null ? {} : { driverRelease }) };
   }
 
   await removeCacheEntry(releaseCacheDir, artifactName);
-  return provisionIntoCache(release, releaseCacheDir, downloader, extractor, artifactName);
+  return provisionIntoCache(
+    release,
+    driverRelease,
+    releaseCacheDir,
+    downloader,
+    extractor,
+    artifactName,
+  );
 }
 
 async function selectRelease(
@@ -111,8 +134,50 @@ async function selectRelease(
   }
 }
 
+async function selectFallbackDriverRelease(
+  policy: ArtifactPolicy,
+  catalog: ReleaseCatalog,
+  driverArtifactName: string,
+  browserRelease: ArtifactRelease,
+  platform: string,
+  now: Date,
+): Promise<ArtifactRelease | null> {
+  const releases = await catalog.listReleases(driverArtifactName);
+  if (releases.length === 0) {
+    return null;
+  }
+
+  const exactVersionReleases = releases.filter((release) =>
+    (release.compatibleWith ?? release.version) === browserRelease.version,
+  );
+
+  try {
+    return policy.selectNewestEligible(
+      exactVersionReleases,
+      {
+        quarantineDays: requiredQuarantineDays,
+        compatibleWith: browserRelease.version,
+        platform,
+      },
+      now,
+    );
+  } catch (cause) {
+    if (cause instanceof ArtifactFreshnessError && cause.context.cause === "no-eligible-release") {
+      throw new ArtifactFreshnessError({
+        message: "No eligible fallback WebDriver artifact is available",
+        artifactName: driverArtifactName,
+        actionHint: "Declare a matching ChromeDriver-for-Testing release that has completed quarantine.",
+        cause,
+      });
+    }
+
+    throw cause;
+  }
+}
+
 async function provisionIntoCache(
   release: ArtifactRelease,
+  driverRelease: ArtifactRelease | null,
   releaseCacheDir: string,
   downloader: ArtifactDownloader,
   extractor: ArtifactExtractor,
@@ -126,12 +191,24 @@ async function provisionIntoCache(
     await downloader.download(release, archivePath);
     await assertChecksum(release, archivePath);
     await extractor.extract(archivePath, tempDir);
+
+    if (driverRelease !== null) {
+      const driverArchivePath = join(tempDir, driverArchiveFileName);
+      await downloader.download(driverRelease, driverArchivePath);
+      await assertChecksum(driverRelease, driverArchivePath);
+      await extractor.extract(driverArchivePath, tempDir);
+    }
+
     await makeExecutablePaths(release, tempDir, artifactName);
     await assertExecutablePaths(release, tempDir, artifactName);
-    await writeCacheMetadata(release, tempDir, artifactName);
+    await writeCacheMetadata(release, driverRelease, tempDir, artifactName);
     await rename(tempDir, releaseCacheDir);
 
-    return { ...(await assertUsableCache(release, releaseCacheDir, artifactName)), release };
+    return {
+      ...(await assertUsableCache(release, driverRelease, releaseCacheDir, artifactName)),
+      release,
+      ...(driverRelease === null ? {} : { driverRelease }),
+    };
   } catch (cause) {
     const cleanupError = await cleanupTempDir(tempDir);
     if (cause instanceof ArtifactFreshnessError) {
@@ -215,11 +292,12 @@ async function removeCacheEntry(releaseCacheDir: string, artifactName: string): 
 
 async function usableCache(
   release: ArtifactRelease,
+  driverRelease: ArtifactRelease | null,
   releaseCacheDir: string,
   artifactName: string,
 ): Promise<Omit<FallbackBrowserResult, "release"> | null> {
   try {
-    return await assertUsableCache(release, releaseCacheDir, artifactName);
+    return await assertUsableCache(release, driverRelease, releaseCacheDir, artifactName);
   } catch {
     return null;
   }
@@ -227,12 +305,16 @@ async function usableCache(
 
 async function assertUsableCache(
   release: ArtifactRelease,
+  driverRelease: ArtifactRelease | null,
   releaseCacheDir: string,
   artifactName: string,
 ): Promise<Omit<FallbackBrowserResult, "release">> {
   await assertChecksum(release, join(releaseCacheDir, archiveFileName));
+  if (driverRelease !== null) {
+    await assertChecksum(driverRelease, join(releaseCacheDir, driverArchiveFileName));
+  }
   const paths = await assertExecutablePaths(release, releaseCacheDir, artifactName);
-  await assertCacheMetadata(release, releaseCacheDir, paths, artifactName);
+  await assertCacheMetadata(release, driverRelease, releaseCacheDir, paths, artifactName);
   return paths;
 }
 
@@ -293,6 +375,7 @@ function executablePaths(
 
 async function writeCacheMetadata(
   release: ArtifactRelease,
+  driverRelease: ArtifactRelease | null,
   cacheDir: string,
   artifactName: string,
 ): Promise<void> {
@@ -302,6 +385,13 @@ async function writeCacheMetadata(
     archiveSize: release.size,
     browserPath: release.browserPath ?? "browser",
     browserSha256: await sha256File(paths.browserPath),
+    ...(driverRelease === null
+      ? {}
+      : {
+        driverArchiveSha256: driverRelease.sha256,
+        driverArchiveSize: driverRelease.size,
+        driverReleaseVersion: driverRelease.version,
+      }),
     driverPath: release.driverPath ?? "driver",
     driverSha256: await sha256File(paths.driverPath),
   };
@@ -313,6 +403,7 @@ async function writeCacheMetadata(
 
 async function assertCacheMetadata(
   release: ArtifactRelease,
+  driverRelease: ArtifactRelease | null,
   cacheDir: string,
   paths: Omit<FallbackBrowserResult, "release">,
   artifactName: string,
@@ -327,6 +418,9 @@ async function assertCacheMetadata(
     metadata.archiveSize !== release.size ||
     metadata.browserPath !== (release.browserPath ?? "browser") ||
     metadata.driverPath !== (release.driverPath ?? "driver") ||
+    metadata.driverArchiveSha256 !== driverRelease?.sha256 ||
+    metadata.driverArchiveSize !== driverRelease?.size ||
+    metadata.driverReleaseVersion !== driverRelease?.version ||
     metadata.browserSha256 !== (await sha256File(paths.browserPath)) ||
     metadata.driverSha256 !== (await sha256File(paths.driverPath))
   ) {
@@ -368,9 +462,20 @@ function isCacheMetadata(value: unknown): value is CacheMetadata {
     typeof candidate.archiveSize === "number" &&
     typeof candidate.browserPath === "string" &&
     typeof candidate.browserSha256 === "string" &&
+    optionalString(candidate.driverArchiveSha256) &&
+    optionalNumber(candidate.driverArchiveSize) &&
+    optionalString(candidate.driverReleaseVersion) &&
     typeof candidate.driverPath === "string" &&
     typeof candidate.driverSha256 === "string"
   );
+}
+
+function optionalString(value: unknown): boolean {
+  return value === undefined || typeof value === "string";
+}
+
+function optionalNumber(value: unknown): boolean {
+  return value === undefined || typeof value === "number";
 }
 
 const defaultDownloader: ArtifactDownloader = {
@@ -409,7 +514,7 @@ const defaultDownloader: ArtifactDownloader = {
         });
         stream.once("finish", () => {
           stream.close((error) => {
-            if (error === null) {
+            if (error === null || error === undefined) {
               resolveDownload();
             } else {
               rejectDownload(error);

@@ -26,6 +26,41 @@
       "sha256": "c3c4ac152532aa6d9cfdeb8fd9562c13c432e5685ac58bf02d5a72e58760be1e",
       "size": 1419,
       "provenance": "Vendored highlight.js GitHub Light theme adapted from locked npm package highlight.js@11.11.1"
+    },
+    {
+      "name": "chromium-for-testing",
+      "kind": "runtime-provisioned-browser",
+      "source": "Chrome for Testing",
+      "provenance": "Chrome for Testing known-good-versions-with-downloads catalog and immutable Google Cloud Storage archive",
+      "releases": [
+        {
+          "version": "151.0.7875.0",
+          "publishedAt": "2026-06-05T05:00:18.000Z",
+          "platform": "win32-x64",
+          "url": "https://storage.googleapis.com/chrome-for-testing-public/151.0.7875.0/win64/chrome-win64.zip",
+          "sha256": "b3ee4af1cf49228f80783d3b58a3b3b23e22dedefdd72512389dcbe12fdf084a",
+          "size": 193987396,
+          "browserPath": "chrome-win64/chrome.exe",
+          "driverPath": "chromedriver-win64/chromedriver.exe"
+        }
+      ]
+    },
+    {
+      "name": "chromedriver-for-testing",
+      "kind": "runtime-provisioned-webdriver",
+      "source": "Chrome for Testing",
+      "provenance": "Chrome for Testing known-good-versions-with-downloads catalog and immutable Google Cloud Storage archive",
+      "releases": [
+        {
+          "version": "151.0.7875.0",
+          "compatibleWith": "151.0.7875.0",
+          "publishedAt": "2026-06-05T05:00:28.000Z",
+          "platform": "win32-x64",
+          "url": "https://storage.googleapis.com/chrome-for-testing-public/151.0.7875.0/win64/chromedriver-win64.zip",
+          "sha256": "1e782e71a672139e75094331f2552d356cb24767b673212ca4bd23ae7f62a0d4",
+          "size": 19144311
+        }
+      ]
     }
   ],
   "waivers": [],

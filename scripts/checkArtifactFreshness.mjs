@@ -402,9 +402,12 @@ async function checkArtifactManifest({ artifactPathFilter = null } = {}) {
 
 async function checkDeclaredArtifact(artifact, { verifyContent = true } = {}) {
   const label = artifact?.name ?? artifact?.path ?? "<unnamed artifact>";
+  const hasNestedReleases = Array.isArray(artifact?.releases);
   assert(typeof artifact?.name === "string", `artifact ${label} needs a name`);
   assert(typeof artifact?.kind === "string", `artifact ${label} needs a kind`);
-  assert(typeof artifact?.path === "string", `artifact ${label} needs a path`);
+  if (!hasNestedReleases) {
+    assert(typeof artifact?.path === "string", `artifact ${label} needs a path`);
+  }
   assert(typeof artifact?.source === "string", `artifact ${label} needs a source`);
   assert(
     typeof artifact?.provenance === "string",

@@ -52,7 +52,7 @@ describe("fallback browser provisioning", () => {
       release: { version: "120.0.0" },
     });
     expect(second.browserPath).toBe(first.browserPath);
-    expect(downloader.downloads).toBe(1);
+    expect(downloader.downloads).toHaveLength(1);
   });
 
   it("@req NFR-05 removes the temp cache and reports integrity-mismatch for invalid checksums", async () => {
@@ -108,7 +108,7 @@ describe("fallback browser provisioning", () => {
     });
 
     expect(result.release.version).toBe("120.0.0");
-    expect(downloader.downloads).toBe(1);
+    expect(downloader.downloads).toHaveLength(1);
     await expect(stat(result.browserPath)).resolves.toMatchObject({ size: 7 });
   });
 
@@ -125,7 +125,7 @@ describe("fallback browser provisioning", () => {
     });
 
     expect(result.release.version).toBe("120.0.0");
-    expect(downloader.downloads).toBe(1);
+    expect(downloader.downloads).toHaveLength(1);
     await expect(readFile(result.browserPath, "utf8")).resolves.toBe("browser");
   });
 
@@ -161,6 +161,51 @@ describe("fallback browser provisioning", () => {
       const readme = await stat(join(cacheDir, "chromium-for-testing", "121.0.0", "README.txt"));
       expect(readme.mode & 0o111).toBe(0);
     }
+  });
+
+  it("@req NFR-05 provisions Chrome and ChromeDriver from separate eligible archives", async () => {
+    const cacheDir = await tempRoot();
+    const browserArchive = zipArchive({
+      "chrome-win64/chrome.exe": "browser",
+    });
+    const driverArchive = zipArchive({
+      "chromedriver-win64/chromedriver.exe": "driver",
+    });
+    const browserRelease = release("151.0.7875.0", {
+      browserPath: "chrome-win64/chrome.exe",
+      driverPath: "chromedriver-win64/chromedriver.exe",
+      sha256: sha256(browserArchive),
+      size: browserArchive.byteLength,
+      url: "https://downloads.example.invalid/chrome-win64.zip",
+    });
+    const driverRelease = release("151.0.7875.0", {
+      sha256: sha256(driverArchive),
+      size: driverArchive.byteLength,
+      url: "https://downloads.example.invalid/chromedriver-win64.zip",
+    });
+    const downloader = new MappedDownloader({
+      [browserRelease.url]: browserArchive,
+      [driverRelease.url]: driverArchive,
+    });
+
+    const result = await provisionFallbackBrowser(
+      policy(),
+      catalog([browserRelease], [driverRelease]),
+      {
+        cacheDir,
+        downloader,
+        now,
+      },
+    );
+
+    await expect(readFile(result.browserPath, "utf8")).resolves.toBe("browser");
+    await expect(readFile(result.driverPath, "utf8")).resolves.toBe("driver");
+    expect(result.release.version).toBe("151.0.7875.0");
+    expect(result.driverRelease?.version).toBe("151.0.7875.0");
+    expect(downloader.downloads).toEqual([
+      browserRelease.url,
+      driverRelease.url,
+    ]);
   });
 
   it("@req NFR-05 selects the newest eligible fallback artifact for the host platform", async () => {
@@ -274,7 +319,7 @@ describe("fallback browser provisioning", () => {
     });
 
     expect(second.browserPath).toBe(first.browserPath);
-    expect(downloader.downloads).toBe(2);
+    expect(downloader.downloads).toHaveLength(2);
     await expect(readFile(second.browserPath, "utf8")).resolves.toBe("browser");
   });
 
@@ -299,7 +344,7 @@ describe("fallback browser provisioning", () => {
     });
 
     expect(second.browserPath).toBe(first.browserPath);
-    expect(downloader.downloads).toBe(2);
+    expect(downloader.downloads).toHaveLength(2);
   });
 
   it("@req NFR-05 purges a cache version that is no longer the newest eligible artifact", async () => {
@@ -373,8 +418,14 @@ function policy(): ArtifactPolicy {
   return new ArtifactPolicy();
 }
 
-function catalog(releases: ArtifactRelease[]): InMemoryReleaseCatalog {
-  return new InMemoryReleaseCatalog({ "chromium-for-testing": releases });
+function catalog(
+  releases: ArtifactRelease[],
+  driverReleases: ArtifactRelease[] = [],
+): InMemoryReleaseCatalog {
+  return new InMemoryReleaseCatalog({
+    "chromium-for-testing": releases,
+    "chromedriver-for-testing": driverReleases,
+  });
 }
 
 function release(version: string, overrides: Partial<ArtifactRelease> = {}): ArtifactRelease {
@@ -453,13 +504,29 @@ async function tempEntries(root: string): Promise<string[]> {
 }
 
 class RecordingDownloader implements ArtifactDownloader {
-  downloads = 0;
+  readonly downloads: string[] = [];
 
   constructor(private readonly data: Buffer) {}
 
-  async download(_release: ArtifactRelease, destinationPath: string): Promise<void> {
-    this.downloads += 1;
+  async download(release: ArtifactRelease, destinationPath: string): Promise<void> {
+    this.downloads.push(release.url);
     await writeFile(destinationPath, this.data);
+  }
+}
+
+class MappedDownloader implements ArtifactDownloader {
+  readonly downloads: string[] = [];
+
+  constructor(private readonly data: Record<string, Buffer>) {}
+
+  async download(release: ArtifactRelease, destinationPath: string): Promise<void> {
+    const payload = this.data[release.url];
+    if (payload === undefined) {
+      throw new Error(`Unexpected download URL: ${release.url}`);
+    }
+
+    this.downloads.push(release.url);
+    await writeFile(destinationPath, payload);
   }
 }
 
