@@ -31,6 +31,26 @@ describe("BrowserLocator MD2PDF_BROWSER", () => {
     });
   });
 
+  it("@req NFR-03 reports env-browser-not-launchable for a permission-denied pinned browser", async () => {
+    const permissionError = Object.assign(new Error("EPERM: operation not permitted"), { code: "EPERM" });
+    const locator = new BrowserLocator({
+      env: { MD2PDF_BROWSER: "/protected/browser" },
+      fileSystem: {
+        async exists(): Promise<never> { throw permissionError; },
+        async isExecutable(): Promise<boolean> { return false; },
+        async realpath(path: string): Promise<string> { return path; },
+      },
+    });
+
+    await expect(locator.locate()).rejects.toMatchObject({
+      kind: "browser",
+      context: {
+        cause: "env-browser-not-launchable",
+        actionHint: expect.stringContaining("/protected/browser"),
+      },
+    });
+  });
+
   it("@req NFR-03 reports env-browser-not-launchable for a non-executable pinned browser", async () => {
     const locator = new BrowserLocator({
       env: { MD2PDF_BROWSER: "/apps/firefox" },
@@ -138,7 +158,7 @@ describe("BrowserLocator MD2PDF_BROWSER", () => {
 });
 
 describe("BrowserLocator installed browser scan", () => {
-  it("@req NFR-03 skips missing and unsupported candidates before returning a supported browser", async () => {
+  it("@req FR-19 @req NFR-03 skips missing and unsupported candidates before returning a supported browser", async () => {
     const locator = new BrowserLocator({
       env: {},
       candidatePaths: ["/missing/chrome", "/bin/not-browser", "/usr/bin/brave-browser"],
@@ -200,7 +220,7 @@ describe("BrowserLocator installed browser scan", () => {
     });
   });
 
-  it("@req NFR-05 tries the fallback browser when installed browsers have no eligible driver", async () => {
+  it("@req FR-19 @req NFR-05 tries the fallback browser when installed browsers have no eligible driver", async () => {
     const locator = new BrowserLocator({
       env: {},
       candidatePaths: ["/usr/bin/firefox"],

@@ -7,7 +7,6 @@ import {
   formatError,
   InputNotFoundError,
   Md2PdfError,
-  NotImplementedError,
   RenderError,
   UsageError,
 } from "../../../src/errors.js";
@@ -36,7 +35,6 @@ describe("C0 shared contract exports", () => {
     expect(RenderError).toBeTypeOf("function");
     expect(BrowserNotFoundError).toBeTypeOf("function");
     expect(ArtifactFreshnessError).toBeTypeOf("function");
-    expect(NotImplementedError).toBeTypeOf("function");
     expect(formatError).toBeTypeOf("function");
     expect(convertFile).toBeTypeOf("function");
     expect(ArtifactPolicy).toBeTypeOf("function");
@@ -249,17 +247,7 @@ describe("ArtifactPolicy.selectNewestEligible", () => {
   });
 });
 
-describe("C0 stubs", () => {
-  it("convertFile throws NotImplementedError with source and output paths", async () => {
-    await expect(convertFile("input.md", "output.pdf")).rejects.toMatchObject({
-      kind: "not-implemented",
-      context: {
-        sourcePath: "input.md",
-        outputPath: "output.pdf",
-      },
-    });
-  });
-
+describe("C0 fallback provisioner contracts", () => {
   it("provisionFallbackBrowser reports missing eligible fallback artifact", async () => {
     const policy = new ArtifactPolicy();
     const catalog: ReleaseCatalog = {

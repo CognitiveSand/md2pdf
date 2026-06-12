@@ -123,8 +123,8 @@ phase exists.
 | Skipped outputs count in summary without causing failure | `pending` | Stream A test | From plan v0.1.2 defensive decisions. |
 | Duplicate entries or duplicate outputs fail preflight | `pass` | `tests/unit/paths/paths.test.ts`, duplicate entries; `tests/unit/pipeline/pipeline.test.ts`, output collisions; `tests/unit/cli/cli.test.ts`, CLI preflight collision | Includes duplicates and output collisions. |
 | `--output-dir` basename collision blocks before render | `pass` | `tests/unit/paths/paths.test.ts`, `@req FR-23 rejects basename collisions`; `tests/unit/cli/cli.test.ts`, CLI preflight collision | Example: `a/report.md` and `b/report.md`. |
-| Cache writes are atomic | `pending` | Stream B artifact test | `.tmp` then atomic rename after verification. |
-| Cache non-writable reports explicit artifact/browser error | `pending` | Stream B artifact test | Must not become a generic failure. |
+| Cache writes are atomic | `pass` | `tests/unit/artifacts/fallbackBrowserProvisioner.test.ts`, `@req NFR-05 writes the browser cache atomically` | `.tmp` then atomic rename after checksum verification. Implemented in `src/fallbackBrowserProvisioner.ts`. |
+| Cache non-writable reports explicit artifact/browser error | `pass` | `tests/unit/artifacts/fallbackBrowserProvisioner.test.ts`, `@req NFR-05 reports a clear error when the cache directory is not writable` | Throws `ArtifactCacheError` with `actionHint`. Implemented in `src/fallbackBrowserProvisioner.ts`. |
 | C0 red then green evidence recorded | `pass` | C0 contract trace above | Required C0 proof is now recorded. |
 | FR-20 manual proof versioned | `pending` | FR-20 section above | Required for release. |
 

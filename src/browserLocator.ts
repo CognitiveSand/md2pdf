@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { constants } from "node:fs";
 import { access, realpath as fsRealpath, stat } from "node:fs/promises";
-import { basename, delimiter, join, resolve } from "node:path";
+import { basename, delimiter, extname, join, resolve } from "node:path";
 
 import {
   type ArtifactPolicy,
@@ -179,7 +179,19 @@ export class BrowserLocator {
 
   private async validateExplicitBrowser(browserPath: string): Promise<BrowserCandidate> {
     const resolvedPath = resolve(browserPath);
-    if (!(await this.fileSystem.exists(resolvedPath))) {
+
+    let exists: boolean;
+    try {
+      exists = await this.fileSystem.exists(resolvedPath);
+    } catch {
+      throw browserError({
+        message: "Pinned browser path is not accessible",
+        cause: "env-browser-not-launchable",
+        actionHint: `${envBrowserVariable} points to a file that cannot be accessed: ${resolvedPath}`,
+      });
+    }
+
+    if (!exists) {
       throw browserError({
         message: "Pinned browser path does not exist",
         cause: "env-browser-not-found",
@@ -223,7 +235,11 @@ export class BrowserLocator {
 
   private async candidateFromPath(candidatePath: string): Promise<BrowserCandidate | null> {
     const resolvedPath = resolve(candidatePath);
-    if (!(await this.fileSystem.exists(resolvedPath))) {
+    try {
+      if (!(await this.fileSystem.exists(resolvedPath))) {
+        return null;
+      }
+    } catch {
       return null;
     }
 
@@ -310,8 +326,11 @@ const nodeFileSystem: BrowserLocatorFileSystem = {
     try {
       await stat(path);
       return true;
-    } catch {
-      return false;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        return false;
+      }
+      throw error;
     }
   },
   async isExecutable(path: string): Promise<boolean> {
@@ -390,11 +409,15 @@ function isNoEligibleArtifact(error: unknown): boolean {
 }
 
 async function execBrowserVersion(browserPath: string): Promise<string> {
+  return execFileOutput(browserPath, ["--version"], 3_000);
+}
+
+async function execFileOutput(path: string, args: string[], timeout: number): Promise<string> {
   return new Promise((resolveVersion, rejectVersion) => {
     execFile(
-      browserPath,
-      ["--version"],
-      { timeout: 3_000, windowsHide: true },
+      path,
+      args,
+      { timeout, windowsHide: true },
       (error, stdout, stderr) => {
         if (error !== null) {
           rejectVersion(error);
@@ -547,17 +570,35 @@ function defaultBrowserCandidates(platform: NodeJS.Platform): string[] {
   }
 
   return [
-    ...pathExecutables("google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "microsoft-edge", "microsoft-edge-stable", "brave-browser", "firefox"),
+    ...pathExecutablesForEnv(process.env, platform, "google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "microsoft-edge", "microsoft-edge-stable", "brave-browser", "brave", "firefox"),
     "/snap/firefox/current/usr/lib/firefox/firefox",
     "/usr/bin/firefox",
   ];
 }
 
-function pathExecutables(...names: string[]): string[] {
-  return (process.env.PATH ?? "")
+function pathExecutablesForEnv(
+  env: Record<string, string | undefined>,
+  platform: NodeJS.Platform,
+  ...names: string[]
+): string[] {
+  const suffixes = platform === "win32"
+    ? (env.PATHEXT ?? ".EXE;.CMD;.BAT;.COM")
+      .split(";")
+      .map((suffix) => suffix.toLowerCase())
+    : [""];
+
+  return (env.PATH ?? "")
     .split(delimiter)
     .filter((path) => path !== "")
-    .flatMap((path) => names.map((name) => join(path, name)));
+    .flatMap((path) =>
+      names.flatMap((name) => {
+        if (platform !== "win32" || extname(name) !== "") {
+          return [join(path, name)];
+        }
+
+        return suffixes.map((suffix) => join(path, `${name}${suffix}`));
+      })
+    );
 }
 
 async function resolveBrowserPath(

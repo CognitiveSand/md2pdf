@@ -168,6 +168,33 @@ describe("printPdfWithWebDriver", () => {
     expect(transport.requests.some((request) => request.method === "DELETE")).toBe(true);
   });
 
+  it("@req FR-24 surfaces Mermaid render errors and closes session and driver process", async () => {
+    const transport = new FakeTransport([
+      { value: { sessionId: "session-mermaid-err" } },
+      { value: null },
+      { value: { mermaidError: "Parse error on line 2" } },
+      { value: null },
+    ]);
+    const driverProcess = new FakeDriverProcess();
+
+    await expect(
+      printPdfWithWebDriver({
+        browser: browser("chrome"),
+        htmlFileUrl: "file:///tmp/doc.html",
+        transport,
+        driverProcess,
+        renderTimeoutMs: 100,
+        mermaidPollMs: 1,
+      }),
+    ).rejects.toMatchObject({
+      kind: "render",
+      context: { cause: "Parse error on line 2" },
+    });
+
+    expect(driverProcess.stopped).toBe(true);
+    expect(transport.requests.some((request) => request.method === "DELETE")).toBe(true);
+  });
+
   it("@req NFR-02 rejects non-local URLs without leaving the driver process open", async () => {
     const driverProcess = new FakeDriverProcess();
 

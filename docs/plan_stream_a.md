@@ -18,7 +18,7 @@ options, chemins, batch, overwrite, erreurs, exit codes, installation, packaging
 | `package.json` (bin/scripts) | P1 |
 
 Stream A ne modifie pas : `markdownRenderer.ts`, `browserLocator.ts`,
-`webDriverClient.ts`, `pdfRenderer.ts`, `artifactPolicy.ts`,
+`webDriverClient.ts`, `artifactPolicy.ts`,
 `fallbackBrowserProvisioner.ts`.
 
 ---

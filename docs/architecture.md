@@ -83,7 +83,7 @@ flowchart LR
 2. **Highlight code.** Non-Mermaid fenced code blocks are highlighted in Node
    (highlight.js) and emitted as styled HTML (FR-05).
 3. **Assemble local HTML.** The fragment is wrapped in a full HTML document with
-   the default stylesheet, the highlight.js theme, fonts, and the Mermaid engine
+   the default stylesheet, the highlight.js theme, and the Mermaid engine
    (resolved from the installed `mermaid` dependency) all inlined. The document
    references no external resource URL, and the base directory is the source file's
    directory so relative images resolve (FR-06). The file is written to a
@@ -129,8 +129,8 @@ export async function convertFile(
 
 `ConvertOptions` is the public, intentionally small option bag for one
 conversion. `browserPath` may pin a browser binary, and `renderTimeoutMs` limits
-browser rendering and Mermaid completion; C0 must document the default timeout
-before any production implementation relies on it.
+browser rendering and Mermaid completion; the default when this field is omitted
+is **30 000 ms** (30 s).
 
 `ConversionJob` represents a planned conversion after path resolution and
 preflight. `sourcePath` and `outputPath` are already resolved for execution,
@@ -162,15 +162,15 @@ Modules under `src/`. Each owns one concern (SRP) and stays within the
 | `pipeline.ts` | `ConversionPipeline` | Transform CLI entries into `ConversionJob[]`, reject global preflight conflicts, execute conversions, continue past per-document failures, collect `ConversionOutcome[]`, and emit the outcome summary. | FR-08, FR-09, FR-10, FR-11 |
 | `converter.ts` | `DocumentConverter` | Orchestrate one conversion through Markdown parsing, local HTML assembly, browser rendering, and atomic PDF writing. | FR-01, FR-04–07, FR-16, FR-24 |
 | `markdownRenderer.ts` | `MarkdownToHtmlRenderer` | Stages 1–3: Markdown to a full, self-contained local HTML document with code highlighting and the inlined Mermaid engine. | FR-04, FR-05, FR-06, FR-24 |
-| `browserLocator.ts` | `BrowserLocator` | Detect an installed Chromium-family or Firefox browser, resolve the real binary including snap wrappers, and find or request a compatible WebDriver. It does not own fallback browser policy. | FR-19, NFR-03 |
-| `pdfRenderer.ts` | `WebDriverPdfRenderer` | Stage 4: load the local HTML in the located browser via WebDriver, await Mermaid completion, and return PDF bytes from the Print command. | FR-07, FR-24, NFR-02 |
+| `browserLocator.ts` | `BrowserLocator` | Detect an installed Chromium-family or Firefox browser, resolve the real binary including snap wrappers, and find a compatible WebDriver from the artifact catalog. It does not own fallback browser policy. | FR-19, NFR-03 |
+| `webDriverClient.ts` | `printPdfWithWebDriver` | Stage 4: load the local HTML in the located browser via WebDriver, await Mermaid completion, and return PDF bytes from the Print command. | FR-07, FR-24, NFR-02 |
 | `releaseCatalog.ts` | `ReleaseCatalog` | Read `artifacts.json` and expose declared non-npm artifact releases, platforms, immutable URLs, sizes, checksums, and provenance. | NFR-05 |
 | `artifactPolicy.ts` | `ArtifactPolicy` | Validate artifact eligibility, 7-day freshness, checksum SHA-256, compatibility constraints, and `newest eligible` selection. | NFR-05 |
 | `fallbackBrowserProvisioner.ts` | `FallbackBrowserProvisioner` | Provision Chromium-for-Testing only as a last resort after `ReleaseCatalog` and `ArtifactPolicy` approve an eligible fallback artifact. | FR-19, NFR-03, NFR-05 |
 | `paths.ts` | `OutputPathResolver`, `ConversionEntryResolver` | Resolve default / explicit / `--output-dir` output paths; expand a directory entry to its top-level Markdown files. | FR-02, FR-03, FR-09, FR-23 |
 | `overwrite.ts` | `OverwritePolicy` | Decide overwrite vs preserve from the force flag and terminal interactivity. | FR-12, FR-13, FR-14 |
 | `errors.ts` | `Md2PdfError` hierarchy | Typed, fail-loud errors carrying offending paths, artifact context, missing-browser causes, and action hints. | FR-15, FR-16, FR-17 |
-| `assets/` | bundled resources | Default CSS, highlight.js theme CSS, fonts — all local. | NFR-01, NFR-02 |
+| `assets/` | bundled resources | Default CSS, highlight.js theme CSS — all local. | NFR-01, NFR-02 |
 
 ## 6. Command-line surface
 
@@ -246,13 +246,15 @@ these two phases separate:
 Because WebDriver does not offer Playwright-style request interception, the
 conversion guarantee is structural:
 
-- All assets (stylesheets, fonts, the Mermaid engine) are inlined into the
+- All assets (stylesheets, the Mermaid engine) are inlined into the
   generated HTML; no CDN or external resource URL is referenced from it.
 - The HTML is loaded from a local `file:` path, and the browser is launched with
   offline/no-proxy preferences so it cannot reach the network.
 - A test asserts the assembled HTML contains no external (`http:`/`https:`) URL,
-  and that conversion succeeds with the host network disabled from a
-  pre-provisioned state.
+  and the `test:browser` suite contains a real browser-backed conversion from a
+  pre-provisioned browser/driver state. Local development may skip that proof
+  explicitly with `MD2PDF_SKIP_REAL_BROWSER_TESTS=1`, but release evidence must
+  run it without the skip.
 
 ## 10. Styling and assets
 
@@ -265,8 +267,9 @@ h1, h2, h3, h4, h5, h6 { break-after: avoid-page; }
 ```
 
 Both Chromium and Firefox honor CSS paged-media break rules in their print
-engines, so the same stylesheet works across browser families. Fonts are bundled
-so output is consistent regardless of host-installed fonts. A highlight.js theme
+engines, so the same stylesheet works across browser families. The stylesheet
+uses system UI fonts (`-apple-system`, `BlinkMacSystemFont`, `Segoe UI`, etc.),
+so output appearance depends on the host's installed fonts. A highlight.js theme
 stylesheet styles the server-highlighted code. Theme selection is out of scope
 (OOS-03); the stylesheet is fixed for the MVP.
 
@@ -280,9 +283,13 @@ stylesheet styles the server-highlighted code. Theme selection is out of scope
   without elevation. Validated: installing the npm packages required no sudo.
 - **Browser and driver provisioning (ADR-05).** On first run `BrowserLocator`
   detects an installed Chromium-family or Firefox browser and resolves a matching
-  WebDriver, provisioning `chromedriver`/`geckodriver` (small binaries, per-user
-  cache, no sudo) only through artifacts accepted by `ReleaseCatalog` and
-  `ArtifactPolicy`. The common case needs **no browser download**.
+  WebDriver. md2pdf accepts drivers only when they are declared by
+  `ReleaseCatalog` and selected by `ArtifactPolicy`. It deliberately does not
+  select arbitrary `chromedriver` or `geckodriver` binaries from `PATH`, because
+  WebDriver binaries are runtime artifacts governed by
+  `ARTIFACT_FRESHNESS_POLICY.md`. Provisioning new `chromedriver`/`geckodriver`
+  binaries into the per-user cache remains governed by artifact policy. The
+  common case needs **no browser download**.
 - **Chromium-for-Testing fallback.** If no installed browser path is usable,
   `FallbackBrowserProvisioner` may provision Chromium-for-Testing plus its
   chromedriver into the per-user cache, but only as a last resort. The fallback
@@ -323,14 +330,13 @@ md2pdf/
     releaseCatalog.ts        # ReleaseCatalog
     artifactPolicy.ts        # ArtifactPolicy
     fallbackBrowserProvisioner.ts
-    pdfRenderer.ts           # WebDriverPdfRenderer
+    webDriverClient.ts       # WebDriver Print client
     paths.ts                 # OutputPathResolver, ConversionEntryResolver
     overwrite.ts             # OverwritePolicy
     errors.ts                # Md2PdfError hierarchy
   assets/
     default.css
     highlight.css            # highlight.js theme
-    fonts/
   dist/                      # tsc output (gitignored)
   tests/
     unit/                    # per-component, no browser
@@ -356,7 +362,7 @@ driver version management and slight output variation across browser versions
 
 **ADR-02 — Inline all assets into local HTML; never reference a CDN.**
 *Context:* CON-02 forbids network access, and WebDriver lacks request
-interception. *Decision:* inline the Mermaid engine, stylesheets, and fonts into
+interception. *Decision:* inline the Mermaid engine and stylesheets into
 the generated HTML, load it over `file:`, and launch the browser offline.
 *Consequences:* a hard, testable local-only guarantee (positive); a deliberate
 dependency-bump step for the inlined engine version (negative). *Status:*
@@ -400,8 +406,8 @@ for browser-less hosts (negative). *Status:* accepted.
   The snap-packaged Firefox on Ubuntu exposes a wrapper script at
   `/usr/bin/firefox`; the real binary
   (`/snap/firefox/current/usr/lib/firefox/firefox`) must be resolved.
-  *Mitigations:* resolve the real binary behind snap wrappers; provision only
-  drivers accepted by `ArtifactPolicy`; use `FallbackBrowserProvisioner` only
+  *Mitigations:* resolve the real binary behind snap wrappers; accept only
+  drivers selected by `ArtifactPolicy`; use `FallbackBrowserProvisioner` only
   after installed browsers fail; raise `BrowserNotFoundError` with a cause such
   as no compatible browser, no eligible driver, or no eligible fallback artifact.
 - **R-2 — Output variation across browsers/versions.** Firefox and Chrome render
@@ -412,7 +418,8 @@ for browser-less hosts (negative). *Status:* accepted.
   loading, and offline/no-proxy browser launch. This risk concerns conversion
   only; provisioning is a separate pre-conversion artifact-policy concern.
   *Mitigation:* a test asserting no external URLs in the assembled HTML and a
-  network-disabled conversion test from a pre-provisioned state (NFR-02).
+  real browser-backed conversion test from a pre-provisioned browser/driver
+  state (NFR-02).
 - **R-4 — Inlined engine/asset version drift.** The Mermaid engine and
   highlight.js are pinned dependencies updated deliberately. *Mitigation:* pin in
   `package.json`; treat updates as scoped dependency changes.
@@ -431,9 +438,9 @@ for browser-less hosts (negative). *Status:* accepted.
 | FR-12–14 | unit test: `OverwritePolicy` truth table; contract test: prompt and skip paths |
 | FR-15–18 | contract test: stderr messages and exit codes; `BrowserNotFoundError` path |
 | FR-19–21 | install demonstration on a non-privileged account; idempotent re-run exits 0 |
-| FR-24 | integration test: a `mermaid` block renders as vector graphics, not raw text (validated on stock Firefox) |
+| FR-24 | browser-backed integration test: a `mermaid` block renders as a visual PDF object, not raw text |
 | NFR-01 | integration test: conversion with no config file present |
-| NFR-02 | test: no external URL in assembled HTML; conversion with host network disabled from a pre-provisioned state |
+| NFR-02 | test: no external URL in assembled HTML; browser-backed conversion from a pre-provisioned browser/driver state |
 | NFR-03 | CI matrix: Linux, macOS, Windows on Node.js 20+, against Chromium and Firefox |
 | NFR-04 | contract test: `--help` lists every option |
 | NFR-05 | artifact-policy tests: `ReleaseCatalog`, `ArtifactPolicy`, checksum SHA-256, `newest eligible`, and fallback rejection when no declared artifact is eligible |

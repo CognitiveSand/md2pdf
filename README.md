@@ -27,14 +27,18 @@ service.
 - Node.js 20 or later.
 - One supported browser installed locally: Google Chrome, Chromium, another
   Chromium-family browser, or Firefox.
-- A matching WebDriver binary on `PATH`, or a supported driver provisioned by
-  md2pdf into a per-user cache.
+- A matching WebDriver binary declared in `artifacts.json` and selected by the
+  artifact freshness policy, or a fallback browser/driver provisioned by md2pdf
+  into a per-user cache from an eligible declared artifact.
 
 Set `MD2PDF_BROWSER` to force a specific browser executable:
 
 ```bash
 MD2PDF_BROWSER=/usr/bin/chromium md2pdf notes.md
 ```
+
+WebDriver binaries are runtime artifacts. They must be declared in
+`artifacts.json`; md2pdf does not select arbitrary drivers from `PATH`.
 
 ## Install
 
@@ -128,7 +132,11 @@ npm run test:browser
 ```
 
 `npm test` runs fast unit and contract coverage. `npm run test:browser` runs the
-browser-backed integration tests and requires a local browser plus WebDriver.
+browser-backed integration tests and requires a local browser plus an eligible
+WebDriver declared in `artifacts.json`, or an eligible declared fallback
+browser/driver artifact.
+Local development may set `MD2PDF_SKIP_REAL_BROWSER_TESTS=1` to skip the real
+browser proof explicitly; release evidence must run without that skip.
 
 ## Artifact Freshness Policy
 
