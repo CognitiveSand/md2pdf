@@ -2,10 +2,8 @@
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
-import {
-  convertFile as defaultConvertFile,
-  type ConversionOutcome,
-} from "./contracts.js";
+import { type ConversionOutcome } from "./contracts.js";
+import { convertFile as defaultConvertFile } from "./converter.js";
 import {
   ConversionError,
   formatError,

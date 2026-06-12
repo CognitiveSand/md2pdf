@@ -1,5 +1,6 @@
 # Scratch / exploratory research — kept locally, never committed
 tmp/
+.tmp/
 
 # Node
 node_modules/

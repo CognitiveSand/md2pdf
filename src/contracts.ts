@@ -5,8 +5,6 @@ export interface ConvertOptions {
   renderTimeoutMs?: number;
 }
 
-export { convertFile } from "./converter.js";
-
 export interface ConversionJob {
   sourcePath: string;
   outputPath: string;
@@ -19,3 +17,5 @@ export interface ConversionOutcome extends ConversionJob {
   status: ConversionStatus;
   error?: Md2PdfError;
 }
+
+export { convertFile } from "./converter.js";

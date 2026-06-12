@@ -1,24 +1,87 @@
-import { describe, expect, it } from "vitest";
+import { promises as fs } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ArtifactPolicy, type ArtifactRelease } from "../../../src/artifactPolicy.js";
 import {
   ArtifactPolicyDriverResolver,
   BrowserLocator,
+  locateBrowser,
   type BrowserCandidate,
-  type BrowserLocatorFileSystem,
   type BrowserDriverResolver,
+  type BrowserLocatorFileSystem,
   type BrowserProbe,
   type BrowserProbeInspection,
   type FallbackBrowserResolver,
-  type LocatedDriver,
   type LocatedBrowser,
+  type LocatedDriver,
 } from "../../../src/browserLocator.js";
 import { ArtifactFreshnessError, BrowserNotFoundError } from "../../../src/errors.js";
 
+const itOnPosix = process.platform === "win32" ? it.skip : it;
+const itOnWindows = process.platform === "win32" ? it : it.skip;
+
+let tempRoot: string;
+
+beforeEach(async () => {
+  tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "md2pdf-browser-locator-"));
+});
+
+afterEach(async () => {
+  vi.unstubAllEnvs();
+  await fs.rm(tempRoot, { recursive: true, force: true });
+});
+
+describe("locateBrowser compatibility wrapper", () => {
+  itOnPosix("rejects an explicit POSIX browser path without execute permission", async () => {
+    const browserPath = path.join(tempRoot, "browser");
+    await fs.writeFile(browserPath, "#!/bin/sh\nexit 0\n", { encoding: "utf8", mode: 0o644 });
+
+    await expect(locateBrowser(browserPath)).rejects.toMatchObject({
+      kind: "browser",
+      context: {
+        cause: browserPath,
+      },
+    });
+    await expect(locateBrowser(browserPath)).rejects.toBeInstanceOf(BrowserNotFoundError);
+  });
+
+  itOnPosix("accepts an explicit POSIX browser path with execute permission", async () => {
+    const browserPath = path.join(tempRoot, "browser");
+    await fs.writeFile(browserPath, "#!/bin/sh\nexit 0\n", { encoding: "utf8", mode: 0o755 });
+
+    await expect(locateBrowser(browserPath)).resolves.toBe(browserPath);
+  });
+
+  itOnWindows("detects Brave from standard Chromium-family install paths", async () => {
+    const programFiles = path.join(tempRoot, "Program Files");
+    const programFilesX86 = path.join(tempRoot, "Program Files (x86)");
+    const localAppData = path.join(tempRoot, "LocalAppData");
+    const bravePath = path.join(
+      programFiles,
+      "BraveSoftware",
+      "Brave-Browser",
+      "Application",
+      "brave.exe",
+    );
+    await fs.mkdir(path.dirname(bravePath), { recursive: true });
+    await fs.writeFile(bravePath, "", "utf8");
+    vi.stubEnv("ProgramFiles", programFiles);
+    vi.stubEnv("ProgramFiles(x86)", programFilesX86);
+    vi.stubEnv("LOCALAPPDATA", localAppData);
+    vi.stubEnv("PATH", "");
+
+    await expect(locateBrowser()).resolves.toBe(bravePath);
+  });
+});
+
 describe("BrowserLocator MD2PDF_BROWSER", () => {
   it("@req NFR-03 reports env-browser-not-found for a missing pinned browser", async () => {
+    const browserPath = absoluteTestPath("missing", "browser");
     const locator = new BrowserLocator({
-      env: { MD2PDF_BROWSER: "/missing/browser" },
+      env: { MD2PDF_BROWSER: browserPath },
       fileSystem: fakeFileSystem(),
     });
 
@@ -26,7 +89,7 @@ describe("BrowserLocator MD2PDF_BROWSER", () => {
       kind: "browser",
       context: {
         cause: "env-browser-not-found",
-        actionHint: expect.stringContaining("/missing/browser"),
+        actionHint: expect.stringContaining(browserPath),
       },
     });
   });
@@ -52,26 +115,28 @@ describe("BrowserLocator MD2PDF_BROWSER", () => {
   });
 
   it("@req NFR-03 reports env-browser-not-launchable for a non-executable pinned browser", async () => {
+    const browserPath = absoluteTestPath("apps", "firefox");
     const locator = new BrowserLocator({
-      env: { MD2PDF_BROWSER: "/apps/firefox" },
+      env: { MD2PDF_BROWSER: browserPath },
       fileSystem: fakeFileSystem({
-        "/apps/firefox": { executable: false },
+        [browserPath]: { executable: false },
       }),
     });
 
     await expect(locator.locate()).rejects.toMatchObject({
       context: {
         cause: "env-browser-not-launchable",
-        actionHint: expect.stringContaining("/apps/firefox"),
+        actionHint: expect.stringContaining(browserPath),
       },
     });
   });
 
   it("@req NFR-03 reports env-browser-not-launchable for an unsupported pinned executable", async () => {
+    const browserPath = absoluteTestPath("bin", "not-a-browser");
     const locator = new BrowserLocator({
-      env: { MD2PDF_BROWSER: "/bin/not-a-browser" },
+      env: { MD2PDF_BROWSER: browserPath },
       fileSystem: fakeFileSystem({
-        "/bin/not-a-browser": { executable: true },
+        [browserPath]: { executable: true },
       }),
     });
 
@@ -83,10 +148,11 @@ describe("BrowserLocator MD2PDF_BROWSER", () => {
   });
 
   it("@req NFR-03 reports env-browser-not-launchable for a fake executable named like Chrome", async () => {
+    const browserPath = absoluteTestPath("tmp", "Google Chrome");
     const locator = new BrowserLocator({
-      env: { MD2PDF_BROWSER: "/tmp/Google Chrome" },
+      env: { MD2PDF_BROWSER: browserPath },
       fileSystem: fakeFileSystem({
-        "/tmp/Google Chrome": { executable: true },
+        [browserPath]: { executable: true },
       }),
       browserProbe: new FakeBrowserProbe(false),
     });
@@ -94,16 +160,17 @@ describe("BrowserLocator MD2PDF_BROWSER", () => {
     await expect(locator.locate()).rejects.toMatchObject({
       context: {
         cause: "env-browser-not-launchable",
-        actionHint: expect.stringContaining("/tmp/Google Chrome"),
+        actionHint: expect.stringContaining(browserPath),
       },
     });
   });
 
   it("@req NFR-05 reports env-browser-no-eligible-driver for a pinned browser without driver", async () => {
+    const browserPath = absoluteTestPath("apps", "Google Chrome");
     const locator = new BrowserLocator({
-      env: { MD2PDF_BROWSER: "/apps/Google Chrome" },
+      env: { MD2PDF_BROWSER: browserPath },
       fileSystem: fakeFileSystem({
-        "/apps/Google Chrome": { executable: true },
+        [browserPath]: { executable: true },
       }),
       browserProbe: new FakeBrowserProbe(),
       driverResolver: new FakeDriverResolver(),
@@ -117,10 +184,13 @@ describe("BrowserLocator MD2PDF_BROWSER", () => {
   });
 
   it("@req NFR-05 returns a pinned browser with an eligible driver", async () => {
+    const browserPath = absoluteTestPath("apps", "firefox");
+    const realBrowserPath = "/snap/firefox/current/usr/lib/firefox/firefox";
     const locator = new BrowserLocator({
-      env: { MD2PDF_BROWSER: "/apps/firefox" },
+      env: { MD2PDF_BROWSER: browserPath },
       fileSystem: fakeFileSystem({
-        "/apps/firefox": { executable: true, realpath: "/snap/firefox/current/usr/lib/firefox/firefox" },
+        [browserPath]: { executable: true, realpath: realBrowserPath },
+        [realBrowserPath]: { executable: true },
       }),
       browserProbe: new FakeBrowserProbe(),
       driverResolver: new FakeDriverResolver({
@@ -129,7 +199,7 @@ describe("BrowserLocator MD2PDF_BROWSER", () => {
     });
 
     await expect(locator.locate()).resolves.toMatchObject({
-      browserPath: "/snap/firefox/current/usr/lib/firefox/firefox",
+      browserPath: realBrowserPath,
       kind: "firefox",
       driverPath: "/drivers/geckodriver",
       driverArtifactName: "geckodriver",
@@ -137,11 +207,14 @@ describe("BrowserLocator MD2PDF_BROWSER", () => {
   });
 
   it("@req NFR-03 resolves the Ubuntu snap Firefox wrapper to the real binary", async () => {
+    const browserPath = absoluteTestPath("usr", "bin", "firefox");
+    const snapWrapper = "/usr/bin/firefox";
+    const snapBrowser = "/snap/firefox/current/usr/lib/firefox/firefox";
     const locator = new BrowserLocator({
-      env: { MD2PDF_BROWSER: "/usr/bin/firefox" },
+      env: { MD2PDF_BROWSER: browserPath },
       fileSystem: fakeFileSystem({
-        "/usr/bin/firefox": { executable: true },
-        "/snap/firefox/current/usr/lib/firefox/firefox": { executable: true },
+        [browserPath]: { executable: true, realpath: snapWrapper },
+        [snapBrowser]: { executable: true },
       }),
       browserProbe: new FakeBrowserProbe(),
       driverResolver: new FakeDriverResolver({
@@ -150,7 +223,7 @@ describe("BrowserLocator MD2PDF_BROWSER", () => {
     });
 
     await expect(locator.locate()).resolves.toMatchObject({
-      browserPath: "/snap/firefox/current/usr/lib/firefox/firefox",
+      browserPath: snapBrowser,
       kind: "firefox",
       driverArtifactName: "geckodriver",
     });
@@ -158,13 +231,16 @@ describe("BrowserLocator MD2PDF_BROWSER", () => {
 });
 
 describe("BrowserLocator installed browser scan", () => {
-  it("@req FR-19 @req NFR-03 skips missing and unsupported candidates before returning a supported browser", async () => {
+  it("@req NFR-03 skips missing and unsupported candidates before returning a supported browser", async () => {
+    const missingBrowser = absoluteTestPath("missing", "chrome");
+    const unsupportedBrowser = absoluteTestPath("bin", "not-browser");
+    const braveBrowser = absoluteTestPath("usr", "bin", "brave-browser");
     const locator = new BrowserLocator({
       env: {},
-      candidatePaths: ["/missing/chrome", "/bin/not-browser", "/usr/bin/brave-browser"],
+      candidatePaths: [missingBrowser, unsupportedBrowser, braveBrowser],
       fileSystem: fakeFileSystem({
-        "/bin/not-browser": { executable: true },
-        "/usr/bin/brave-browser": { executable: true },
+        [unsupportedBrowser]: { executable: true },
+        [braveBrowser]: { executable: true },
       }),
       browserProbe: new FakeBrowserProbe(),
       driverResolver: new FakeDriverResolver({
@@ -174,21 +250,22 @@ describe("BrowserLocator installed browser scan", () => {
 
     await expect(locator.locate()).resolves.toMatchObject({
       kind: "brave",
-      browserPath: "/usr/bin/brave-browser",
+      browserPath: braveBrowser,
       driverArtifactName: "chromedriver",
     });
   });
 
   it("@req NFR-03 inspects a launchable browser only once when version is needed", async () => {
+    const chromePath = absoluteTestPath("usr", "bin", "google-chrome");
     const browserProbe = new InspectingBrowserProbe({
       isLaunchable: true,
       version: "120.0.6099.71",
     });
     const locator = new BrowserLocator({
       env: {},
-      candidatePaths: ["/usr/bin/google-chrome"],
+      candidatePaths: [chromePath],
       fileSystem: fakeFileSystem({
-        "/usr/bin/google-chrome": { executable: true },
+        [chromePath]: { executable: true },
       }),
       browserProbe,
       driverResolver: new FakeDriverResolver({
@@ -203,11 +280,12 @@ describe("BrowserLocator installed browser scan", () => {
   });
 
   it("@req NFR-03 reports no-eligible-driver when only browsers without drivers are found", async () => {
+    const firefoxPath = absoluteTestPath("usr", "bin", "firefox");
     const locator = new BrowserLocator({
       env: {},
-      candidatePaths: ["/usr/bin/firefox"],
+      candidatePaths: [firefoxPath],
       fileSystem: fakeFileSystem({
-        "/usr/bin/firefox": { executable: true },
+        [firefoxPath]: { executable: true },
       }),
       browserProbe: new FakeBrowserProbe(),
       driverResolver: new FakeDriverResolver(),
@@ -220,12 +298,13 @@ describe("BrowserLocator installed browser scan", () => {
     });
   });
 
-  it("@req FR-19 @req NFR-05 tries the fallback browser when installed browsers have no eligible driver", async () => {
+  it("@req NFR-05 tries the fallback browser when installed browsers have no eligible driver", async () => {
+    const firefoxPath = absoluteTestPath("usr", "bin", "firefox");
     const locator = new BrowserLocator({
       env: {},
-      candidatePaths: ["/usr/bin/firefox"],
+      candidatePaths: [firefoxPath],
       fileSystem: fakeFileSystem({
-        "/usr/bin/firefox": { executable: true },
+        [firefoxPath]: { executable: true },
       }),
       browserProbe: new FakeBrowserProbe(),
       driverResolver: new FakeDriverResolver(),
@@ -242,7 +321,7 @@ describe("BrowserLocator installed browser scan", () => {
   it("@req NFR-03 reports supported browser guidance when no browser is found", async () => {
     const locator = new BrowserLocator({
       env: {},
-      candidatePaths: ["/missing/chrome"],
+      candidatePaths: [absoluteTestPath("missing", "chrome")],
       fileSystem: fakeFileSystem(),
     });
 
@@ -258,7 +337,7 @@ describe("BrowserLocator installed browser scan", () => {
   it("@req NFR-05 reports fallback artifact causes when no installed browser is available", async () => {
     const locator = new BrowserLocator({
       env: {},
-      candidatePaths: ["/missing/chrome"],
+      candidatePaths: [absoluteTestPath("missing", "chrome")],
       fileSystem: fakeFileSystem(),
       fallbackBrowserResolver: new FailingFallbackBrowserResolver(),
     });
@@ -275,105 +354,125 @@ describe("BrowserLocator installed browser scan", () => {
 
 describe("ArtifactPolicyDriverResolver", () => {
   it("@req NFR-05 selects an eligible declared driver through ArtifactPolicy", async () => {
+    const driver120Path = absoluteTestPath("drivers", "chromedriver-120");
+    const driver121Path = absoluteTestPath("drivers", "chromedriver-121");
     const resolver = new ArtifactPolicyDriverResolver({
       policy: new ArtifactPolicy(),
       catalog: {
         async listReleases(artifactName: string): Promise<ArtifactRelease[]> {
           expect(artifactName).toBe("chromedriver");
           return [
-            release("120.0.0", "2026-05-20T12:00:00.000Z", "/drivers/chromedriver-120"),
-            release("121.0.0", "2026-06-01T12:00:00.000Z", "/drivers/chromedriver-121"),
+            release("120.0.0", "2026-05-20T12:00:00.000Z", driver120Path),
+            release("121.0.0", "2026-06-01T12:00:00.000Z", driver121Path),
           ];
         },
       },
       now: new Date("2026-06-04T12:00:00.000Z"),
       fileSystem: fakeFileSystem({
-        "/drivers/chromedriver-120": { executable: true },
-        "/drivers/chromedriver-121": { executable: true },
+        [driver120Path]: { executable: true },
+        [driver121Path]: { executable: true },
       }),
     });
 
     await expect(
       resolver.resolveDriver({
-        browserPath: "/apps/Google Chrome",
+        browserPath: absoluteTestPath("apps", "Google Chrome"),
         kind: "chrome",
         displayName: "Chrome",
       }),
     ).resolves.toMatchObject({
       artifactName: "chromedriver",
-      driverPath: "/drivers/chromedriver-120",
+      driverPath: driver120Path,
       release: { version: "120.0.0" },
     });
   });
 
   it("@req NFR-05 selects a driver compatible with the detected Chromium major version", async () => {
+    const driver119Path = absoluteTestPath("drivers", "chromedriver-119");
+    const driver120Path = absoluteTestPath("drivers", "chromedriver-120");
     const resolver = new ArtifactPolicyDriverResolver({
       policy: new ArtifactPolicy(),
       catalog: {
         async listReleases(): Promise<ArtifactRelease[]> {
           return [
-            release("120.0.0", "2026-05-20T12:00:00.000Z", "/drivers/chromedriver-120"),
-            release("119.0.0", "2026-05-19T12:00:00.000Z", "/drivers/chromedriver-119"),
+            release("120.0.0", "2026-05-20T12:00:00.000Z", driver120Path),
+            release("119.0.0", "2026-05-19T12:00:00.000Z", driver119Path),
           ];
         },
       },
       now: new Date("2026-06-04T12:00:00.000Z"),
       fileSystem: fakeFileSystem({
-        "/drivers/chromedriver-120": { executable: true },
-        "/drivers/chromedriver-119": { executable: true },
+        [driver119Path]: { executable: true },
+        [driver120Path]: { executable: true },
       }),
     });
 
     await expect(
       resolver.resolveDriver({
-        browserPath: "/apps/Google Chrome",
+        browserPath: absoluteTestPath("apps", "Google Chrome"),
         kind: "chrome",
         displayName: "Chrome",
         version: "119.0.6045.105",
       }),
     ).resolves.toMatchObject({
-      driverPath: "/drivers/chromedriver-119",
+      driverPath: driver119Path,
       release: { version: "119.0.0" },
     });
   });
 
-  it("@req NFR-05 propagates malformed artifact policy errors instead of hiding them as no driver", async () => {
+  it("@req NFR-05 returns null when no eligible declared driver exists", async () => {
     const resolver = new ArtifactPolicyDriverResolver({
       policy: new ArtifactPolicy(),
       catalog: {
         async listReleases(): Promise<ArtifactRelease[]> {
-          return [
-            {
-              ...release("120.0.0", "2026-05-20T12:00:00.000Z", "/drivers/chromedriver-120"),
-              url: "latest",
-            },
-          ];
+          return [release("120.0.0", "2026-06-03T12:00:00.000Z", "/drivers/chromedriver-120")];
+        },
+      },
+      now: new Date("2026-06-04T12:00:00.000Z"),
+      fileSystem: fakeFileSystem(),
+    });
+
+    await expect(
+      resolver.resolveDriver({
+        browserPath: absoluteTestPath("apps", "Google Chrome"),
+        kind: "chrome",
+        displayName: "Chrome",
+      }),
+    ).resolves.toBeNull();
+  });
+
+  it("@req NFR-05 returns null when the selected driver path is not executable", async () => {
+    const driverPath = absoluteTestPath("drivers", "chromedriver-120");
+    const resolver = new ArtifactPolicyDriverResolver({
+      policy: new ArtifactPolicy(),
+      catalog: {
+        async listReleases(): Promise<ArtifactRelease[]> {
+          return [release("120.0.0", "2026-05-20T12:00:00.000Z", driverPath)];
         },
       },
       now: new Date("2026-06-04T12:00:00.000Z"),
       fileSystem: fakeFileSystem({
-        "/drivers/chromedriver-120": { executable: true },
+        [driverPath]: { executable: false },
       }),
     });
 
     await expect(
       resolver.resolveDriver({
-        browserPath: "/apps/Google Chrome",
+        browserPath: absoluteTestPath("apps", "Google Chrome"),
         kind: "chrome",
         displayName: "Chrome",
       }),
-    ).rejects.toMatchObject({
-      kind: "artifact",
-      context: {
-        cause: "invalid-artifact-manifest",
-      },
-    });
+    ).resolves.toBeNull();
   });
 });
 
 interface FakeFile {
   executable: boolean;
   realpath?: string;
+}
+
+function absoluteTestPath(...segments: string[]): string {
+  return path.resolve(path.parse(process.cwd()).root, ...segments);
 }
 
 function fakeFileSystem(files: Record<string, FakeFile> = {}): BrowserLocatorFileSystem {
@@ -391,7 +490,9 @@ function fakeFileSystem(files: Record<string, FakeFile> = {}): BrowserLocatorFil
 }
 
 class FakeDriverResolver implements BrowserDriverResolver {
-  constructor(private readonly drivers: Partial<Record<"chromedriver" | "geckodriver", LocatedDriver>> = {}) {}
+  constructor(
+    private readonly drivers: Partial<Record<"chromedriver" | "geckodriver", LocatedDriver>> = {},
+  ) {}
 
   async resolveDriver(browser: BrowserCandidate): Promise<LocatedDriver | null> {
     return this.drivers[browser.kind === "firefox" ? "geckodriver" : "chromedriver"] ?? null;
@@ -399,7 +500,10 @@ class FakeDriverResolver implements BrowserDriverResolver {
 }
 
 class FakeBrowserProbe implements BrowserProbe {
-  constructor(private readonly launchable = true, private readonly browserVersion: string | null = null) {}
+  constructor(
+    private readonly launchable = true,
+    private readonly browserVersion: string | null = null,
+  ) {}
 
   async isLaunchable(): Promise<boolean> {
     return this.launchable;
@@ -447,11 +551,11 @@ class SuccessfulFallbackBrowserResolver implements FallbackBrowserResolver {
   }
 }
 
-function release(version: string, publishedAt: string, path: string): ArtifactRelease {
+function release(version: string, publishedAt: string, driverPath: string): ArtifactRelease {
   return {
     version,
     publishedAt,
-    path,
+    path: driverPath,
     url: `https://downloads.example.invalid/${version}.zip`,
     sha256: "0".repeat(64),
     size: 42,

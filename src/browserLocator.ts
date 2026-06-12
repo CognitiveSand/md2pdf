@@ -10,7 +10,7 @@ import {
 } from "./artifactPolicy.js";
 import { ArtifactFreshnessError, BrowserNotFoundError } from "./errors.js";
 
-export type BrowserKind = "chrome" | "chromium" | "edge" | "brave" | "firefox";
+export type BrowserKind = "chrome" | "chromium" | "edge" | "brave" | "firefox" | "vivaldi";
 export type DriverArtifactName = "chromedriver" | "geckodriver";
 
 export interface BrowserLocatorOptions {
@@ -74,8 +74,56 @@ export interface ArtifactPolicyDriverResolverOptions {
   fileSystem?: BrowserLocatorFileSystem;
 }
 
-const supportedBrowsers = ["Chrome", "Chromium", "Edge", "Brave", "Firefox"];
+const supportedBrowsers = ["Chrome", "Chromium", "Edge", "Brave", "Firefox", "Vivaldi"];
 const envBrowserVariable = "MD2PDF_BROWSER";
+
+const WINDOWS_BROWSER_PATHS = [
+  ["ProgramFiles", "Microsoft", "Edge", "Application", "msedge.exe"],
+  ["ProgramFiles(x86)", "Microsoft", "Edge", "Application", "msedge.exe"],
+  ["LOCALAPPDATA", "Microsoft", "Edge", "Application", "msedge.exe"],
+  ["ProgramFiles", "Google", "Chrome", "Application", "chrome.exe"],
+  ["ProgramFiles(x86)", "Google", "Chrome", "Application", "chrome.exe"],
+  ["LOCALAPPDATA", "Google", "Chrome", "Application", "chrome.exe"],
+  ["ProgramFiles", "BraveSoftware", "Brave-Browser", "Application", "brave.exe"],
+  ["ProgramFiles(x86)", "BraveSoftware", "Brave-Browser", "Application", "brave.exe"],
+  ["LOCALAPPDATA", "BraveSoftware", "Brave-Browser", "Application", "brave.exe"],
+  ["ProgramFiles", "Vivaldi", "Application", "vivaldi.exe"],
+  ["ProgramFiles(x86)", "Vivaldi", "Application", "vivaldi.exe"],
+  ["LOCALAPPDATA", "Vivaldi", "Application", "vivaldi.exe"],
+];
+
+const POSIX_BROWSER_NAMES = [
+  "google-chrome",
+  "google-chrome-stable",
+  "chromium",
+  "chromium-browser",
+  "microsoft-edge",
+  "microsoft-edge-stable",
+  "msedge",
+  "brave-browser",
+  "brave",
+  "firefox",
+  "vivaldi",
+  "vivaldi-stable",
+];
+
+export async function locateBrowser(explicitBrowserPath?: string): Promise<string> {
+  if (explicitBrowserPath !== undefined && explicitBrowserPath.trim() !== "") {
+    return requireExecutable(explicitBrowserPath, "configured browser path is not usable");
+  }
+
+  for (const candidate of browserCandidates()) {
+    if (await isUsableExecutable(candidate)) {
+      return candidate;
+    }
+  }
+
+  throw new BrowserNotFoundError({
+    message: "No supported browser executable was found",
+    actionHint:
+      "Install a Chromium-family browser, or set MD2PDF_BROWSER to a browser executable path.",
+  });
+}
 
 export class BrowserLocator {
   private readonly env: Record<string, string | undefined>;
@@ -93,7 +141,8 @@ export class BrowserLocator {
     this.driverResolver = options.driverResolver ?? new NullDriverResolver();
     this.fallbackBrowserResolver = options.fallbackBrowserResolver;
     this.browserProbe = options.browserProbe ?? nodeBrowserProbe;
-    this.candidatePaths = options.candidatePaths ?? defaultBrowserCandidates(this.platform);
+    this.candidatePaths =
+      options.candidatePaths ?? defaultBrowserCandidates(this.platform, this.env);
   }
 
   async locate(): Promise<LocatedBrowser> {
@@ -216,7 +265,7 @@ export class BrowserLocator {
       throw browserError({
         message: "Pinned browser path is not a supported browser",
         cause: "env-browser-not-launchable",
-        actionHint: `${envBrowserVariable} must point to Chrome, Chromium, Edge, Brave, or Firefox: ${realBrowserPath}`,
+        actionHint: `${envBrowserVariable} must point to ${supportedBrowsers.join(", ")}: ${realBrowserPath}`,
       });
     }
 
@@ -226,7 +275,7 @@ export class BrowserLocator {
       throw browserError({
         message: "Pinned browser path is not launchable as a supported browser",
         cause: "env-browser-not-launchable",
-        actionHint: `${envBrowserVariable} must point to a launchable Chrome, Chromium, Edge, Brave, or Firefox binary: ${realBrowserPath}`,
+        actionHint: `${envBrowserVariable} must point to a launchable ${supportedBrowsers.join(", ")} binary: ${realBrowserPath}`,
       });
     }
 
@@ -283,11 +332,10 @@ export class ArtifactPolicyDriverResolver implements BrowserDriverResolver {
 
   async resolveDriver(browser: BrowserCandidate): Promise<LocatedDriver | null> {
     const artifactName = driverArtifactNameForBrowser(browser.kind);
-    const releases = await this.catalog.listReleases(artifactName);
-    let release: ArtifactRelease;
+    let release: ArtifactRelease | null;
     try {
       release = this.policy.selectNewestEligible(
-        releases,
+        await this.catalog.listReleases(artifactName),
         {
           quarantineDays: this.quarantineDays,
           ...driverCompatibilityConstraint(browser),
@@ -302,7 +350,7 @@ export class ArtifactPolicyDriverResolver implements BrowserDriverResolver {
       throw error;
     }
 
-    if (release.path === undefined) {
+    if (release?.path === undefined) {
       return null;
     }
 
@@ -340,7 +388,7 @@ const nodeFileSystem: BrowserLocatorFileSystem = {
         return false;
       }
 
-      await access(path, constants.X_OK);
+      await access(path, process.platform === "win32" ? constants.F_OK : constants.X_OK);
       return true;
     } catch {
       return false;
@@ -383,6 +431,64 @@ const nodeBrowserProbe: BrowserProbe = {
     }
   },
 };
+
+async function requireExecutable(path: string, message: string): Promise<string> {
+  if (await isUsableExecutable(path)) {
+    return path;
+  }
+
+  throw new BrowserNotFoundError({
+    message,
+    actionHint: "Check MD2PDF_BROWSER or pass an existing browser executable path.",
+    cause: path,
+  });
+}
+
+function browserCandidates(): string[] {
+  return process.platform === "win32" ? windowsCandidates(process.env) : posixCandidates();
+}
+
+function windowsCandidates(env: Record<string, string | undefined>): string[] {
+  const candidates: string[] = [];
+
+  for (const [envName, ...parts] of WINDOWS_BROWSER_PATHS) {
+    const root = env[envName] ?? env[envName.toUpperCase()];
+    if (root !== undefined && root !== "") {
+      candidates.push(join(root, ...parts));
+    }
+  }
+
+  candidates.push(
+    ...pathCandidates(["msedge.exe", "chrome.exe", "chromium.exe", "brave.exe", "vivaldi.exe"]),
+  );
+
+  return candidates;
+}
+
+function posixCandidates(): string[] {
+  return pathCandidates(POSIX_BROWSER_NAMES);
+}
+
+function pathCandidates(names: string[]): string[] {
+  const path = process.env.PATH ?? "";
+  return path
+    .split(delimiter)
+    .filter(Boolean)
+    .flatMap((directory) => names.map((name) => join(directory, name)));
+}
+
+async function isUsableExecutable(path: string): Promise<boolean> {
+  if (!isAbsolute(path) && !path.includes("/") && !path.includes("\\")) {
+    return false;
+  }
+
+  try {
+    await access(path, process.platform === "win32" ? constants.F_OK : constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 function locatedBrowser(candidate: BrowserCandidate, driver: LocatedDriver): LocatedBrowser {
   return {
@@ -449,6 +555,10 @@ function browserVersionMatchesKind(output: string, kind: BrowserKind): boolean {
     return normalized.includes("brave");
   }
 
+  if (kind === "vivaldi") {
+    return normalized.includes("vivaldi");
+  }
+
   return normalized.includes("firefox");
 }
 
@@ -478,6 +588,7 @@ function browserKindFromPath(path: string): Omit<BrowserCandidate, "browserPath"
 
   if (
     normalized.includes("brave browser") ||
+    normalized.includes("brave-browser") ||
     name === "brave" ||
     name === "brave.exe" ||
     name === "brave-browser"
@@ -487,6 +598,15 @@ function browserKindFromPath(path: string): Omit<BrowserCandidate, "browserPath"
 
   if (name === "chromium" || name === "chromium-browser" || name === "chromium.exe") {
     return { kind: "chromium", displayName: "Chromium" };
+  }
+
+  if (
+    normalized.includes("vivaldi") ||
+    name === "vivaldi" ||
+    name === "vivaldi.exe" ||
+    name === "vivaldi-stable"
+  ) {
+    return { kind: "vivaldi", displayName: "Vivaldi" };
   }
 
   if (name === "firefox" || name === "firefox.exe" || normalized.includes("firefox.app")) {
@@ -542,7 +662,10 @@ function parseBrowserVersion(output: string): string | null {
   return match?.[1] ?? null;
 }
 
-function defaultBrowserCandidates(platform: NodeJS.Platform): string[] {
+function defaultBrowserCandidates(
+  platform: NodeJS.Platform,
+  env: Record<string, string | undefined>,
+): string[] {
   if (platform === "darwin") {
     return [
       "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -550,22 +673,21 @@ function defaultBrowserCandidates(platform: NodeJS.Platform): string[] {
       "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
       "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
       "/Applications/Firefox.app/Contents/MacOS/firefox",
+      "/Applications/Vivaldi.app/Contents/MacOS/Vivaldi",
     ];
   }
 
   if (platform === "win32") {
-    const roots = [
-      process.env.PROGRAMFILES,
-      process.env["PROGRAMFILES(X86)"],
-      process.env.LOCALAPPDATA,
-    ].filter((value): value is string => value !== undefined && value !== "");
-
     return [
-      ...roots.map((root) => join(root, "Google", "Chrome", "Application", "chrome.exe")),
-      ...roots.map((root) => join(root, "Chromium", "Application", "chromium.exe")),
-      ...roots.map((root) => join(root, "Microsoft", "Edge", "Application", "msedge.exe")),
-      ...roots.map((root) => join(root, "BraveSoftware", "Brave-Browser", "Application", "brave.exe")),
-      ...roots.map((root) => join(root, "Mozilla Firefox", "firefox.exe")),
+      ...windowsRoots(env).map((root) => join(root, "Google", "Chrome", "Application", "chrome.exe")),
+      ...windowsRoots(env).map((root) => join(root, "Chromium", "Application", "chromium.exe")),
+      ...windowsRoots(env).map((root) => join(root, "Microsoft", "Edge", "Application", "msedge.exe")),
+      ...windowsRoots(env).map((root) =>
+        join(root, "BraveSoftware", "Brave-Browser", "Application", "brave.exe"),
+      ),
+      ...windowsRoots(env).map((root) => join(root, "Mozilla Firefox", "firefox.exe")),
+      ...windowsRoots(env).map((root) => join(root, "Vivaldi", "Application", "vivaldi.exe")),
+      ...pathExecutablesFromEnv(env, "msedge.exe", "chrome.exe", "chromium.exe", "brave.exe", "vivaldi.exe"),
     ];
   }
 
