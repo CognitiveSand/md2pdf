@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { constants } from "node:fs";
 import { access, realpath as fsRealpath, stat } from "node:fs/promises";
-import { basename, delimiter, extname, join, resolve } from "node:path";
+import { basename, delimiter, extname, isAbsolute, join, resolve } from "node:path";
 
 import {
   type ArtifactPolicy,
@@ -236,7 +236,7 @@ export class BrowserLocator {
       throw browserError({
         message: "Pinned browser path is not accessible",
         cause: "env-browser-not-launchable",
-        actionHint: `${envBrowserVariable} points to a file that cannot be accessed: ${resolvedPath}`,
+        actionHint: explicitBrowserHint(browserPath, resolvedPath, "points to a file that cannot be accessed"),
       });
     }
 
@@ -244,7 +244,7 @@ export class BrowserLocator {
       throw browserError({
         message: "Pinned browser path does not exist",
         cause: "env-browser-not-found",
-        actionHint: `${envBrowserVariable} points to a missing file: ${resolvedPath}`,
+        actionHint: explicitBrowserHint(browserPath, resolvedPath, "points to a missing file"),
       });
     }
 
@@ -252,7 +252,7 @@ export class BrowserLocator {
       throw browserError({
         message: "Pinned browser path is not executable",
         cause: "env-browser-not-launchable",
-        actionHint: `${envBrowserVariable} must point to an executable browser binary: ${resolvedPath}`,
+        actionHint: explicitBrowserHint(browserPath, resolvedPath, "must point to an executable browser binary"),
       });
     }
 
@@ -265,7 +265,7 @@ export class BrowserLocator {
       throw browserError({
         message: "Pinned browser path is not a supported browser",
         cause: "env-browser-not-launchable",
-        actionHint: `${envBrowserVariable} must point to ${supportedBrowsers.join(", ")}: ${realBrowserPath}`,
+        actionHint: explicitBrowserHint(browserPath, realBrowserPath, `must point to ${supportedBrowsers.join(", ")}`),
       });
     }
 
@@ -275,7 +275,7 @@ export class BrowserLocator {
       throw browserError({
         message: "Pinned browser path is not launchable as a supported browser",
         cause: "env-browser-not-launchable",
-        actionHint: `${envBrowserVariable} must point to a launchable ${supportedBrowsers.join(", ")} binary: ${realBrowserPath}`,
+        actionHint: explicitBrowserHint(browserPath, realBrowserPath, `must point to a launchable ${supportedBrowsers.join(", ")} binary`),
       });
     }
 
@@ -510,6 +510,14 @@ function browserError(input: {
   });
 }
 
+function explicitBrowserHint(inputPath: string, resolvedPath: string, message: string): string {
+  if (inputPath === resolvedPath) {
+    return `${envBrowserVariable} ${message}: ${resolvedPath}`;
+  }
+
+  return `${envBrowserVariable} ${message}: ${inputPath} (resolved: ${resolvedPath})`;
+}
+
 function isNoEligibleArtifact(error: unknown): boolean {
   return error instanceof ArtifactFreshnessError && error.context.cause === "no-eligible-release";
 }
@@ -687,15 +695,25 @@ function defaultBrowserCandidates(
       ),
       ...windowsRoots(env).map((root) => join(root, "Mozilla Firefox", "firefox.exe")),
       ...windowsRoots(env).map((root) => join(root, "Vivaldi", "Application", "vivaldi.exe")),
-      ...pathExecutablesFromEnv(env, "msedge.exe", "chrome.exe", "chromium.exe", "brave.exe", "vivaldi.exe"),
+      ...pathExecutablesForEnv(env, platform, "msedge.exe", "chrome.exe", "chromium.exe", "brave.exe", "vivaldi.exe"),
     ];
   }
 
   return [
-    ...pathExecutablesForEnv(process.env, platform, "google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "microsoft-edge", "microsoft-edge-stable", "brave-browser", "brave", "firefox"),
+    ...pathExecutablesForEnv(env, platform, "google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "microsoft-edge", "microsoft-edge-stable", "brave-browser", "brave", "firefox"),
     "/snap/firefox/current/usr/lib/firefox/firefox",
     "/usr/bin/firefox",
   ];
+}
+
+function windowsRoots(env: Record<string, string | undefined>): string[] {
+  const roots = [
+    env.ProgramFiles,
+    env["ProgramFiles(x86)"],
+    env.LOCALAPPDATA,
+  ].filter((root): root is string => root !== undefined && root !== "");
+
+  return [...new Set(roots)];
 }
 
 function pathExecutablesForEnv(

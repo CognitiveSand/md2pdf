@@ -3,8 +3,12 @@ import { basename, dirname, join, resolve } from "node:path";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 
 import { ArtifactPolicy } from "./artifactPolicy.js";
-import { ArtifactPolicyDriverResolver, BrowserLocator } from "./browserLocator.js";
-import type { FallbackBrowserResolver, LocatedBrowser } from "./browserTypes.js";
+import {
+  ArtifactPolicyDriverResolver,
+  BrowserLocator,
+  type FallbackBrowserResolver,
+  type LocatedBrowser,
+} from "./browserLocator.js";
 import type { ConvertOptions } from "./contracts.js";
 import { ConversionError } from "./errors.js";
 import { provisionFallbackBrowser } from "./fallbackBrowserProvisioner.js";
@@ -122,7 +126,7 @@ export class DocumentConverter {
       const session = await this.webdriverSessionFactory.start(browser, options);
       driverProcess = session.driverProcess;
       if (signal.aborted) {
-        void driverProcess.stop();
+        void session.driverProcess.stop();
       }
       return await this.printPdf({
         browser,
