@@ -409,6 +409,14 @@ async function waitForMermaid(
       return;
     }
 
+    if (isMermaidRenderError(response.value)) {
+      throw new RenderError({
+        message: "Mermaid diagram rendering failed",
+        actionHint: "Check the Mermaid diagram syntax in the source Markdown.",
+        cause: response.value.mermaidError,
+      });
+    }
+
     await delay(pollMs);
   }
 
@@ -417,6 +425,15 @@ async function waitForMermaid(
     actionHint: "Reduce diagram complexity or increase the render timeout.",
     cause: "mermaid-timeout",
   });
+}
+
+function isMermaidRenderError(value: unknown): value is { mermaidError: string } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "mermaidError" in value &&
+    typeof (value as { mermaidError: unknown }).mermaidError === "string"
+  );
 }
 
 function readSessionId(response: SessionResponse): string {
@@ -461,10 +478,11 @@ function assertFileUrl(value: string): void {
 }
 
 const mermaidReadyScript = `
-const nodes = Array.from(document.querySelectorAll(".mermaid"));
-return nodes.every((node) =>
-  node.getAttribute("data-processed") === "true" ||
-  node.querySelector("svg") !== null ||
-  node.querySelector("img") !== null
-);
+const status = document.documentElement.getAttribute("data-mermaid-status");
+if (status === "done") return true;
+if (status === "error") {
+  const msg = document.documentElement.getAttribute("data-mermaid-error") || "Mermaid diagram rendering failed";
+  return { mermaidError: msg };
+}
+return false;
 `;

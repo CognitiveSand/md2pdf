@@ -14,7 +14,6 @@ aux artifacts, rendu atomique.
 | `src/markdownRenderer.ts` | P1 |
 | `src/browserLocator.ts` | P2 |
 | `src/webDriverClient.ts` | P2 |
-| `src/pdfRenderer.ts` | P2-P3 |
 | `src/releaseCatalog.ts` | P1 |
 | `src/artifactPolicy.ts` | C0 → P2 |
 | `src/fallbackBrowserProvisioner.ts` | P2 |
@@ -166,6 +165,7 @@ Tests Mermaid obligatoires (fixés en début de P3) :
 
 - Absence du texte raw Mermaid dans le texte extrait du PDF.
 - Présence d'au moins un objet image rasterisé ou XObject vectoriel dans la structure PDF.
+- Le test `test:browser` utilise un vrai navigateur et un vrai WebDriver pré-provisionnés; un skip local doit être explicite et ne constitue pas une preuve release.
 - Le type attendu (rasterisé ou vectoriel) est fixé selon le navigateur de référence CI et documenté dans le test.
 
 Tests local-only :

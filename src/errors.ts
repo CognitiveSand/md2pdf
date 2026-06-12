@@ -4,8 +4,7 @@ export type ErrorKind =
   | "conversion"
   | "render"
   | "browser"
-  | "artifact"
-  | "not-implemented";
+  | "artifact";
 
 export interface Md2PdfErrorContext {
   kind: ErrorKind;
@@ -68,12 +67,6 @@ export class BrowserNotFoundError extends Md2PdfError {
 export class ArtifactFreshnessError extends Md2PdfError {
   constructor(context: ErrorContextInput | string) {
     super(withKind("artifact", context));
-  }
-}
-
-export class NotImplementedError extends Md2PdfError {
-  constructor(context: ErrorContextInput | string = "Not implemented") {
-    super(withKind("not-implemented", context));
   }
 }
 

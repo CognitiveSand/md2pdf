@@ -115,16 +115,16 @@ phase exists.
 
 | Decision | Status | Evidence / reference | Notes |
 | --- | --- | --- | --- |
-| Empty directory exits `0` with `0 succeeded, 0 failed, 0 skipped` | `pass` | `tests/unit/cli/cli.test.ts`, `@req FR-09 @req FR-11 keeps an empty Markdown directory successful` | Covered by Stream A P1/P2 unit tests. |
-| `.MD` extension is accepted case-insensitively | `pass` | `tests/unit/paths/paths.test.ts`, `@req FR-02 accepts Markdown file extensions case-insensitively`; `tests/unit/cli/cli.test.ts`, valid single-file command | Covered by Stream A P1/P2 unit tests. |
-| Explicit output extension is used verbatim | `pass` | `tests/unit/paths/paths.test.ts`, `@req FR-03 uses --output verbatim`; `tests/unit/cli/cli.test.ts`, valid single-file command | Covered by Stream A P1/P2 unit tests. README documentation remains a P4 item. |
-| Output parent is created when possible | `pass` | `tests/unit/paths/paths.test.ts`, `@req FR-03 uses --output verbatim and creates a missing parent directory` | Covered by Stream A P1/P2 unit tests. |
-| Output parent non-writable reports clear error | `pass` | `tests/unit/paths/paths.test.ts`, `reports non-writable output parents with output path and action hint` | Unit proof covers `outputPath` and `actionHint`. Real write-time permission failures remain a later P3/P5 integration concern. |
-| Skipped outputs count in summary without causing failure | `pass` | `tests/unit/cli/cli.test.ts`, `@req FR-12 @req FR-18 reports non-interactive overwrite skips in the summary without failing` | Covered by Stream A P1/P2 unit tests. |
-| Duplicate entries or duplicate outputs fail preflight | `pass` | `tests/unit/paths/paths.test.ts`, duplicate entries; `tests/unit/pipeline/pipeline.test.ts`, output collisions; `tests/unit/cli/cli.test.ts`, CLI preflight collision | Covered by Stream A P1/P2 unit tests; includes duplicates and output collisions. |
-| `--output-dir` basename collision blocks before render | `pass` | `tests/unit/paths/paths.test.ts`, `@req FR-23 rejects basename collisions`; `tests/unit/cli/cli.test.ts`, CLI preflight collision | Covered by Stream A P1/P2 unit tests. Example: `a/report.md` and `b/report.md`. |
-| Cache writes are atomic | `blocked` | Stream B artifact test | Stream B/provisioning responsibility; outside Stream A strict. |
-| Cache non-writable reports explicit artifact/browser error | `blocked` | Stream B artifact test | Stream B/provisioning responsibility; outside Stream A strict. |
+| Empty directory exits `0` with `0 succeeded, 0 failed, 0 skipped` | `pass` | `tests/unit/cli/cli.test.ts`, `@req FR-09 @req FR-11 keeps an empty Markdown directory successful` | From plan v0.1.2 defensive decisions. |
+| `.MD` extension is accepted case-insensitively | `pass` | `tests/unit/paths/paths.test.ts`, `@req FR-02 accepts Markdown file extensions case-insensitively`; `tests/unit/cli/cli.test.ts`, valid single-file command | From plan v0.1.2 defensive decisions. |
+| Explicit output extension is used verbatim | `pass` | `tests/unit/paths/paths.test.ts`, `@req FR-03 uses --output verbatim`; `tests/unit/cli/cli.test.ts`, valid single-file command | README documentation remains a P4 item. |
+| Output parent is created when possible | `pass` | `tests/unit/paths/paths.test.ts`, `@req FR-03 uses --output verbatim and creates a missing parent directory` | From plan v0.1.2 defensive decisions. |
+| Output parent non-writable reports clear error | `pending` | Stream A test | Must include `outputPath` and `actionHint`. |
+| Skipped outputs count in summary without causing failure | `pending` | Stream A test | From plan v0.1.2 defensive decisions. |
+| Duplicate entries or duplicate outputs fail preflight | `pass` | `tests/unit/paths/paths.test.ts`, duplicate entries; `tests/unit/pipeline/pipeline.test.ts`, output collisions; `tests/unit/cli/cli.test.ts`, CLI preflight collision | Includes duplicates and output collisions. |
+| `--output-dir` basename collision blocks before render | `pass` | `tests/unit/paths/paths.test.ts`, `@req FR-23 rejects basename collisions`; `tests/unit/cli/cli.test.ts`, CLI preflight collision | Example: `a/report.md` and `b/report.md`. |
+| Cache writes are atomic | `pass` | `tests/unit/artifacts/fallbackBrowserProvisioner.test.ts`, `@req NFR-05 writes the browser cache atomically` | `.tmp` then atomic rename after checksum verification. Implemented in `src/fallbackBrowserProvisioner.ts`. |
+| Cache non-writable reports explicit artifact/browser error | `pass` | `tests/unit/artifacts/fallbackBrowserProvisioner.test.ts`, `@req NFR-05 reports a clear error when the cache directory is not writable` | Throws `ArtifactCacheError` with `actionHint`. Implemented in `src/fallbackBrowserProvisioner.ts`. |
 | C0 red then green evidence recorded | `pass` | C0 contract trace above | Required C0 proof is now recorded. |
 | FR-20 manual proof versioned | `pass` | FR-20 section above; `docs/release-evidence/fr-20-system-scope.md` | Versioned Stream A strict simulation evidence is present. |
 

@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { constants, createWriteStream } from "node:fs";
-import { access, chmod, mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { access, chmod, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { get as httpsGet } from "node:https";
 import { homedir } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
@@ -186,7 +186,6 @@ async function purgeStaleCaches(
   }
 
   try {
-    const { readdir } = await import("node:fs/promises");
     for (const entry of await readdir(artifactRoot, { withFileTypes: true })) {
       const path = join(artifactRoot, entry.name);
       if (path !== selectedCacheDir) {

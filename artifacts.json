@@ -4,6 +4,18 @@
   "policy": "ARTIFACT_FRESHNESS_POLICY.md",
   "artifacts": [
     {
+      "name": "md2pdf default stylesheet",
+      "kind": "bundled-stylesheet",
+      "path": "assets/default.css",
+      "source": "md2pdf",
+      "version": "0.1.2",
+      "publishedAt": "2026-06-02T13:11:14.000Z",
+      "url": "https://registry.npmjs.org/md2pdf/-/md2pdf-0.1.2.tgz",
+      "sha256": "543c34bd0835034e9e1a93afb507470fa53f9c604a47e7e0614080a4459efe0a",
+      "size": 3200,
+      "provenance": "First-party project stylesheet bundled into the npm package tarball"
+    },
+    {
       "name": "highlight.js GitHub Light theme stylesheet",
       "kind": "bundled-stylesheet",
       "path": "assets/highlight.css",
@@ -32,6 +44,10 @@
     },
     {
       "path": "src/browserLocator.ts",
+      "kind": "runtime-provisioning"
+    },
+    {
+      "path": "src/converter.ts",
       "kind": "runtime-provisioning"
     },
     {

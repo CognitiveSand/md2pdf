@@ -323,7 +323,6 @@ Mermaid, local-only, provisioning conforme artifacts et rendu atomique.
 - `src/markdownRenderer.ts`
 - `src/browserLocator.ts`
 - `src/webDriverClient.ts`
-- `src/pdfRenderer.ts`
 - `src/releaseCatalog.ts`
 - `src/artifactPolicy.ts`
 - `src/fallbackBrowserProvisioner.ts`
@@ -396,7 +395,8 @@ Tags requis: `@req FR-01`, `FR-04`, `FR-05`, `FR-06`, `FR-07`, `FR-16`,
 Tests obligatoires:
 
 - HTML rapide sans navigateur;
-- PDF/browser isole dans commande lente obligatoire pour P3/release;
+- PDF/browser isole dans commande lente obligatoire pour P3/release, avec vrai
+  navigateur et vrai WebDriver pre-provisionnes;
 - Mermaid: absence du raw Mermaid dans le texte extrait du PDF et presence d'un
   objet image ou vectoriel;
 - local-only: HTML sans URL externe exploitable et conversion offline/no-proxy
@@ -535,7 +535,7 @@ npm pack
 ## 8. Regles anti-conflit
 
 - Stream A ne modifie pas `markdownRenderer.ts`, `browserLocator.ts`,
-  `webDriverClient.ts`, `pdfRenderer.ts`, `artifactPolicy.ts`,
+  `webDriverClient.ts`, `artifactPolicy.ts`,
   `fallbackBrowserProvisioner.ts`, sauf accord explicite.
 - Stream B ne modifie pas `cli.ts`, `paths.ts`, `overwrite.ts`, `pipeline.ts`,
   sauf accord explicite.
@@ -596,4 +596,3 @@ npm pack
 | Cache non writable | erreur artifact/browser explicite | Test Stream B |
 | C0 rouge puis vert | preuve versionnee en checklist | Checklist release |
 | `FR-20` manuel | preuve versionnee a chemin fixe | Checklist release |
-

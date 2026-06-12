@@ -24,9 +24,11 @@ can be accepted.
 ## Requirements
 
 - Node.js 20 or later.
-- For actual PDF rendering, a supported local browser runtime must be available
-  to the converter implementation.
-- No TeX or LaTeX installation is required for CLI availability.
+- One supported browser installed locally: Google Chrome, Chromium, another
+  Chromium-family browser, or Firefox.
+- A matching WebDriver binary declared in `artifacts.json` and selected by the
+  artifact freshness policy, or a fallback browser/driver provisioned by md2pdf
+  into a per-user cache from an eligible declared artifact.
 
 `MD2PDF_BROWSER` may point the runtime converter at a specific browser
 executable. It is an environment variable, not a CLI option:
@@ -34,6 +36,9 @@ executable. It is an environment variable, not a CLI option:
 ```bash
 MD2PDF_BROWSER=/usr/bin/chromium md2pdf notes.md
 ```
+
+WebDriver binaries are runtime artifacts. They must be declared in
+`artifacts.json`; md2pdf does not select arbitrary drivers from `PATH`.
 
 ## Install
 
@@ -156,9 +161,12 @@ npm run check:artifacts
 npm run build
 ```
 
-`npm test` runs fast unit coverage. `npm run test:contracts` runs the public
-contract suite. Browser/rendering validation is tracked separately from Stream A
-strict.
+`npm test` runs fast unit and contract coverage. `npm run test:browser` runs the
+browser-backed integration tests and requires a local browser plus an eligible
+WebDriver declared in `artifacts.json`, or an eligible declared fallback
+browser/driver artifact.
+Local development may set `MD2PDF_SKIP_REAL_BROWSER_TESTS=1` to skip the real
+browser proof explicitly; release evidence must run without that skip.
 
 ## Artifact Freshness Policy
 

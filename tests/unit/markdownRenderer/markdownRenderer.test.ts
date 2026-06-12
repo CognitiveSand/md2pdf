@@ -46,6 +46,12 @@ describe("markdownRenderer renderToHtml", () => {
     expect(html).toContain("answer");
   });
 
+  it("@req FR-07 inlines heading page-break protection", () => {
+    const html = renderToHtml("# Heading\n\nBody", context());
+
+    expect(html).toContain("break-after: avoid-page");
+  });
+
   it("@req FR-24 leaves Mermaid blocks as browser-renderable local HTML", () => {
     const html = renderToHtml(
       ["```mermaid", "flowchart TD", "  A --> B", "```"].join("\n"),

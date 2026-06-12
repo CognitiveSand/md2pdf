@@ -33,6 +33,7 @@ h1, h2, h3, h4, h5, h6 {
   font-weight: 600;
   line-height: 1.25;
   color: #1a1a1a;
+  break-after: avoid-page;
 }
 
 h1 { font-size: 2em; border-bottom: 1px solid #e1e4e8; padding-bottom: 0.3em; }
