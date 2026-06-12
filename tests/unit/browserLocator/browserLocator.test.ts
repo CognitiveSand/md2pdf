@@ -334,6 +334,28 @@ describe("BrowserLocator installed browser scan", () => {
     });
   });
 
+  itOnPosix("@req NFR-03 detects Vivaldi from the POSIX PATH", async () => {
+    const binDir = absoluteTestPath("usr", "local", "bin");
+    const vivaldiPath = path.join(binDir, "vivaldi");
+    const locator = new BrowserLocator({
+      env: { PATH: binDir },
+      platform: "linux",
+      fileSystem: fakeFileSystem({
+        [vivaldiPath]: { executable: true },
+      }),
+      browserProbe: new FakeBrowserProbe(),
+      driverResolver: new FakeDriverResolver({
+        chromedriver: { artifactName: "chromedriver", driverPath: "/drivers/chromedriver" },
+      }),
+    });
+
+    await expect(locator.locate()).resolves.toMatchObject({
+      browserPath: vivaldiPath,
+      kind: "vivaldi",
+      driverArtifactName: "chromedriver",
+    });
+  });
+
   it("@req NFR-05 reports fallback artifact causes when no installed browser is available", async () => {
     const locator = new BrowserLocator({
       env: {},

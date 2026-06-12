@@ -700,7 +700,7 @@ function defaultBrowserCandidates(
   }
 
   return [
-    ...pathExecutablesForEnv(env, platform, "google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "microsoft-edge", "microsoft-edge-stable", "brave-browser", "brave", "firefox"),
+    ...pathExecutablesForEnv(env, platform, ...POSIX_BROWSER_NAMES),
     "/snap/firefox/current/usr/lib/firefox/firefox",
     "/usr/bin/firefox",
   ];

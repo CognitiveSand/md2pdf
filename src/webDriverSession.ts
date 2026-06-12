@@ -21,6 +21,8 @@ export interface WebDriverSessionFactory {
   start(browser: LocatedBrowser, options?: ConvertOptions): Promise<WebDriverSession>;
 }
 
+const defaultDriverStopTimeoutMs = 5_000;
+
 export class SpawnedWebDriverSessionFactory implements WebDriverSessionFactory {
   async start(browser: LocatedBrowser, options: ConvertOptions = {}): Promise<WebDriverSession> {
     const port = await allocatePort();
@@ -57,7 +59,7 @@ class SpawnedDriverProcess implements DriverProcessHandle {
     }
 
     this.child.kill();
-    await waitForExit(this.child, signal);
+    await waitForExit(this.child, signal, defaultDriverStopTimeoutMs);
   }
 }
 
@@ -117,7 +119,11 @@ async function driverResponds(port: number): Promise<boolean> {
   }
 }
 
-async function waitForExit(child: ChildProcess, signal: AbortSignal | undefined): Promise<void> {
+async function waitForExit(
+  child: ChildProcess,
+  signal: AbortSignal | undefined,
+  killAfterMs: number,
+): Promise<void> {
   if (child.exitCode !== null || child.signalCode !== null) {
     return;
   }
@@ -127,15 +133,30 @@ async function waitForExit(child: ChildProcess, signal: AbortSignal | undefined)
   }
 
   const exit = once(child, "exit").then(() => undefined);
+  const killTimeout = setTimeout(() => {
+    if (child.exitCode === null && child.signalCode === null) {
+      child.kill("SIGKILL");
+    }
+  }, killAfterMs);
+  killTimeout.unref();
+
   if (signal === undefined) {
-    await exit;
-    return;
+    try {
+      await exit;
+      return;
+    } finally {
+      clearTimeout(killTimeout);
+    }
   }
 
-  await Promise.race([
-    exit,
-    once(signal, "abort").then(() => {
-      throw signal.reason;
-    }),
-  ]);
+  try {
+    await Promise.race([
+      exit,
+      once(signal, "abort").then(() => {
+        throw signal.reason;
+      }),
+    ]);
+  } finally {
+    clearTimeout(killTimeout);
+  }
 }

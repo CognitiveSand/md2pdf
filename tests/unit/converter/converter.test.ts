@@ -1,10 +1,16 @@
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { createConverter } from "../../../src/converter.js";
+import type { LocatedBrowser } from "../../../src/browserLocator.js";
+import {
+  createConverter,
+  type BrowserLocatorLike,
+  type WebDriverSessionFactory,
+} from "../../../src/converter.js";
 import { ConversionError, RenderError } from "../../../src/errors.js";
 
 let tempRoot: string;
@@ -25,16 +31,19 @@ describe("Stream A P3 runtime converter boundary", () => {
     await fs.writeFile(sourcePath, "# Runtime\n", "utf8");
 
     const convertFile = createConverter({
-      renderPdf: async ({ htmlPath, fileUrl, sourcePath, outputPath, options }) => {
+      browserLocatorFactory: (options) => fakeLocator(options.browserPath ?? "/browser"),
+      webdriverSessionFactory: fakeSessionFactory(),
+      printPdf: async ({ browser, htmlFileUrl, driverProcess }) => {
+        const htmlPath = fileURLToPath(htmlFileUrl);
         const html = await fs.readFile(htmlPath, "utf8");
+        await driverProcess.stop();
         calls.push([
           html.includes("<h1>Runtime</h1>") ? "html" : "missing-html",
-          fileUrl.startsWith("file://") ? "file-url" : "missing-file-url",
-          sourcePath,
-          outputPath,
-          options?.browserPath ?? "default",
+          htmlFileUrl.startsWith("file://") ? "file-url" : "missing-file-url",
+          browser.browserPath,
         ].join("|"));
-        await fs.writeFile(outputPath, "%PDF-1.7\n", "utf8");
+
+        return Buffer.from("%PDF-1.7\n", "utf8");
       },
     });
 
@@ -45,7 +54,7 @@ describe("Stream A P3 runtime converter boundary", () => {
       }),
     ).resolves.toBeUndefined();
 
-    expect(calls).toEqual([`html|file-url|${sourcePath}|${outputPath}|/browser`]);
+    expect(calls).toEqual(["html|file-url|/browser"]);
     await expect(fs.readFile(outputPath, "utf8")).resolves.toBe("%PDF-1.7\n");
   });
 
@@ -53,7 +62,9 @@ describe("Stream A P3 runtime converter boundary", () => {
     const sourcePath = path.join(tempRoot, "source.md");
     const outputPath = path.join(tempRoot, "source.pdf");
     const convertFile = createConverter({
-      renderPdf: async () => {
+      browserLocatorFactory: () => fakeLocator("/browser"),
+      webdriverSessionFactory: fakeSessionFactory(),
+      printPdf: async () => {
         throw new Error("should not render PDF");
       },
     });
@@ -77,3 +88,29 @@ describe("Stream A P3 runtime converter boundary", () => {
     });
   });
 });
+
+function fakeLocator(browserPath: string): BrowserLocatorLike {
+  return {
+    async locate(): Promise<LocatedBrowser> {
+      return {
+        browserPath,
+        displayName: "Test Chrome",
+        driverArtifactName: "chromedriver",
+        driverPath: "/drivers/chromedriver",
+        kind: "chrome",
+        version: "120.0.0",
+      };
+    },
+  };
+}
+
+function fakeSessionFactory(): WebDriverSessionFactory {
+  return {
+    async start() {
+      return {
+        driverProcess: { async stop() {} },
+        transport: { async request() { throw new Error("unused transport"); } },
+      };
+    },
+  };
+}

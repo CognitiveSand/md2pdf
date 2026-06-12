@@ -110,7 +110,7 @@ describe("Stream A P1 CLI", () => {
 
     expect(exitCode).toBe(1);
     expect(stdout.toString()).toBe("0 succeeded, 1 failed, 0 skipped\n");
-    expect(stderr.toString()).toContain("[conversion]");
+    expect(stderr.toString()).toContain("[browser]");
     expect(stderr.toString()).toContain(`source: ${path.join(tempRoot, "source.md")}`);
     expect(stderr.toString()).toContain(`output: ${path.join(tempRoot, "source.pdf")}`);
     expect(stderr.toString()).not.toContain("[not-implemented]");

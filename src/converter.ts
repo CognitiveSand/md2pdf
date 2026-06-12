@@ -46,6 +46,12 @@ export interface DocumentConverterDependencies {
   webdriverSessionFactory?: WebDriverSessionFactory;
 }
 
+export type ConvertFile = (
+  sourcePath: string,
+  outputPath: string,
+  options?: ConvertOptions,
+) => Promise<void>;
+
 const defaultRenderTimeoutMs = 30_000;
 
 const nodeFileSystem: ConverterFileSystem = {
@@ -55,6 +61,13 @@ const nodeFileSystem: ConverterFileSystem = {
   rm,
   writeFile,
 };
+
+export function createConverter(dependencies: DocumentConverterDependencies = {}): ConvertFile {
+  const converter = new DocumentConverter(dependencies);
+
+  return (sourcePath, outputPath, options) =>
+    converter.convertFile(sourcePath, outputPath, options);
+}
 
 export async function convertFile(
   sourcePath: string,
@@ -87,7 +100,19 @@ export class DocumentConverter {
     const absoluteSourcePath = resolve(sourcePath);
     const absoluteOutputPath = resolve(outputPath);
     const renderTimeoutMs = options.renderTimeoutMs ?? defaultRenderTimeoutMs;
-    const markdown = await this.fileSystem.readFile(absoluteSourcePath, "utf8");
+    let markdown: string;
+    try {
+      markdown = await this.fileSystem.readFile(absoluteSourcePath, "utf8");
+    } catch (cause) {
+      throw new ConversionError({
+        message: "Markdown source could not be read during conversion",
+        sourcePath: absoluteSourcePath,
+        outputPath: absoluteOutputPath,
+        actionHint: "Check that the Markdown source still exists and is readable.",
+        cause,
+      });
+    }
+
     const browser = await this.browserLocatorFactory(options).locate();
 
     // renderTimeoutMs bounds two clocks that start at different instants: the
@@ -119,7 +144,7 @@ export class DocumentConverter {
     renderTimeoutMs: number,
   ): Promise<Buffer> {
     let driverProcess: DriverProcessHandle | undefined;
-    const onAbort = (): void => { void driverProcess?.stop(); };
+    const onAbort = (): void => { void driverProcess?.stop(signal); };
     signal.addEventListener("abort", onAbort, { once: true });
 
     try {

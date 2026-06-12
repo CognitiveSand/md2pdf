@@ -3,7 +3,15 @@ import {
   type ConversionOutcome,
   type ConvertOptions,
 } from "./contracts.js";
-import { ConversionError, Md2PdfError } from "./errors.js";
+import {
+  ArtifactFreshnessError,
+  BrowserNotFoundError,
+  ConversionError,
+  InputNotFoundError,
+  Md2PdfError,
+  RenderError,
+  UsageError,
+} from "./errors.js";
 import {
   evaluateOverwrite,
   type OverwriteMode,
@@ -90,7 +98,7 @@ export class ConversionPipeline {
 
 function toMd2PdfError(error: unknown, job: ConversionJob): Md2PdfError {
   if (error instanceof Md2PdfError) {
-    return error;
+    return withJobContext(error, job);
   }
 
   return new ConversionError({
@@ -100,4 +108,34 @@ function toMd2PdfError(error: unknown, job: ConversionJob): Md2PdfError {
     actionHint: "inspect the conversion error cause",
     cause: error,
   });
+}
+
+function withJobContext(error: Md2PdfError, job: ConversionJob): Md2PdfError {
+  const sourcePath = error.context.sourcePath ?? job.sourcePath;
+  const outputPath = error.context.outputPath ?? job.outputPath;
+
+  if (sourcePath === error.context.sourcePath && outputPath === error.context.outputPath) {
+    return error;
+  }
+
+  const context = {
+    ...error.context,
+    sourcePath,
+    outputPath,
+  };
+
+  switch (error.kind) {
+    case "usage":
+      return new UsageError(context);
+    case "input":
+      return new InputNotFoundError(context);
+    case "conversion":
+      return new ConversionError(context);
+    case "render":
+      return new RenderError(context);
+    case "browser":
+      return new BrowserNotFoundError(context);
+    case "artifact":
+      return new ArtifactFreshnessError(context);
+  }
 }
