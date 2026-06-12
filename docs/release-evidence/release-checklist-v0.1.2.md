@@ -4,7 +4,8 @@ Release status: `blocked`
 
 P0 closure status: `pass`
 
-Post-audit Phase 0 evidence reset status: `pass`
+Post-audit Phase 0 evidence reset status: `pass`; justified by
+`audit/audit-postmerge-P0.md`
 
 This checklist tracks the release evidence required for md2pdf v0.1.2. It is
 created during P0 and must be completed before the release candidate is accepted.
@@ -31,10 +32,11 @@ explicitly accepted in this checklist.
 
 This section resets the release evidence after
 `audit/2026-06-12-global-project-progress-structure-problems-audit.md`.
-No new technical gate was replayed for this Phase 0 reset, and no command is
-claimed green here without a fresh execution record.
+The original Phase 0 reset did not replay technical gates. The only green
+command status added after that reset is the artifact gate replay recorded in
+`audit/audit-postmerge-P0.md`; no other command is claimed green here.
 
-Audited red gates for the current repository state:
+Audited gates and post-merge replay status:
 
 | Command | Current release status | Source | Notes |
 | --- | --- | --- | --- |
@@ -42,14 +44,14 @@ Audited red gates for the current repository state:
 | `npm.cmd test` | `fail` | `audit/2026-06-12-global-project-progress-structure-problems-audit.md` | The global unit test gate fails in the audited state. |
 | `npm.cmd run test:contracts` | `fail` | `audit/2026-06-12-global-project-progress-structure-problems-audit.md` | Contract tests fail before execution because the public contract import reaches missing runtime modules. |
 | `npm.cmd run test:browser` | `fail` | `audit/2026-06-12-global-project-progress-structure-problems-audit.md` | Integration/browser gate fails before the relevant suites can prove release behavior. |
-| `npm.cmd run check:artifacts` | `fail` | `audit/2026-06-12-global-project-progress-structure-problems-audit.md` | `assets/default.css` no longer matches `artifacts.json`. |
+| `npm.cmd run check:artifacts` | `pass` | `audit/audit-postmerge-P0.md` | The earlier 2026-06-12 global audit observed this gate as `fail`, but the post-merge P0 audit replay observed `Artifact freshness policy passed.` This local pass does not make the global release ready by itself. |
 
 Evidence classes after this reset:
 
 | Evidence class | Status | Meaning |
 | --- | --- | --- |
 | Historical Stream A strict evidence | `pass` only where explicitly scoped to Stream A strict and dated before the 2026-06-12 audit | Preserved as historical evidence; it must not be read as proof that the current global v0.1.2 gates are green. |
-| Global v0.1.2 release evidence | `blocked` or `fail` | The global release remains `NO-GO` until the audited red gates and missing browser/CI evidence are resolved and rerun. |
+| Global v0.1.2 release evidence | `blocked` or `fail` | The global release remains `NO-GO` until the remaining audited red gates and missing browser/CI evidence are resolved and rerun. |
 | Simulated evidence | `blocked` for the release requirement unless the item is explicitly limited to simulation mechanics | Simulation records can remain useful, but they are not equivalent to release-grade proof. |
 | Real release evidence | `pending` or `blocked` unless a current, committed run exists | Real release evidence must be tied to the current source, rebuilt `dist/`, current package, artifact gate, browser proof, and CI matrix. |
 
@@ -63,7 +65,7 @@ Former `pass` rows reset by post-audit Phase 0:
 | Checklist area | Former claim | Current release status | Reason |
 | --- | --- | --- | --- |
 | C0 contract trace | Contract shape and shared errors verified by tests | `fail` or `blocked` | `npm.cmd run test:contracts` is red in the audited state, so test-backed contract proof is not current. |
-| Automated release gates | Typecheck, unit, contract, integration, and artifact gates | `fail` | These commands are explicitly red in `audit/2026-06-12-global-project-progress-structure-problems-audit.md`. |
+| Automated release gates | Typecheck, unit, contract, integration, and browser gates | `fail` | These commands remain red in the audited state. Artifact freshness is tracked separately because the post-merge P0 audit replayed it green. |
 | FR-20 system-scope | Release candidate FR-20 completed | `blocked` | Only a Stream A strict simulation exists; no real system-scope multi-account proof exists. |
 | Packaging and distribution | `dist/`, packlist, install, reinstall | `blocked` | Historical package evidence is tied to a stale source/package relationship and cannot close the current release. |
 | README and CLI options | Built CLI help and README/help parity | `blocked` | `dist/` and the release package are blocked, and no fresh CLI help run is claimed in Phase 0. |
@@ -83,7 +85,7 @@ A scoped gate-maintenance exception is recorded below.
 | Phase 3 release evidence README exists | `pass` | `docs/release-evidence/README.md` | Evidence rules and statuses defined. |
 | Phase 4 FR-20 template exists | `pass` | `docs/release-evidence/fr-20-system-scope.md` | Template created with `pending` placeholders. |
 | No C0 source work started during original P0 | `pass` | P0 final reconciliation review; historical `find src tests -maxdepth 2 -type f` | Historical original-P0 fact only. The current repository now contains `src/` and `tests/` from later phases, and current gates are tracked separately above. |
-| Artifact gate Windows portability fix was scoped during original P0 | `pass` | `scripts/checkArtifactFreshness.mjs` | Historical original-P0 fact only. The later current artifact gate is red and tracked as `fail` in Automated Release Gates. |
+| Artifact gate Windows portability fix was scoped during original P0 | `pass` | `scripts/checkArtifactFreshness.mjs` | Historical original-P0 fact only. The current artifact gate replay is tracked separately in Automated Release Gates. |
 | `docs/architecture.md` no longer diverged from plan v0.1.2 during original P0 | `pass` | `docs/architecture.md` section 4 and section 16; `docs/implementation_plan_v0.1.2.md` section 4 | Historical documentation-alignment fact only. Current code/runtime alignment is not inferred from this row. |
 
 ## P0 Gate
@@ -110,7 +112,7 @@ A scoped gate-maintenance exception is recorded below.
 | Contract tests | `fail` | `npm.cmd run test:contracts`; `audit/2026-06-12-global-project-progress-structure-problems-audit.md` | Earlier passes are historical. The current audited contract gate fails before executing tests because missing runtime modules are imported. |
 | Integration tests | `fail` | `npm.cmd run test:browser`; `audit/2026-06-12-global-project-progress-structure-problems-audit.md` | Earlier Stream A integration evidence is historical. The current audited browser/integration gate does not start cleanly. |
 | Browser-backed tests | `blocked` | Stream B / global release evidence required | Real installed-browser, Mermaid-as-diagram, WebDriver/Firefox, fallback provisioning, and browser-family compatibility evidence are outside Stream A strict. |
-| Artifact freshness gate | `fail` | `npm.cmd run check:artifacts`; `audit/2026-06-12-global-project-progress-structure-problems-audit.md` | Earlier artifact passes are historical. The current audited gate fails because `assets/default.css` does not match `artifacts.json`. |
+| Artifact freshness gate | `pass` | `npm.cmd run check:artifacts`; `audit/audit-postmerge-P0.md` | Post-merge P0 audit replay observed `Artifact freshness policy passed.` This replaces the older 2026-06-12 false-red artifact status, but it does not close typecheck, tests, browser, `dist`, package, CI, or release evidence blockers. |
 | CI matrix | `blocked` | Global release CI run URL, logs, or committed summary | Linux, macOS, Windows on Node.js 20+. This remains global release evidence, not a Stream A strict implementation task. |
 
 ## Accepted Pre-C0 Exceptions
@@ -139,8 +141,8 @@ C0, P4, or the release candidate as indicated.
 
 | Item | Status | Evidence / command | Notes |
 | --- | --- | --- | --- |
-| `dist/` regenerated from `src/` | `blocked` | `audit/2026-06-12-global-project-progress-structure-problems-audit.md` | The 2026-06-09 build evidence is historical. The current audited source cannot regenerate `dist/` because earlier gates are red. |
-| npm packlist verified | `blocked` | `audit/2026-06-12-global-project-progress-structure-problems-audit.md` | The 2026-06-11 packlist is historical Stream A strict evidence. It is not current release-candidate evidence while typecheck and artifact freshness are red. |
+| `dist/` regenerated from `src/` | `blocked` | `audit/2026-06-12-global-project-progress-structure-problems-audit.md`; `audit/audit-postmerge-P0.md` | The 2026-06-09 build evidence is historical. The current audited source cannot regenerate `dist/` because typecheck and test gates are still red. |
+| npm packlist verified | `blocked` | `audit/2026-06-12-global-project-progress-structure-problems-audit.md`; `audit/audit-postmerge-P0.md` | The 2026-06-11 packlist is historical Stream A strict evidence. It is not current release-candidate evidence while typecheck, tests, `dist`, and package replay are blocked. |
 | User-scope install works | `blocked` | Historical Stream A strict simulation evidence | The previous temporary-prefix install remains preserved as historical evidence, but it is tied to a stale tarball and cannot close the current global release. |
 | Reinstall is idempotent | `blocked` | Historical Stream A strict simulation evidence | The previous reinstall proof remains preserved as historical evidence, but it is tied to a stale tarball and cannot close the current global release. |
 
@@ -191,5 +193,5 @@ phase exists.
 | Release decision | Historical `GO Stream A strict`; current `NO-GO global release` after the 2026-06-12 audited red gates |
 | Reviewer | `pending` |
 | Decision date | Historical Stream A strict decision `2026-06-11`; post-audit global reset `2026-06-12` |
-| Blocking items remaining | Current typecheck, unit tests, contract tests, browser/integration gate, artifact freshness, regenerated `dist/`, fresh tarball, real installed-browser/Mermaid proof, fallback/provisioning evidence, browser compatibility matrix, CI matrix, real FR-20 multi-account system-scope proof |
-| Notes | Stream A strict final audit: `audit/2026-06-11-stream-a-strict-final-audit.md`. The 2026-06-12 global audit supersedes any reading of those historical passes as current global release readiness. Global release remains `NO-GO v0.1.2`. |
+| Blocking items remaining | Current typecheck, unit tests, contract tests, browser/integration gate, regenerated `dist/`, fresh tarball, real installed-browser/Mermaid proof, fallback/provisioning evidence, browser compatibility matrix, CI matrix, real FR-20 multi-account system-scope proof |
+| Notes | Stream A strict final audit: `audit/2026-06-11-stream-a-strict-final-audit.md`. The 2026-06-12 global audit supersedes any reading of those historical passes as current global release readiness. The post-merge P0 audit replays `check:artifacts` green, but global release remains `NO-GO v0.1.2`. |
