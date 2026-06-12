@@ -53,8 +53,11 @@ echouent.
 
 1. Relire la checklist release v0.1.2 et identifier toutes les lignes marquees
    `pass` qui ne correspondent plus a l'etat courant.
-2. Marquer explicitement les preuves obsoletes comme `blocked`, `fail` ou
-   `stale`, selon le vocabulaire deja accepte par `docs/release-evidence/`.
+2. Marquer explicitement les preuves obsoletes comme `blocked` ou `fail`,
+   selon le vocabulaire deja accepte par `docs/release-evidence/`. Le terme
+   `stale` peut etre utilise dans les notes explicatives, mais pas comme statut
+   de checklist tant qu'il n'est pas defini dans
+   `docs/release-evidence/README.md`.
 3. Ajouter une section de reconciliation indiquant que les commandes suivantes
    sont rouges dans l'etat audite:
    - `npm.cmd run typecheck`
@@ -480,7 +483,8 @@ La v0.1.2 ne peut repasser en `GO` que si:
 8. Les drivers/fallback reels sont soit declares et utilisables, soit l'absence
    d'artifact eligible produit l'erreur attendue et documentee.
 9. FR-19, FR-20 et FR-21 ont des preuves a jour.
-10. La checklist release ne contient plus de `pass` stale.
+10. La checklist release ne contient plus de `pass` obsolete presente comme
+    preuve courante.
 
 ## Decoupage recommande en commits
 
