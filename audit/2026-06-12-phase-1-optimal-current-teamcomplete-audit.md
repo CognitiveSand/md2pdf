@@ -1,8 +1,8 @@
 # Audit Team Complete - Phase 1 optimale, etat courant
 
-Date: 2026-06-12  
-Branche auditee: `plan/v0.1.1_restart`  
-Commit audite: `507d399e2bd6bc3ae34262b338d34e62ad35a9d6` (`fix: complete phase 1 browser fallback`)  
+Date: 2026-06-12
+Branche auditee: `plan/v0.1.1_restart`
+Commit audite: `507d399e2bd6bc3ae34262b338d34e62ad35a9d6` (`fix: complete phase 1 browser fallback`)
 Mode: audit Team Complete en lecture seule du code courant.
 
 ## 1. Resume global

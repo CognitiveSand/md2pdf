@@ -1,3 +1,6 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
 import type { BrowserKind, LocatedBrowser } from "./browserLocator.js";
@@ -144,15 +147,21 @@ export async function printPdfWithWebDriver(options: WebDriverPrintOptions): Pro
   const cleanupTimeoutMs = options.cleanupTimeoutMs ?? defaultCleanupTimeoutMs;
   let sessionId: string | null = null;
   let primaryFailure: unknown;
+  let browserProfileDir: string | undefined;
 
   try {
     assertFileUrl(options.htmlFileUrl);
+    browserProfileDir = await createBrowserProfileDir(options.browser);
     const session = await requestWithTimeout<SessionResponse>(options.transport, {
       method: "POST",
       path: "/session",
       body: {
         capabilities: {
-          alwaysMatch: browserCapabilities(options.browser.kind, options.browser.browserPath),
+          alwaysMatch: browserCapabilities(
+            options.browser.kind,
+            options.browser.browserPath,
+            browserProfileDir,
+          ),
         },
       },
     }, timeoutMs, "webdriver-session-timeout");
@@ -204,6 +213,14 @@ export async function printPdfWithWebDriver(options: WebDriverPrintOptions): Pro
       primaryFailure,
       "WebDriver driver process cleanup failed",
     );
+
+    if (browserProfileDir !== undefined) {
+      await handleCleanup(
+        rm(browserProfileDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }),
+        primaryFailure,
+        "Browser profile cleanup failed",
+      );
+    }
   }
 }
 
@@ -346,7 +363,19 @@ async function handleCleanup(
   }
 }
 
-function browserCapabilities(kind: BrowserKind, browserPath: string): Record<string, unknown> {
+async function createBrowserProfileDir(browser: LocatedBrowser): Promise<string | undefined> {
+  if (browser.kind === "firefox") {
+    return undefined;
+  }
+
+  return mkdtemp(join(tmpdir(), "md2pdf-browser-profile-"));
+}
+
+function browserCapabilities(
+  kind: BrowserKind,
+  browserPath: string,
+  browserProfileDir: string | undefined,
+): Record<string, unknown> {
   const proxy = { proxyType: "direct" };
 
   if (kind === "firefox") {
@@ -368,9 +397,11 @@ function browserCapabilities(kind: BrowserKind, browserPath: string): Record<str
       args: [
         "--headless=new",
         "--disable-background-networking",
+        "--disable-dev-shm-usage",
         "--no-proxy-server",
         "--proxy-server=direct://",
         "--proxy-bypass-list=*",
+        ...(browserProfileDir === undefined ? [] : [`--user-data-dir=${browserProfileDir}`]),
       ],
     },
   };

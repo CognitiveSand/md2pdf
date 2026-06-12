@@ -44,7 +44,13 @@ describe("printPdfWithWebDriver", () => {
         alwaysMatch: {
           proxy: { proxyType: "direct" },
           "goog:chromeOptions": {
-            args: expect.arrayContaining(["--headless=new", "--no-proxy-server", "--proxy-server=direct://"]),
+            args: expect.arrayContaining([
+              "--headless=new",
+              "--disable-dev-shm-usage",
+              "--no-proxy-server",
+              "--proxy-server=direct://",
+              expect.stringMatching(/^--user-data-dir=.+/u),
+            ]),
           },
         },
       },

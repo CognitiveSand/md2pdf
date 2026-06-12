@@ -1,7 +1,6 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { setTimeout as delay } from "node:timers/promises";
 
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
@@ -12,14 +11,15 @@ const realBrowserIt = skipRealBrowserTests ? it.skip : it;
 
 describe("P3 browser-backed conversion", () => {
   const tempRoots: string[] = [];
-  let artifactCacheRoot: string;
   let previousArtifactCache: string | undefined;
 
-  beforeAll(async () => {
+  beforeAll(() => {
     previousArtifactCache = process.env.MD2PDF_ARTIFACT_CACHE;
-    artifactCacheRoot = previousArtifactCache ??
-      await mkdtemp(join(tmpdir(), "md2pdf-real-browser-cache-"));
-    process.env.MD2PDF_ARTIFACT_CACHE = artifactCacheRoot;
+    process.env.MD2PDF_ARTIFACT_CACHE ??= join(
+      process.cwd(),
+      ".tmp",
+      "md2pdf-real-browser-cache",
+    );
   });
 
   afterEach(async () => {
@@ -27,16 +27,13 @@ describe("P3 browser-backed conversion", () => {
     tempRoots.length = 0;
   });
 
-  afterAll(async () => {
+  afterAll(() => {
     if (previousArtifactCache === undefined) {
       delete process.env.MD2PDF_ARTIFACT_CACHE;
-    } else {
-      process.env.MD2PDF_ARTIFACT_CACHE = previousArtifactCache;
+      return;
     }
 
-    if (previousArtifactCache === undefined) {
-      await removeWithRetries(artifactCacheRoot);
-    }
+    process.env.MD2PDF_ARTIFACT_CACHE = previousArtifactCache;
   });
 
   realBrowserIt(
@@ -154,22 +151,6 @@ describe("P3 browser-backed conversion", () => {
     60_000,
   );
 });
-
-async function removeWithRetries(path: string): Promise<void> {
-  let lastError: unknown;
-
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    try {
-      await rm(path, { recursive: true, force: true });
-      return;
-    } catch (cause) {
-      lastError = cause;
-      await delay(250);
-    }
-  }
-
-  throw lastError;
-}
 
 function pdfContainsVisualObject(pdfText: string): boolean {
   return /\/XObject\b/u.test(pdfText) ||
