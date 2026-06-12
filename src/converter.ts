@@ -144,14 +144,14 @@ export class DocumentConverter {
     renderTimeoutMs: number,
   ): Promise<Buffer> {
     let driverProcess: DriverProcessHandle | undefined;
-    const onAbort = (): void => { void driverProcess?.stop(signal); };
+    const onAbort = (): void => { void driverProcess?.stop().catch(() => undefined); };
     signal.addEventListener("abort", onAbort, { once: true });
 
     try {
       const session = await this.webdriverSessionFactory.start(browser, options);
       driverProcess = session.driverProcess;
       if (signal.aborted) {
-        void session.driverProcess.stop();
+        void session.driverProcess.stop().catch(() => undefined);
       }
       return await this.printPdf({
         browser,

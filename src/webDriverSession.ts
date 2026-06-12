@@ -50,7 +50,7 @@ export class SpawnedWebDriverSessionFactory implements WebDriverSessionFactory {
   }
 }
 
-class SpawnedDriverProcess implements DriverProcessHandle {
+export class SpawnedDriverProcess implements DriverProcessHandle {
   constructor(private readonly child: ChildProcess) {}
 
   async stop(signal?: AbortSignal): Promise<void> {
@@ -128,15 +128,14 @@ async function waitForExit(
     return;
   }
 
-  if (signal?.aborted === true) {
-    throw signal.reason;
-  }
-
   const exit = once(child, "exit").then(() => undefined);
-  const killTimeout = setTimeout(() => {
+  const kill = (): void => {
     if (child.exitCode === null && child.signalCode === null) {
       child.kill("SIGKILL");
     }
+  };
+  const killTimeout = setTimeout(() => {
+    kill();
   }, killAfterMs);
   killTimeout.unref();
 
@@ -149,14 +148,27 @@ async function waitForExit(
     }
   }
 
+  let abortHandler: (() => void) | undefined;
+  const abort = new Promise<never>((_resolve, reject) => {
+    abortHandler = () => {
+      kill();
+      reject(signal.reason);
+    };
+
+    if (signal.aborted) {
+      abortHandler();
+      return;
+    }
+
+    signal.addEventListener("abort", abortHandler, { once: true });
+  });
+
   try {
-    await Promise.race([
-      exit,
-      once(signal, "abort").then(() => {
-        throw signal.reason;
-      }),
-    ]);
+    await Promise.race([exit, abort]);
   } finally {
+    if (abortHandler !== undefined) {
+      signal.removeEventListener("abort", abortHandler);
+    }
     clearTimeout(killTimeout);
   }
 }
