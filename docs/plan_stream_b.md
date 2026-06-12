@@ -23,6 +23,10 @@ aux artifacts, rendu atomique.
 
 Stream B ne modifie pas : `cli.ts`, `paths.ts`, `overwrite.ts`, `pipeline.ts`.
 
+Decision Phase 2: l'ancien chemin `src/pdfRenderer.ts` est supprime. Le rendu
+PDF passe uniquement par `src/converter.ts`, `src/webDriverSession.ts` et
+`src/webDriverClient.ts` via WebDriver Print.
+
 ---
 
 ## P1 - Markdown vers HTML local
@@ -56,7 +60,7 @@ Stream B ne modifie pas : `cli.ts`, `paths.ts`, `overwrite.ts`, `pipeline.ts`.
 
 ### 4. `src/browserLocator.ts` — Détection navigateur
 
-Navigateurs supportés : Chrome, Chromium, Edge, Brave, Firefox.
+Navigateurs supportés : Chrome, Chromium, Edge, Brave, Firefox, Vivaldi.
 
 - Support `MD2PDF_BROWSER` (variable d'environnement).
 - Modes d'échec `MD2PDF_BROWSER` :
@@ -165,7 +169,6 @@ Tests Mermaid obligatoires (fixés en début de P3) :
 
 - Absence du texte raw Mermaid dans le texte extrait du PDF.
 - Présence d'au moins un objet image rasterisé ou XObject vectoriel dans la structure PDF.
-- Le test `test:browser` utilise un vrai navigateur et un vrai WebDriver pré-provisionnés; un skip local doit être explicite et ne constitue pas une preuve release.
 - Le type attendu (rasterisé ou vectoriel) est fixé selon le navigateur de référence CI et documenté dans le test.
 
 Tests local-only :
