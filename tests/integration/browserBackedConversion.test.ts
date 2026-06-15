@@ -1,11 +1,13 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { Readable } from "node:stream";
 
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { ArtifactPolicy } from "../../src/artifactPolicy.js";
 import type { LocatedBrowser } from "../../src/browserLocator.js";
+import { main } from "../../src/cli.js";
 import { DocumentConverter } from "../../src/converter.js";
 import { provisionFallbackBrowser } from "../../src/fallbackBrowserProvisioner.js";
 import { JsonReleaseCatalog } from "../../src/releaseCatalog.js";
@@ -185,6 +187,47 @@ describe("P3 browser-backed conversion", () => {
     60_000,
   );
 
+  realBrowserIt(
+    "@req FR-01 @req FR-18 runs the CLI through the default runtime convertFile without injection",
+    async () => {
+      const tempRoot = await mkdtemp(join(tmpdir(), "md2pdf-real-browser-cli-"));
+      tempRoots.push(tempRoot);
+      const sourcePath = join(tempRoot, "cli.md");
+      const outputPath = join(tempRoot, "cli.pdf");
+      const stdout = new MemoryWriter();
+      const stderr = new MemoryWriter();
+      const previousBrowser = process.env.MD2PDF_BROWSER;
+
+      await writeFile(sourcePath, "# CLI default converter proof\n\nPlain text.\n", "utf8");
+      delete process.env.MD2PDF_BROWSER;
+
+      try {
+        const exitCode = await main(["cli.md"], {
+          stdin: Readable.from([]),
+          stdout,
+          stderr,
+          env: {},
+          cwd: tempRoot,
+          isInteractive: false,
+        });
+
+        expect(exitCode).toBe(0);
+        expect(stdout.toString()).toBe("1 succeeded, 0 failed, 0 skipped\n");
+        expect(stderr.toString()).toBe("");
+        const pdf = await readFile(outputPath);
+        expect(pdf.subarray(0, 5).toString("ascii")).toBe("%PDF-");
+        expect(pdf.byteLength).toBeGreaterThan(1_000);
+      } finally {
+        if (previousBrowser === undefined) {
+          delete process.env.MD2PDF_BROWSER;
+        } else {
+          process.env.MD2PDF_BROWSER = previousBrowser;
+        }
+      }
+    },
+    60_000,
+  );
+
   function preProvisionedConverter(tempDir: string, locateCalls: string[]): DocumentConverter {
     const browser = preProvisionedBrowser;
     if (browser === undefined) {
@@ -202,6 +245,19 @@ describe("P3 browser-backed conversion", () => {
     });
   }
 });
+
+class MemoryWriter {
+  private readonly chunks: string[] = [];
+
+  write(chunk: string | Uint8Array): boolean {
+    this.chunks.push(String(chunk));
+    return true;
+  }
+
+  toString(): string {
+    return this.chunks.join("");
+  }
+}
 
 function pdfContainsVisualObject(pdfText: string): boolean {
   return /\/XObject\b/u.test(pdfText) ||
