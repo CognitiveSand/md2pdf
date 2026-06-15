@@ -175,6 +175,9 @@ describe("P3 browser-backed conversion", () => {
       expect(pdfText).toContain("Skia/PDF");
       expect(pdfText).toContain("/StructTreeRoot");
       expect(pdfText).toContain("/S /Table");
+      expect(pdfText).toContain("/S /L");
+      expect(pdfText).toContain("/S /LI");
+      expect(pdfText).toContain("/S /Code");
       expect(pdfText).toContain("/Alt (pixel)");
       expect(pdfContainsVisualObject(pdfText)).toBe(true);
       expect(locateCalls).toEqual(["pre-provisioned"]);

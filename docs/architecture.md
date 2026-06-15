@@ -437,10 +437,10 @@ for browser-less hosts (negative). *Status:* accepted.
 |---|---|
 | FR-01, FR-02 | integration test: single file → `name.pdf` beside source |
 | FR-03, FR-23 | contract test: `--output` / `--output-dir` path resolution |
-| FR-04 | integration test: tables, task lists, footnotes present in PDF text layer |
-| FR-05 | unit test: highlight.js markup emitted for tagged code |
+| FR-04 | browser-backed integration test: table structure (`/S /Table`), list and list-item structure (`/S /L`, `/S /LI`) in PDF; these markers cover tables, task lists, and footnote items |
+| FR-05 | unit test: highlight.js markup emitted for tagged code; browser integration test: code block PDF structure (`/S /Code`) present in rendered PDF |
 | FR-06 | integration test: relative image embedded |
-| FR-07 | integration test: no heading is the last line on a page |
+| FR-07 | unit test: `break-after: avoid-page` CSS rule emitted in assembled HTML (honored by both browser families' print engines; PDF-layer page-break position is not intercepted at test level) |
 | FR-08–11 | integration + contract tests: multi-file and folder batch, continue-on-error, summary |
 | FR-12–14 | unit test: `OverwritePolicy` truth table; contract test: prompt and skip paths |
 | FR-15–18 | contract test: stderr messages and exit codes; `BrowserNotFoundError` path |

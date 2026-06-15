@@ -4,8 +4,19 @@ import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { locateBrowser } from "../../src/browserLocator.js";
 import { convertFile } from "../../src/converter.js";
+
+const skipRealBrowserTests = process.env.MD2PDF_SKIP_REAL_BROWSER_TESTS === "1";
+if (skipRealBrowserTests) {
+  it("@req FR-24 [GATE] real browser smoke must not be skipped", () => {
+    throw new Error(
+      "MD2PDF_SKIP_REAL_BROWSER_TESTS=1 is set: the real browser Mermaid smoke was skipped. " +
+      "This is not a valid gate result for phase 6. Remove the env var and ensure " +
+      "an installed browser is available.",
+    );
+  });
+}
+const realBrowserIt = skipRealBrowserTests ? it.skip : it;
 
 let tempRoot: string;
 
@@ -18,29 +29,38 @@ afterEach(async () => {
 });
 
 describe("Stream A P3 real browser Mermaid smoke", () => {
-  it("renders Mermaid in a real installed browser and produces a PDF", async () => {
-    const browserPath = await locateBrowser(process.env.MD2PDF_BROWSER);
-    const sourcePath = path.join(tempRoot, "mermaid.md");
-    const outputPath = path.join(tempRoot, "mermaid.pdf");
-    const markdown = [
-      "# Mermaid smoke",
-      "",
-      "```mermaid",
-      "flowchart TD",
-      "  A[Start] --> B[Done]",
-      "```",
-      "",
-    ].join("\n");
+  realBrowserIt(
+    "@req FR-24 renders Mermaid in a real installed browser and produces a valid PDF",
+    async () => {
+      const sourcePath = path.join(tempRoot, "mermaid.md");
+      const outputPath = path.join(tempRoot, "mermaid.pdf");
+      const markdown = [
+        "# Mermaid smoke",
+        "",
+        "```mermaid",
+        "flowchart TD",
+        "  A[Start] --> B[Done]",
+        "```",
+        "",
+      ].join("\n");
 
-    await fs.writeFile(sourcePath, markdown, "utf8");
+      await fs.writeFile(sourcePath, markdown, "utf8");
 
-    await convertFile(sourcePath, outputPath, {
-      browserPath,
-      renderTimeoutMs: 30_000,
-    });
+      await convertFile(sourcePath, outputPath, {
+        renderTimeoutMs: 30_000,
+      });
 
-    const pdf = await fs.readFile(outputPath);
-    expect(pdf.subarray(0, 5).toString("ascii")).toBe("%PDF-");
-    expect(pdf.length).toBeGreaterThan(1_000);
-  });
+      const pdf = await fs.readFile(outputPath);
+      const pdfText = pdf.toString("latin1");
+      expect(pdf.subarray(0, 5).toString("ascii")).toBe("%PDF-");
+      // A Mermaid diagram rendered as a visual object produces a substantially
+      // larger PDF than a blank or text-only document. 15 KB is a conservative
+      // lower bound for an installed-browser smoke (observed: ~25 KB on Chromium).
+      expect(pdf.byteLength).toBeGreaterThan(15_000);
+      expect(pdfText).not.toContain("flowchart TD");
+      expect(pdfText).not.toContain("A[Start]");
+    },
+    90_000,
+  );
 });
+
