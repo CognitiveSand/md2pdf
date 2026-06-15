@@ -32,33 +32,52 @@
       "kind": "runtime-provisioned-browser",
       "source": "Chrome for Testing",
       "provenance": "Chrome for Testing known-good-versions-with-downloads catalog and immutable Google Cloud Storage archive",
+      "comparisonSource": "https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json checked on 2026-06-15; win64 151.0.7881.0 is newer than 151.0.7875.0 and completed quarantine, while 151.0.7882.0 had not.",
       "releases": [
         {
-          "version": "151.0.7875.0",
-          "publishedAt": "2026-06-05T05:00:18.000Z",
+          "version": "151.0.7881.0",
+          "publishedAt": "2026-06-08T04:43:17.000Z",
           "platform": "win32-x64",
-          "url": "https://storage.googleapis.com/chrome-for-testing-public/151.0.7875.0/win64/chrome-win64.zip",
-          "sha256": "b3ee4af1cf49228f80783d3b58a3b3b23e22dedefdd72512389dcbe12fdf084a",
-          "size": 193987396,
+          "url": "https://storage.googleapis.com/chrome-for-testing-public/151.0.7881.0/win64/chrome-win64.zip",
+          "sha256": "e1860fdb2214be7d681c5d7808af29a2da4048ef18c64c30a9b261d8235ea698",
+          "size": 195240482,
           "browserPath": "chrome-win64/chrome.exe",
           "driverPath": "chromedriver-win64/chromedriver.exe"
         }
       ]
     },
     {
-      "name": "chromedriver-for-testing",
+      "name": "chromedriver",
       "kind": "runtime-provisioned-webdriver",
       "source": "Chrome for Testing",
       "provenance": "Chrome for Testing known-good-versions-with-downloads catalog and immutable Google Cloud Storage archive",
+      "comparisonSource": "https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json checked on 2026-06-15; win64 151.0.7881.0 is the newest eligible ChromeDriver matching the fallback browser.",
       "releases": [
         {
-          "version": "151.0.7875.0",
-          "compatibleWith": "151.0.7875.0",
-          "publishedAt": "2026-06-05T05:00:28.000Z",
+          "version": "151.0.7881.0",
+          "compatibleWith": "151.0.7881.0",
+          "publishedAt": "2026-06-08T04:43:25.000Z",
           "platform": "win32-x64",
-          "url": "https://storage.googleapis.com/chrome-for-testing-public/151.0.7875.0/win64/chromedriver-win64.zip",
-          "sha256": "1e782e71a672139e75094331f2552d356cb24767b673212ca4bd23ae7f62a0d4",
-          "size": 19144311
+          "url": "https://storage.googleapis.com/chrome-for-testing-public/151.0.7881.0/win64/chromedriver-win64.zip",
+          "sha256": "766efed7d9c6a3aa89733d59b64316849775002bdde7e247318c8129bbd6d747",
+          "size": 19122110
+        }
+      ]
+    },
+    {
+      "name": "geckodriver",
+      "kind": "runtime-provisioned-webdriver",
+      "source": "Mozilla geckodriver",
+      "provenance": "GitHub releases API for mozilla/geckodriver and immutable release asset URL",
+      "comparisonSource": "https://api.github.com/repos/mozilla/geckodriver/releases/latest checked on 2026-06-15; v0.37.0 was published on 2026-06-03 and had completed quarantine.",
+      "releases": [
+        {
+          "version": "0.37.0",
+          "publishedAt": "2026-06-03T11:15:15.000Z",
+          "platform": "win32-x64",
+          "url": "https://github.com/mozilla/geckodriver/releases/download/v0.37.0/geckodriver-v0.37.0-win64.zip",
+          "sha256": "9ae5cb90ea9364cd385bb8313b57699e090bbec7c92af4bd65a79d6d8bbc3036",
+          "size": 1808312
         }
       ]
     }
@@ -104,8 +123,6 @@
     "bundled Mermaid engine",
     "bundled highlight.js stylesheet",
     "bundled fonts",
-    "chromedriver",
-    "geckodriver",
     "Chromium-for-Testing fallback build"
   ]
 }

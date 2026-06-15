@@ -424,7 +424,7 @@ function catalog(
 ): InMemoryReleaseCatalog {
   return new InMemoryReleaseCatalog({
     "chromium-for-testing": releases,
-    "chromedriver-for-testing": driverReleases,
+    chromedriver: driverReleases,
   });
 }
 

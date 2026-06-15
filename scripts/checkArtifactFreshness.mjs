@@ -80,6 +80,20 @@ export function artifactFreshnessRelevantChangedPaths(changedPaths, manifest) {
     );
 }
 
+export function undeclaredTrackedArtifactFailures(changedPaths, manifest) {
+  const declaredArtifactPaths = declaredArtifactPathSet(manifest);
+  return changedPaths
+    .map(normalizeRepoPath)
+    .filter(
+      (changedPath) =>
+        isUnderTrackedLocation(changedPath, manifest, /asset/u) &&
+        ![...declaredArtifactPaths].some((declaredPath) =>
+          matchesRepoPath(changedPath, declaredPath),
+        ),
+    )
+    .map((changedPath) => `staged bundled asset is not declared in artifacts.json: ${changedPath}`);
+}
+
 function shouldUseStagedScope() {
   return (
     process.argv.includes("--staged") ||
@@ -150,13 +164,7 @@ async function runStagedScope() {
   const checkAllArtifacts = includesPath(relevantPaths, "artifacts.json");
   const checkFullPolicy = includesEnforcementPath(relevantPaths);
   const changedArtifactPaths = new Set();
-  const declaredArtifactPaths = new Set(
-    (manifest?.artifacts ?? [])
-      .map((artifact) =>
-        typeof artifact?.path === "string" ? normalizeRepoPath(artifact.path) : null,
-      )
-      .filter(Boolean),
-  );
+  const declaredArtifactPaths = declaredArtifactPathSet(manifest);
 
   for (const changedPath of relevantPaths) {
     for (const declaredPath of declaredArtifactPaths) {
@@ -165,13 +173,8 @@ async function runStagedScope() {
       }
     }
 
-    if (
-      isUnderTrackedLocation(changedPath, manifest, /asset/u) &&
-      ![...declaredArtifactPaths].some((declaredPath) =>
-        matchesRepoPath(changedPath, declaredPath),
-      )
-    ) {
-      failures.push(`staged bundled asset is not declared in artifacts.json: ${changedPath}`);
+    for (const failure of undeclaredTrackedArtifactFailures([changedPath], manifest)) {
+      failures.push(failure);
     }
   }
 
@@ -202,6 +205,16 @@ async function runStagedScope() {
   }
 
   return true;
+}
+
+function declaredArtifactPathSet(manifest) {
+  return new Set(
+    (manifest?.artifacts ?? [])
+      .map((artifact) =>
+        typeof artifact?.path === "string" ? normalizeRepoPath(artifact.path) : null,
+      )
+      .filter(Boolean),
+  );
 }
 
 async function exists(path) {

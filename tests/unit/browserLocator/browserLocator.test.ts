@@ -1,4 +1,5 @@
 import { promises as fs } from "node:fs";
+import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 
@@ -378,21 +379,23 @@ describe("ArtifactPolicyDriverResolver", () => {
   it("@req NFR-05 selects an eligible declared driver through ArtifactPolicy", async () => {
     const driver120Path = absoluteTestPath("drivers", "chromedriver-120");
     const driver121Path = absoluteTestPath("drivers", "chromedriver-121");
+    const driver120 = driverPayload("120.0.0");
+    const driver121 = driverPayload("121.0.0");
     const resolver = new ArtifactPolicyDriverResolver({
       policy: new ArtifactPolicy(),
       catalog: {
         async listReleases(artifactName: string): Promise<ArtifactRelease[]> {
           expect(artifactName).toBe("chromedriver");
           return [
-            release("120.0.0", "2026-05-20T12:00:00.000Z", driver120Path),
-            release("121.0.0", "2026-06-01T12:00:00.000Z", driver121Path),
+            release("120.0.0", "2026-05-20T12:00:00.000Z", driver120Path, driver120),
+            release("121.0.0", "2026-06-01T12:00:00.000Z", driver121Path, driver121),
           ];
         },
       },
       now: new Date("2026-06-04T12:00:00.000Z"),
       fileSystem: fakeFileSystem({
-        [driver120Path]: { executable: true },
-        [driver121Path]: { executable: true },
+        [driver120Path]: { executable: true, data: driver120 },
+        [driver121Path]: { executable: true, data: driver121 },
       }),
     });
 
@@ -412,20 +415,22 @@ describe("ArtifactPolicyDriverResolver", () => {
   it("@req NFR-05 selects a driver compatible with the detected Chromium major version", async () => {
     const driver119Path = absoluteTestPath("drivers", "chromedriver-119");
     const driver120Path = absoluteTestPath("drivers", "chromedriver-120");
+    const driver119 = driverPayload("119.0.0");
+    const driver120 = driverPayload("120.0.0");
     const resolver = new ArtifactPolicyDriverResolver({
       policy: new ArtifactPolicy(),
       catalog: {
         async listReleases(): Promise<ArtifactRelease[]> {
           return [
-            release("120.0.0", "2026-05-20T12:00:00.000Z", driver120Path),
-            release("119.0.0", "2026-05-19T12:00:00.000Z", driver119Path),
+            release("120.0.0", "2026-05-20T12:00:00.000Z", driver120Path, driver120),
+            release("119.0.0", "2026-05-19T12:00:00.000Z", driver119Path, driver119),
           ];
         },
       },
       now: new Date("2026-06-04T12:00:00.000Z"),
       fileSystem: fakeFileSystem({
-        [driver119Path]: { executable: true },
-        [driver120Path]: { executable: true },
+        [driver119Path]: { executable: true, data: driver119 },
+        [driver120Path]: { executable: true, data: driver120 },
       }),
     });
 
@@ -447,7 +452,14 @@ describe("ArtifactPolicyDriverResolver", () => {
       policy: new ArtifactPolicy(),
       catalog: {
         async listReleases(): Promise<ArtifactRelease[]> {
-          return [release("120.0.0", "2026-06-03T12:00:00.000Z", "/drivers/chromedriver-120")];
+          return [
+            release(
+              "120.0.0",
+              "2026-06-03T12:00:00.000Z",
+              "/drivers/chromedriver-120",
+              driverPayload("120.0.0"),
+            ),
+          ];
         },
       },
       now: new Date("2026-06-04T12:00:00.000Z"),
@@ -465,16 +477,17 @@ describe("ArtifactPolicyDriverResolver", () => {
 
   it("@req NFR-05 returns null when the selected driver path is not executable", async () => {
     const driverPath = absoluteTestPath("drivers", "chromedriver-120");
+    const driver = driverPayload("120.0.0");
     const resolver = new ArtifactPolicyDriverResolver({
       policy: new ArtifactPolicy(),
       catalog: {
         async listReleases(): Promise<ArtifactRelease[]> {
-          return [release("120.0.0", "2026-05-20T12:00:00.000Z", driverPath)];
+          return [release("120.0.0", "2026-05-20T12:00:00.000Z", driverPath, driver)];
         },
       },
       now: new Date("2026-06-04T12:00:00.000Z"),
       fileSystem: fakeFileSystem({
-        [driverPath]: { executable: false },
+        [driverPath]: { executable: false, data: driver },
       }),
     });
 
@@ -486,10 +499,41 @@ describe("ArtifactPolicyDriverResolver", () => {
       }),
     ).resolves.toBeNull();
   });
+
+  it("@req NFR-05 rejects a declared local driver whose checksum does not match", async () => {
+    const driverPath = absoluteTestPath("drivers", "chromedriver-120");
+    const resolver = new ArtifactPolicyDriverResolver({
+      policy: new ArtifactPolicy(),
+      catalog: {
+        async listReleases(): Promise<ArtifactRelease[]> {
+          return [release("120.0.0", "2026-05-20T12:00:00.000Z", driverPath, driverPayload("120.0.0"))];
+        },
+      },
+      now: new Date("2026-06-04T12:00:00.000Z"),
+      fileSystem: fakeFileSystem({
+        [driverPath]: { executable: true, data: Buffer.from("tampered driver") },
+      }),
+    });
+
+    await expect(
+      resolver.resolveDriver({
+        browserPath: absoluteTestPath("apps", "Google Chrome"),
+        kind: "chrome",
+        displayName: "Chrome",
+      }),
+    ).rejects.toMatchObject({
+      kind: "artifact",
+      context: {
+        artifactName: "chromedriver",
+        cause: "integrity-mismatch",
+      },
+    });
+  });
 });
 
 interface FakeFile {
   executable: boolean;
+  data?: Buffer;
   realpath?: string;
 }
 
@@ -504,6 +548,14 @@ function fakeFileSystem(files: Record<string, FakeFile> = {}): BrowserLocatorFil
     },
     async isExecutable(path: string): Promise<boolean> {
       return files[path]?.executable ?? false;
+    },
+    async readFile(path: string): Promise<Buffer> {
+      const data = files[path]?.data;
+      if (data === undefined) {
+        throw new Error(`missing fake file contents: ${path}`);
+      }
+
+      return data;
     },
     async realpath(path: string): Promise<string> {
       return files[path]?.realpath ?? path;
@@ -573,14 +625,27 @@ class SuccessfulFallbackBrowserResolver implements FallbackBrowserResolver {
   }
 }
 
-function release(version: string, publishedAt: string, driverPath: string): ArtifactRelease {
+function release(
+  version: string,
+  publishedAt: string,
+  driverPath: string,
+  data: Buffer,
+): ArtifactRelease {
   return {
     version,
     publishedAt,
     path: driverPath,
     url: `https://downloads.example.invalid/${version}.zip`,
-    sha256: "0".repeat(64),
-    size: 42,
+    sha256: sha256(data),
+    size: data.byteLength,
     provenance: "test driver catalog",
   };
+}
+
+function driverPayload(version: string): Buffer {
+  return Buffer.from(`webdriver ${version}`);
+}
+
+function sha256(data: Buffer): string {
+  return createHash("sha256").update(data).digest("hex");
 }

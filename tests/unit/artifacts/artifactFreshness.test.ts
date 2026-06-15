@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   artifactFreshnessRelevantChangedPaths,
   freshnessFailures,
+  undeclaredTrackedArtifactFailures,
 } from "../../../scripts/checkArtifactFreshness.mjs";
 
 const manifest = {
@@ -67,9 +68,36 @@ describe("artifact freshness staged path filter", () => {
       "src/releaseCatalog.ts",
     ]);
   });
+
+  it("reports bundled assets that are tracked but not declared", () => {
+    expect(undeclaredTrackedArtifactFailures(["assets/new-theme.css"], manifest)).toEqual([
+      "staged bundled asset is not declared in artifacts.json: assets/new-theme.css",
+    ]);
+    expect(undeclaredTrackedArtifactFailures(["assets/highlight.css"], manifest)).toEqual([]);
+  });
 });
 
 describe("artifact freshness quarantine waivers", () => {
+  it("rejects incomplete waivers before comparing lockfiles", () => {
+    expect(
+      freshnessFailures(
+        lockWith("left-pad", "1.0.0"),
+        lockWith("left-pad", "1.0.0"),
+        [
+          {
+            package: "left-pad",
+            version: "1.0.0",
+            auditReport: "security/audits/left-pad@1.0.0.md",
+            approvedBy: "owner",
+          },
+        ],
+        () => true,
+      ),
+    ).toEqual([
+      "quarantine waiver left-pad@1.0.0 is missing a required field (package, version, auditReport, approvedBy, approvedOn)",
+    ]);
+  });
+
   it("rejects waivers whose audit report is not the exact security audit path", () => {
     expect(
       freshnessFailures(
@@ -109,6 +137,40 @@ describe("artifact freshness quarantine waivers", () => {
       ),
     ).toEqual([
       "quarantine waiver left-pad@1.0.0 approvedOn must be an ISO date (YYYY-MM-DD)",
+    ]);
+  });
+
+  it("rejects waivers whose audit report is missing", () => {
+    expect(
+      freshnessFailures(
+        lockWith("left-pad", "1.0.0"),
+        lockWith("left-pad", "1.0.0"),
+        [
+          {
+            package: "left-pad",
+            version: "1.0.0",
+            auditReport: "security/audits/left-pad@1.0.0.md",
+            approvedBy: "owner",
+            approvedOn: "2026-06-08",
+          },
+        ],
+        () => false,
+      ),
+    ).toEqual([
+      "quarantine waiver left-pad@1.0.0 references a missing audit report: security/audits/left-pad@1.0.0.md",
+    ]);
+  });
+
+  it("rejects lockfiles that diverge from the newest eligible regeneration", () => {
+    expect(
+      freshnessFailures(
+        lockWith("left-pad", "1.0.0"),
+        lockWith("left-pad", "1.0.1"),
+        [],
+        () => true,
+      ),
+    ).toEqual([
+      "package-lock.json is not the newest eligible lockfile after the 7-day quarantine",
     ]);
   });
 });

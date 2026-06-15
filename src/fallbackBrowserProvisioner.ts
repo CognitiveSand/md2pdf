@@ -39,7 +39,7 @@ export interface FallbackBrowserProvisionerOptions {
 }
 
 const defaultArtifactName = "chromium-for-testing";
-const defaultDriverArtifactName = "chromedriver-for-testing";
+const defaultDriverArtifactName = "chromedriver";
 const archiveFileName = "artifact.zip";
 const driverArchiveFileName = "driver-artifact.zip";
 const metadataFileName = "cache-metadata.json";
@@ -166,7 +166,7 @@ async function selectFallbackDriverRelease(
       throw new ArtifactFreshnessError({
         message: "No eligible fallback WebDriver artifact is available",
         artifactName: driverArtifactName,
-        actionHint: "Declare a matching ChromeDriver-for-Testing release that has completed quarantine.",
+        actionHint: "Declare a matching chromedriver release that has completed quarantine.",
         cause,
       });
     }

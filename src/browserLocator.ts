@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import { constants } from "node:fs";
-import { access, realpath as fsRealpath, stat } from "node:fs/promises";
+import { access, readFile, realpath as fsRealpath, stat } from "node:fs/promises";
 import { basename, delimiter, extname, isAbsolute, join, resolve } from "node:path";
 
 import {
@@ -26,6 +27,7 @@ export interface BrowserLocatorOptions {
 export interface BrowserLocatorFileSystem {
   exists(path: string): Promise<boolean>;
   isExecutable(path: string): Promise<boolean>;
+  readFile(path: string): Promise<Buffer>;
   realpath(path: string): Promise<string>;
 }
 
@@ -359,6 +361,8 @@ export class ArtifactPolicyDriverResolver implements BrowserDriverResolver {
       return null;
     }
 
+    await assertDriverIntegrity(release, driverPath, artifactName, this.fileSystem);
+
     return { artifactName, driverPath, release };
   }
 }
@@ -394,6 +398,9 @@ const nodeFileSystem: BrowserLocatorFileSystem = {
       return false;
     }
   },
+  async readFile(path: string): Promise<Buffer> {
+    return readFile(path);
+  },
   async realpath(path: string): Promise<string> {
     try {
       return await fsRealpath(path);
@@ -402,6 +409,35 @@ const nodeFileSystem: BrowserLocatorFileSystem = {
     }
   },
 };
+
+async function assertDriverIntegrity(
+  release: ArtifactRelease,
+  driverPath: string,
+  artifactName: string,
+  fileSystem: BrowserLocatorFileSystem,
+): Promise<void> {
+  let data: Buffer;
+  try {
+    data = await fileSystem.readFile(driverPath);
+  } catch (cause) {
+    throw new ArtifactFreshnessError({
+      message: "Declared WebDriver artifact could not be read for integrity verification",
+      artifactName,
+      actionHint: "Declare a readable local WebDriver artifact or provision an eligible fallback artifact.",
+      cause,
+    });
+  }
+
+  const sha256 = createHash("sha256").update(data).digest("hex");
+  if (data.byteLength !== release.size || sha256 !== release.sha256) {
+    throw new ArtifactFreshnessError({
+      message: "Declared WebDriver artifact checksum did not match the release catalog",
+      artifactName,
+      actionHint: "Replace the local WebDriver artifact or update artifacts.json with the verified newest eligible artifact.",
+      cause: "integrity-mismatch",
+    });
+  }
+}
 
 const nodeBrowserProbe: BrowserProbe = {
   async inspect(browser: BrowserCandidate): Promise<BrowserProbeInspection> {
