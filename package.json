@@ -33,8 +33,9 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "build": "tsc",
-    "prepack": "npm run build && npm test && npm run check:artifacts",
+    "clean": "node scripts/cleanDist.mjs",
+    "build": "npm run clean && tsc",
+    "prepack": "npm run test:all",
     "test": "vitest run --reporter=verbose",
     "test:contracts": "vitest run tests/unit/contracts --reporter=verbose",
     "test:artifacts": "vitest run tests/unit/artifacts --reporter=verbose",
@@ -43,6 +44,8 @@
     "test:real-browser": "vitest run --config vitest.real-browser.config.ts",
     "test:all": "npm run typecheck && npm test && npm run test:artifacts && npm run check:artifacts && npm run build && npm run test:browser && npm run test:real-browser",
     "check:artifacts": "node scripts/checkArtifactFreshness.mjs",
+    "check:package": "node scripts/checkPackage.mjs",
+    "release:verify": "npm run test:all && npm run check:package",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
