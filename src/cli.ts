@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
@@ -249,12 +250,20 @@ function errorMessage(error: unknown): string {
   return String(error);
 }
 
-function isDirectEntrypoint(metaUrl: string, argvPath: string | undefined): boolean {
+export function isDirectEntrypoint(metaUrl: string, argvPath: string | undefined): boolean {
   if (argvPath === undefined) {
     return false;
   }
 
-  return fileURLToPath(metaUrl) === argvPath;
+  return canonicalPath(fileURLToPath(metaUrl)) === canonicalPath(argvPath);
+}
+
+function canonicalPath(filePath: string): string {
+  try {
+    return realpathSync.native(filePath);
+  } catch {
+    return filePath;
+  }
 }
 
 if (isDirectEntrypoint(import.meta.url, process.argv[1])) {

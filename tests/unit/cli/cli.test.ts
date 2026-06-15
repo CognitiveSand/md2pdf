@@ -2,11 +2,13 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { Readable } from "node:stream";
+import { pathToFileURL } from "node:url";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   isPromptInteractive,
+  isDirectEntrypoint,
   HELP_TEXT,
   type CliIo,
   main,
@@ -16,6 +18,7 @@ import { ConversionError } from "../../../src/errors.js";
 import { type ConvertFile } from "../../../src/pipeline.js";
 
 let tempRoot: string;
+const itOnPosix = process.platform === "win32" ? it.skip : it;
 
 beforeEach(async () => {
   tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "md2pdf-cli-"));
@@ -140,6 +143,17 @@ describe("Stream A P1 CLI", () => {
     expect(isPromptInteractive({ isTTY: true }, { isTTY: true })).toBe(true);
     expect(isPromptInteractive({ isTTY: true }, { isTTY: false })).toBe(false);
     expect(isPromptInteractive({ isTTY: false }, { isTTY: true })).toBe(false);
+  });
+
+  itOnPosix("@req FR-19 treats an npm bin symlink as the direct CLI entrypoint", async () => {
+    const cliPath = path.join(tempRoot, "dist", "cli.js");
+    const binPath = path.join(tempRoot, "bin", "md2pdf");
+    await fs.mkdir(path.dirname(cliPath), { recursive: true });
+    await fs.mkdir(path.dirname(binPath), { recursive: true });
+    await fs.writeFile(cliPath, "#!/usr/bin/env node\n", "utf8");
+    await fs.symlink(cliPath, binPath);
+
+    expect(isDirectEntrypoint(pathToFileURL(cliPath).href, binPath)).toBe(true);
   });
 
   it("@req FR-17 rejects mutually exclusive output location options as usage", async () => {

@@ -26,10 +26,10 @@ explicitly accepted in this checklist.
 | md2pdf version | `0.1.2` |
 | Checklist status | `blocked` for global release; historical Stream A strict `pass` |
 | Date opened | `2026-06-04` |
-| Date completed | Stream A strict completed `2026-06-11` as historical evidence; Phase 1-2 strict replay passed `2026-06-12`; global release pending |
+| Date completed | Stream A strict completed `2026-06-11` as historical evidence; Phase 1-2 strict replay passed `2026-06-12`; Phase 8 packaging and full local `test:all` replay passed `2026-06-15`; global release pending |
 | Owner | `Codex` |
-| Commit SHA | Historical Stream A strict commit `b58c45775b5e25926d7567a230034576949bd603`; current Phase 1-2 evidence is tied to base commit `d7545014c387573ff5c7110db4cc44e2c5f988fc` plus the worktree deletion of `src/pdfRenderer.ts` |
-| npm tarball or package source | Historical Stream A strict package evidence only: `md2pdf-0.1.2.tgz`; shasum `cc11a64ec297c708b2178727bd372f753fabee33`; integrity `sha512-KUOkmzNX9/0yaqlkpGBFWwu/WqoWHizE4Fe1xG43cuf8JQfnGmBFaA+s3uOvQRIr3cQraFXhNlqJdO9Kk6bGdw==`. This is not current global release-candidate evidence after the 2026-06-12 audit. |
+| Commit SHA | Historical Stream A strict commit `b58c45775b5e25926d7567a230034576949bd603`; Phase 8 evidence tied to base commit `7fa612b` plus current worktree changes to packaging scripts, CLI symlink entrypoint handling, CLI regression tests, rebuilt `dist/`, and tarball |
+| npm tarball or package source | Phase 8 current tarball: `md2pdf-0.1.2.tgz`; shasum `19fccd38288d9ef091a95cabf89c836f3ffe3ee0`; integrity `sha512-v+nQdtF7laHFc6BvFhaQYj5zRk9J7mgqUTENXgBL/lQXsBh75NaDxZ1WcYJ4dFeKtckAFsPW7ayP1uMyGsU5Iw==`; packed `2026-06-15`; 62 files, 276 820 bytes unpacked. |
 
 ## Post-Audit Phase 0 Reconciliation
 
@@ -37,46 +37,49 @@ This section resets the release evidence after
 `audit/2026-06-12-global-project-progress-structure-problems-audit.md`.
 The original Phase 0 reset did not replay technical gates. Later Phase 1 and
 Phase 2 strict replays supersede the old red status for the fast local gates
-listed below. They do not close global release evidence, browser proof, CI,
-packlist, install, or FR-20.
+listed below. Phase 8 then replays current package, packlist, user-scope
+install, reinstall, browser, and real-browser evidence. These local passes do
+not close CI/matrix or FR-20.
 
 Audited gates and post-merge replay status:
 
 | Command | Current release status | Source | Notes |
 | --- | --- | --- | --- |
-| `npm.cmd run typecheck` | `pass` | `audit/2026-06-12-phase-1-2-teamcomplete-audit.md` | Phase 1-2 strict replay passed. |
-| `npm.cmd test` | `pass` | `audit/2026-06-12-phase-1-2-teamcomplete-audit.md` | Phase 1-2 strict replay passed: 148 passed, 1 skipped. |
+| `npm run typecheck` | `pass` | Current 2026-06-15 Phase 8 replay | Typecheck passed after packaging/CLI changes. |
+| `npm test` | `pass` | Current 2026-06-15 Phase 8 replay | Phase 8 replay passed: 158 passed, 1 skipped. |
 | `npm.cmd run test:contracts` | `pass` | Current 2026-06-12 checklist update; `audit/2026-06-12-phase-1-post-corrections-teamcomplete-audit.md` | Contract replay passed: 15 tests. |
-| `npm.cmd run test:browser` | `fail` | `audit/2026-06-12-phase-1-post-corrections-teamcomplete-audit.md` | Browser/release proof still fails without skip because no supported local browser or eligible fallback artifact is available on the audited platform. |
-| `npm.cmd run test:real-browser` | `fail` | `audit/2026-06-12-phase-1-post-corrections-teamcomplete-audit.md` | Real browser smoke fails because no supported browser executable is available in the audited environment. |
-| `npm.cmd run test:artifacts` | `pass` | `audit/2026-06-12-phase-1-2-teamcomplete-audit.md` | Phase 1-2 strict replay passed: 20 tests. |
-| `npm.cmd run check:artifacts` | `pass` | `audit/2026-06-12-phase-1-2-teamcomplete-audit.md` | Artifact freshness policy passed. This local pass does not make the global release ready by itself. |
-| `npm.cmd run build` | `pass` | `audit/2026-06-12-phase-1-2-teamcomplete-audit.md` | `dist/` regenerates from the current source and does not recreate `dist/pdfRenderer.*`. |
+| `npm run test:browser` | `pass` | Current 2026-06-15 Phase 8 replay outside sandbox | Browser integration replay passed: 25 tests. The sandboxed attempt failed with `listen EPERM 127.0.0.1`, then passed outside sandbox. |
+| `npm run test:real-browser` | `pass` | Current 2026-06-15 Phase 8 replay outside sandbox | Real installed-browser Mermaid smoke passed: 1 test. |
+| `npm run test:artifacts` | `pass` | Current 2026-06-15 Phase 8 replay via `npm run test:all` | Artifact unit replay passed: 24 tests. |
+| `npm run check:artifacts` | `pass` | Current 2026-06-15 Phase 8 replay | Artifact freshness policy passed. This local pass does not make the global release ready by itself. |
+| `npm run build` | `pass` | Current 2026-06-15 Phase 8 replay | `dist/` regenerates from the current source and does not recreate `dist/pdfRenderer.*`. |
+| `npm run test:all` | `pass` | Current 2026-06-15 Phase 8 replay outside sandbox | Executes typecheck, unit tests, artifact tests, artifact freshness, build, browser integration, and real-browser smoke. |
 
 Evidence classes after this reset:
 
 | Evidence class | Status | Meaning |
 | --- | --- | --- |
 | Historical Stream A strict evidence | `pass` only where explicitly scoped to Stream A strict and dated before the 2026-06-12 audit | Preserved as historical evidence; it must not be read as proof that the current global v0.1.2 gates are green. |
-| Global v0.1.2 release evidence | `blocked` or `fail` | The global release remains `NO-GO` until the remaining audited red gates and missing browser/CI evidence are resolved and rerun. |
+| Global v0.1.2 release evidence | `blocked` | The global release remains `NO-GO` until CI/matrix and FR-20 evidence are resolved and rerun. |
 | Simulated evidence | `blocked` for the release requirement unless the item is explicitly limited to simulation mechanics | Simulation records can remain useful, but they are not equivalent to release-grade proof. |
 | Real release evidence | `pending` or `blocked` unless a current, committed run exists | Real release evidence must be tied to the current source, rebuilt `dist/`, current package, artifact gate, browser proof, and CI matrix. |
 
 Current Phase 1-2 `pass` rows are limited to the replayed fast local gates and
 build evidence recorded on 2026-06-12. Other `pass` rows remain documentation
 facts, historical observations, or explicitly scoped simulation mechanics.
-Package-backed, browser-backed, CI-backed, and release-candidate claims remain
-`fail` or `blocked` until the relevant fresh command run proves them again.
+Package-backed and browser-backed Phase 8 claims are current for the local
+worktree. CI-backed, FR-20, and release-candidate claims remain `blocked` until
+the relevant fresh command run proves them again.
 
 Former `pass` rows reset by post-audit Phase 0:
 
 | Checklist area | Former claim | Current release status | Reason |
 | --- | --- | --- | --- |
 | C0 contract trace | Contract shape and shared errors verified by tests | `pass` for the current Phase 1-2 strict worktree | `npm.cmd run test:contracts` is green in the current 2026-06-12 replay. |
-| Automated release gates | Typecheck, unit, contract, artifact, build, integration, and browser gates | `pass` for fast P1/P2 gates; `fail` for browser/release gates | Fast local gates are current and green; browser/release evidence remains red or blocked. |
+| Automated release gates | Typecheck, unit, contract, artifact, build, integration, and browser gates | `pass` for current local Phase 8 gates | Fast local gates, browser integration, and real-browser smoke are current and green. CI matrix evidence remains blocked. |
 | FR-20 system-scope | Release candidate FR-20 completed | `blocked` | Only a Stream A strict simulation exists; no real system-scope multi-account proof exists. |
-| Packaging and distribution | `dist/`, packlist, install, reinstall | `pass` for Phase 1-2 `dist`; `blocked` for release package evidence | Current `dist/` regeneration is green, but historical package evidence is tied to a stale package and cannot close the current release. |
-| README and CLI options | Built CLI help and README/help parity | `blocked` | Fresh built CLI help and release package evidence have not been replayed for the global release. |
+| Packaging and distribution | `dist/`, packlist, install, reinstall | `pass` for Phase 8 local package evidence | Current `dist/` regeneration, packlist, user-scope install, and reinstall are green for the Phase 8 worktree. |
+| README and CLI options | Built CLI help and README/help parity | `pass` for built/package help output; README parity historical | `node dist/cli.js --help` and installed `.tmp/phase8-final-prefix/bin/md2pdf --help` both print the supported options. |
 | Defensive decisions | Test-backed behavioral decisions | `pass` where covered by the current unit, contract, or artifact replay; otherwise `pending` or `blocked` | Fast local behavioral coverage is current and green for Phase 1-2. Release-only decisions remain blocked. |
 
 ## P0 Scope Check
@@ -115,13 +118,13 @@ A scoped gate-maintenance exception is recorded below.
 
 | Item | Status | Evidence / command | Notes |
 | --- | --- | --- | --- |
-| TypeScript typecheck | `pass` | `npm.cmd run typecheck`; `audit/2026-06-12-phase-1-2-teamcomplete-audit.md` | Current Phase 1-2 strict replay passed. |
-| Unit tests | `pass` | `npm.cmd test`; `audit/2026-06-12-phase-1-2-teamcomplete-audit.md` | Current Phase 1-2 strict replay passed: 148 passed, 1 skipped. |
+| TypeScript typecheck | `pass` | `npm run typecheck`; current 2026-06-15 Phase 8 replay | Current Phase 8 replay passed. |
+| Unit tests | `pass` | `npm test`; current 2026-06-15 Phase 8 replay | Current Phase 8 replay passed: 158 passed, 1 skipped. |
 | Contract tests | `pass` | `npm.cmd run test:contracts`; current 2026-06-12 checklist update | Current replay passed: 15 tests. |
-| Integration tests | `fail` | `npm.cmd run test:browser`; `audit/2026-06-12-phase-1-post-corrections-teamcomplete-audit.md` | Browser/release integration still fails on the two real browser proofs without skip. |
-| Browser-backed tests | `blocked` | Stream B / global release evidence required | Real installed-browser, Mermaid-as-diagram, WebDriver/Firefox, fallback provisioning, and browser-family compatibility evidence are outside Stream A strict. |
-| Artifact freshness gate | `pass` | `npm.cmd run check:artifacts`; `audit/2026-06-12-phase-1-2-teamcomplete-audit.md` | Current Phase 1-2 strict replay passed. This does not close browser, package, CI, FR-20, or global release evidence blockers. |
-| Build / `dist` regeneration | `pass` | `npm.cmd run build`; `audit/2026-06-12-phase-1-2-teamcomplete-audit.md` | Current build passes and does not recreate `dist/pdfRenderer.*` after Phase 2 removed `src/pdfRenderer.ts`. |
+| Integration tests | `pass` | `npm run test:browser`; current 2026-06-15 Phase 8 replay outside sandbox | Browser integration passed: 25 tests. |
+| Browser-backed tests | `pass` for Phase 8 local browser evidence | `npm run test:browser`; `npm run test:real-browser`; `npm run test:all` | Local browser integration passed: 25 browser tests plus 1 real-browser Mermaid smoke. Cross-platform browser-family and CI matrix evidence remain separate release blockers. |
+| Artifact freshness gate | `pass` | `npm run check:artifacts`; current 2026-06-15 Phase 8 replay | Artifact freshness policy passed. This does not close CI, FR-20, or global release evidence blockers. |
+| Build / `dist` regeneration | `pass` | `npm run build`; current 2026-06-15 Phase 8 replay | Current build passes and does not recreate `dist/pdfRenderer.*` after Phase 2 removed `src/pdfRenderer.ts`. |
 | CI matrix | `blocked` | Global release CI run URL, logs, or committed summary | Linux, macOS, Windows on Node.js 20+. This remains global release evidence, not a Stream A strict implementation task. |
 
 ## Accepted Pre-C0 Exceptions
@@ -133,8 +136,8 @@ C0, P4, or the release candidate as indicated.
 | --- | --- | --- | --- |
 | `npm run typecheck` fails with `TS18003` because `src/**/*.ts` does not exist. | `pass` | Historical P0 closure only; resolved in C0 | This records the original P0 exception lifecycle. The current typecheck gate is green in the Phase 1-2 replay above. |
 | C0 red/green contract evidence is not available yet. | `pass` | Historical P0 closure only; resolved in C0 | This records the original C0 red/green lifecycle. The current contract gate is green in the 2026-06-12 replay. |
-| Release gates, browser tests, packlist, install evidence, and FR-20 proof are not runnable before a release candidate exists. | `pass` | Historical P0 closure only; later separated during Stream A strict finalization | This records the original P0 exception lifecycle. Current global release proof remains `fail` or `blocked` for browser, package, CI, install, and FR-20 evidence. |
-| Existing `dist/` content is non-normative and may not match `package.json` bin layout. | `pass` | Historical P0 closure only | This records the original P0 exception lifecycle. Current `dist/` regeneration is green for Phase 1-2; packlist proof remains `blocked` in Packaging And Distribution. |
+| Release gates, browser tests, packlist, install evidence, and FR-20 proof are not runnable before a release candidate exists. | `pass` | Historical P0 closure only; later separated during Stream A strict finalization | This records the original P0 exception lifecycle. Current Phase 8 package/install/browser evidence is green; global release proof remains `blocked` for CI/matrix and FR-20 evidence. |
+| Existing `dist/` content is non-normative and may not match `package.json` bin layout. | `pass` | Historical P0 closure only | This records the original P0 exception lifecycle. Current `dist/` regeneration and packlist proof are green for Phase 8 local package evidence. |
 
 ## FR-20 System-Scope Evidence
 
@@ -150,17 +153,17 @@ C0, P4, or the release candidate as indicated.
 
 | Item | Status | Evidence / command | Notes |
 | --- | --- | --- | --- |
-| `dist/` regenerated from `src/` | `pass` for Phase 1-2 strict | `npm.cmd run build`; `audit/2026-06-12-phase-1-2-teamcomplete-audit.md` | Current build evidence is green and confirms `dist/pdfRenderer.*` is not regenerated after Phase 2. This is not full package/release evidence. |
-| npm packlist verified | `blocked` | Historical Stream A strict packlist; global release replay pending | The 2026-06-11 packlist is historical Stream A strict evidence. It is not current release-candidate evidence until `npm pack` is replayed after the remaining release blockers are handled. |
-| User-scope install works | `blocked` | Historical Stream A strict simulation evidence | The previous temporary-prefix install remains preserved as historical evidence, but it is tied to a stale tarball and cannot close the current global release. |
-| Reinstall is idempotent | `blocked` | Historical Stream A strict simulation evidence | The previous reinstall proof remains preserved as historical evidence, but it is tied to a stale tarball and cannot close the current global release. |
+| `dist/` regenerated from `src/` | `pass` for Phase 8 local package evidence | `npm run build`; `npm pack --json --cache .tmp/npm-cache` prepack replay | Current build evidence is green and confirms `dist/pdfRenderer.*` is not regenerated after Phase 2. |
+| npm packlist verified | `pass` for Phase 8 local package evidence | `npm pack --json --cache .tmp/npm-cache` | Tarball `md2pdf-0.1.2.tgz` contains 62 files including `dist/`, `assets/`, `README.md`, `ARTIFACT_FRESHNESS_POLICY.md`, `artifacts.json`, and `package.json`. |
+| User-scope install works | `pass` for Phase 8 local package evidence | `npm install --global --prefix .tmp/phase8-final-prefix --cache .tmp/npm-cache ./md2pdf-0.1.2.tgz --no-audit --no-fund --fetch-timeout=5000 --fetch-retries=0`; `.tmp/phase8-final-prefix/bin/md2pdf --help` | Install added 123 packages and the installed symlink printed the CLI help. Initial sandboxed dependency resolution failed with `ENOTFOUND`; rerun with approved network access populated the local cache. |
+| Reinstall is idempotent | `pass` for Phase 8 local package evidence | Repeated `npm install --global --prefix .tmp/phase8-final-prefix --cache .tmp/npm-cache ./md2pdf-0.1.2.tgz --no-audit --no-fund --fetch-timeout=5000 --fetch-retries=0` | Reinstall completed with `changed 123 packages in 2s`; post-reinstall `.tmp/phase8-final-prefix/bin/md2pdf --help` still printed the CLI help. |
 
 ## README And CLI Options
 
 | Item | Status | Evidence / command | Notes |
 | --- | --- | --- | --- |
-| `md2pdf --help` lists supported options | `blocked` | `tests/unit/cli/cli.test.ts`, `@req NFR-04 prints one help line for each supported option` | Current unit coverage is green, but built CLI help output has not been replayed for the global release package. |
-| README options match CLI help | `blocked` | `README.md`; historical `node dist\cli.js --help`; `audit.md` Stream A strict point 2 audit | Historical Stream A strict parity evidence is preserved, but current proof is blocked until built CLI help and package evidence are replayed. |
+| `md2pdf --help` lists supported options | `pass` for Phase 8 local package evidence | `node dist/cli.js --help`; `.tmp/phase8-final-prefix/bin/md2pdf --help`; `tests/unit/cli/cli.test.ts`, `@req NFR-04 prints one help line for each supported option` | Current unit, built CLI, and installed package help output are green. |
+| README options match CLI help | `pass` for Phase 8 local package evidence | `README.md`; `node dist/cli.js --help`; `.tmp/phase8-final-prefix/bin/md2pdf --help` | README usage lists the same supported options as the current built and installed CLI help. |
 | Historical FR-20 simulation help output captured | `pass` | `docs/release-evidence/fr-20-system-scope.md` | Documentation fact only: the simulation output remains recorded. It is not release-grade FR-20 or current built-package help proof. |
 
 ## Defensive Decisions
@@ -199,8 +202,8 @@ phase exists.
 
 | Field | Value |
 | --- | --- |
-| Release decision | Historical `GO Stream A strict`; current `GO Phase 1-2 strict`; current `NO-GO global release` until browser/release, package, CI, and FR-20 evidence are closed |
+| Release decision | Historical `GO Stream A strict`; current `GO Phase 1-2 strict`; current `GO Phase 8 local packaging and browser replay`; current `NO-GO global release` until CI/matrix and FR-20 evidence are closed |
 | Reviewer | `pending` |
 | Decision date | Historical Stream A strict decision `2026-06-11`; post-audit global reset and Phase 1-2 strict replay `2026-06-12` |
-| Blocking items remaining | Browser/integration gate, real installed-browser/Mermaid proof, fallback/provisioning evidence on target platforms, browser compatibility matrix, CI matrix, fresh tarball/packlist, install/reinstall replay, real FR-20 multi-account system-scope proof |
-| Notes | Stream A strict final audit: `audit/2026-06-11-stream-a-strict-final-audit.md`. Phase 1-2 strict audit: `audit/2026-06-12-phase-1-2-teamcomplete-audit.md`. Fast local gates and build are green; global release remains `NO-GO v0.1.2`. |
+| Blocking items remaining | CI matrix and browser-family matrix across target platforms; real FR-20 multi-account system-scope proof |
+| Notes | Stream A strict final audit: `audit/2026-06-11-stream-a-strict-final-audit.md`. Phase 1-2 strict audit: `audit/2026-06-12-phase-1-2-teamcomplete-audit.md`. Phase 7 old-runtime test review found no obsolete runtime-only tests to delete. Phase 8 found and fixed POSIX npm symlink invocability before final package replay. Fast local gates, build, packlist, user-scope install, reinstall, browser integration, and real-browser smoke are green; global release remains `NO-GO v0.1.2` pending CI/matrix and FR-20. |
