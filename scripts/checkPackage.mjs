@@ -7,7 +7,10 @@ import { spawnSync } from "node:child_process";
 const packageName = "md2pdf";
 const packageVersion = "0.1.2";
 const tarballName = `${packageName}-${packageVersion}.tgz`;
-const npmBin = process.platform === "win32" ? "npm.cmd" : "npm";
+const npmCommand = process.platform === "win32" ? process.execPath : "npm";
+const npmArgsPrefix = process.platform === "win32"
+  ? [join(dirname(process.execPath), "node_modules", "npm", "bin", "npm-cli.js")]
+  : [];
 const cacheDir = resolve(".tmp", "npm-cache");
 const helpText = [
   "md2pdf [OPTIONS] ENTRY [ENTRY ...]",
@@ -19,7 +22,7 @@ const helpText = [
   "-h, --help                list options with one-line descriptions",
 ].join("\n");
 
-const pack = run(npmBin, ["pack", "--json", "--cache", cacheDir], {
+const pack = run(npmCommand, [...npmArgsPrefix, "pack", "--json", "--cache", cacheDir], {
   allowMixedJsonOutput: true,
 });
 const packOutput = parsePackOutput(pack.stdout);
@@ -55,11 +58,11 @@ try {
     "--fetch-retries=2",
   ];
 
-  run(npmBin, installArgs);
+  run(npmCommand, [...npmArgsPrefix, ...installArgs]);
   await assertInstalledBinary(prefix);
   runInstalledHelp(prefix);
 
-  run(npmBin, installArgs);
+  run(npmCommand, [...npmArgsPrefix, ...installArgs]);
   await assertInstalledBinary(prefix);
   runInstalledHelp(prefix);
 } finally {
@@ -76,9 +79,11 @@ console.log(
 );
 
 function run(command, args, options = {}) {
-  const result = spawnSync(command, args, {
+  const invocation = commandInvocation(command, args);
+  const result = spawnSync(invocation.command, invocation.args, {
     cwd: process.cwd(),
     encoding: "utf8",
+    maxBuffer: 50 * 1024 * 1024,
     stdio: ["ignore", "pipe", "pipe"],
   });
 
@@ -87,8 +92,9 @@ function run(command, args, options = {}) {
       [
         `command failed: ${command} ${args.join(" ")}`,
         `exit: ${result.status}`,
-        result.stdout.trim(),
-        result.stderr.trim(),
+        result.error === undefined ? "" : String(result.error),
+        result.stdout?.trim(),
+        result.stderr?.trim(),
       ]
         .filter(Boolean)
         .join("\n"),
@@ -96,9 +102,9 @@ function run(command, args, options = {}) {
   }
 
   if (!options.allowMixedJsonOutput) {
-    process.stdout.write(result.stdout);
+    process.stdout.write(result.stdout ?? "");
   }
-  process.stderr.write(result.stderr);
+  process.stderr.write(result.stderr ?? "");
   return result;
 }
 
@@ -154,7 +160,9 @@ function sourceStemForDistOutput(filePath) {
 }
 
 async function assertInstalledBinary(prefix) {
-  const packageCli = join(prefix, "lib", "node_modules", packageName, "dist", "cli.js");
+  const packageCli = process.platform === "win32"
+    ? join(prefix, "node_modules", packageName, "dist", "cli.js")
+    : join(prefix, "lib", "node_modules", packageName, "dist", "cli.js");
 
   if (process.platform === "win32") {
     const cmdShim = join(prefix, "md2pdf.cmd");
@@ -186,7 +194,8 @@ function runInstalledHelp(prefix) {
     process.platform === "win32"
       ? join(prefix, "md2pdf.cmd")
       : join(prefix, "bin", "md2pdf");
-  const result = spawnSync(command, ["--help"], {
+  const invocation = commandInvocation(command, ["--help"]);
+  const result = spawnSync(invocation.command, invocation.args, {
     cwd: process.cwd(),
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
@@ -199,6 +208,26 @@ function runInstalledHelp(prefix) {
   if (result.stdout.trimEnd() !== helpText) {
     fail(`installed md2pdf --help output mismatch\n${result.stdout}`);
   }
+}
+
+function commandInvocation(command, args) {
+  if (process.platform === "win32" && command.toLowerCase().endsWith(".cmd")) {
+    return {
+      command: process.env.ComSpec ?? "cmd.exe",
+      args: ["/d", "/c", ["call", command, ...args].map(quoteCmdArgument).join(" ")],
+    };
+  }
+
+  return { command, args };
+}
+
+function quoteCmdArgument(value) {
+  const text = String(value);
+  if (!/[\s&()<>|^"]/u.test(text)) {
+    return text;
+  }
+
+  return `"${text.replaceAll('"', '""')}"`;
 }
 
 function fail(message) {

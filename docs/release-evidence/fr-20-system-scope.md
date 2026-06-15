@@ -18,10 +18,10 @@ release requirement because no real elevated system-scope installation and no
 secondary user account were tested.
 
 Post-audit Phase 9 refresh on 2026-06-15: the current Phase 8-10 tarball was
-replayed locally on macOS through `npm run release:verify`. That replay proves
-temporary user-scope install, installed binary target, installed `md2pdf --help`,
-and idempotent reinstall for the current account only. It is explicitly not a
-real system-scope multi-account FR-20 proof.
+replayed locally on Windows through `npm.cmd run release:verify`. That replay
+proves temporary user-scope install, installed Windows `.cmd` shim, installed
+`md2pdf --help`, and idempotent reinstall for the current account only. It is
+explicitly not a real system-scope multi-account FR-20 proof.
 
 ## Evidence Metadata
 
@@ -39,22 +39,22 @@ real system-scope multi-account FR-20 proof.
 | Field | Value |
 | --- | --- |
 | md2pdf version tested | `0.1.2` |
-| Commit SHA | Base commit `3f2ff86` plus current worktree changes for clean build, package smoke, release evidence, rebuilt tarball |
-| npm tarball or package source | `md2pdf-0.1.2.tgz`; shasum `bf78b0eeeb9a9898fe2e9fddd3551d5730f356cd`; integrity `sha512-TCb5FKFpI7c19aCMdTXPcUnE64phs4+hS+NJObdsPDsI6V0XNm0KPr499j6jw9FOyYTwNU+G58OQ4D4nChRxrw==` |
+| Commit SHA | Base commit `72c69ba` plus current worktree changes for Windows package smoke, real-browser cache alignment, release evidence, rebuilt tarball |
+| npm tarball or package source | `md2pdf-0.1.2.tgz`; shasum `970226a520e446e6e137d678392ff2da70448ab4`; integrity `sha512-7Tlo4xQqDFocfFQMeQageLU6L+oCOlK70VdU8ldGrXWy/lhe/UHvcywR7CwT0VlS4lKeXMt1in5JDbbsK0YuOg==` |
 | Date | `2026-06-15` |
 | Author | `Codex` |
-| OS and exact version | macOS `26.5` build `25F71` |
-| CPU architecture | `arm64` |
+| OS and exact version | Microsoft Windows 11 Famille 25H2, version `10.0.26200.8655` |
+| CPU architecture | `x64` |
 | Node.js version | `v24.16.0` |
 | npm version | `11.13.0` |
-| Primary/installing account | `samirtamboura` |
+| Primary/installing account | `gabriel-pc\codexsandboxoffline` |
 | Secondary account tested | `n/a` |
 | Elevated privilege mechanism | `n/a`; no host-wide administrator install was performed |
-| Installation command used | `npm run release:verify`, specifically `scripts/checkPackage.mjs` running `npm install --global --prefix <temporary-prefix> --cache .tmp/npm-cache <repo>/md2pdf-0.1.2.tgz --no-audit --no-fund --fetch-timeout=30000 --fetch-retries=2` |
-| Installed binary path invoked | POSIX symlink `<temporary-prefix>/bin/md2pdf`; script verified it points to `<temporary-prefix>/lib/node_modules/md2pdf/dist/cli.js` |
-| Command under test | `<temporary-prefix>/bin/md2pdf --help` |
+| Installation command used | `npm.cmd run release:verify`, specifically `scripts/checkPackage.mjs` running `npm install --global --prefix <temporary-prefix> --cache .tmp\npm-cache <repo>\md2pdf-0.1.2.tgz --no-audit --no-fund --fetch-timeout=30000 --fetch-retries=2` |
+| Installed binary path invoked | Windows shim `<temporary-prefix>\md2pdf.cmd`; script verified the installed package CLI exists at `<temporary-prefix>\node_modules\md2pdf\dist\cli.js` |
+| Command under test | `<temporary-prefix>\md2pdf.cmd --help` |
 | Expected result | Temporary-prefix command is invocable by the current account, exits `0`, prints CLI help, and remains valid after reinstall |
-| Observed result | PASS for temporary user-scope simulation: install added 123 packages, reinstall changed 123 packages, installed help output matched expected text |
+| Observed result | PASS for temporary user-scope simulation: install added 123 packages, reinstall changed 123 packages, installed Windows `.cmd` help output matched expected text |
 | Does this satisfy global FR-20 release evidence? | `no` |
 | Status | `blocked` for global FR-20 release evidence; current-account user-scope simulation mechanics passed |
 

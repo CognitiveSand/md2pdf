@@ -11,28 +11,28 @@ matrix proof remain absent.
 | md2pdf version tested | `0.1.2` |
 | Date | `2026-06-15` |
 | Author | `Codex` |
-| Commit SHA | Base commit `3f2ff86` plus current worktree changes for clean build, package smoke, evidence refresh, rebuilt tarball |
-| OS and exact version | macOS `26.5` build `25F71` |
-| CPU architecture | `arm64` |
+| Commit SHA | Base commit `72c69ba` plus current worktree changes for Windows package smoke, real-browser cache alignment, evidence refresh, rebuilt tarball |
+| OS and exact version | Microsoft Windows 11 Famille 25H2, version `10.0.26200.8655` |
+| CPU architecture | `x64` |
 | Node.js version | `v24.16.0` |
 | npm version | `11.13.0` |
-| Shell/account | `zsh`, account `samirtamboura` |
+| Shell/account | Windows PowerShell, account `gabriel-pc\codexsandboxoffline` |
 | npm tarball | `md2pdf-0.1.2.tgz` |
-| Tarball shasum | `bf78b0eeeb9a9898fe2e9fddd3551d5730f356cd` |
-| Tarball integrity | `sha512-TCb5FKFpI7c19aCMdTXPcUnE64phs4+hS+NJObdsPDsI6V0XNm0KPr499j6jw9FOyYTwNU+G58OQ4D4nChRxrw==` |
+| Tarball shasum | `970226a520e446e6e137d678392ff2da70448ab4` |
+| Tarball integrity | `sha512-7Tlo4xQqDFocfFQMeQageLU6L+oCOlK70VdU8ldGrXWy/lhe/UHvcywR7CwT0VlS4lKeXMt1in5JDbbsK0YuOg==` |
 | Tarball entry count | `62` |
-| Tarball unpacked size | `276 965` bytes |
+| Tarball unpacked size | `277 465` bytes |
 
 ## Commands
 
 ```bash
-npm run build
-npm pack --dry-run --json --ignore-scripts --cache .tmp/npm-cache
-npm run release:verify
-shasum md2pdf-0.1.2.tgz
+npm.cmd run build
+npm.cmd pack --dry-run --json --ignore-scripts --cache .tmp\npm-cache
+npm.cmd run release:verify
+Get-FileHash md2pdf-0.1.2.tgz -Algorithm SHA1
 ```
 
-`npm run release:verify` expands to:
+`npm.cmd run release:verify` expands to:
 
 ```bash
 npm run test:all && npm run check:package
@@ -50,14 +50,15 @@ npm run test:browser
 npm run test:real-browser
 ```
 
-`npm run check:package` runs `scripts/checkPackage.mjs`, which:
+`npm.cmd run check:package` runs `scripts/checkPackage.mjs`, which:
 
-- runs `npm pack --json --cache .tmp/npm-cache`;
+- runs `npm pack --json --cache .tmp\npm-cache`;
 - verifies required packlist entries;
 - rejects orphan `dist/` outputs whose `src/*.ts` source no longer exists;
 - installs the tarball into a temporary user-scope prefix;
-- verifies the installed POSIX `bin/md2pdf` symlink points to the package
-  `dist/cli.js`;
+- verifies the installed Windows `md2pdf.cmd` shim exists and the installed
+  package contains `node_modules/md2pdf/dist/cli.js`; on POSIX the same script
+  verifies the `bin/md2pdf` symlink target;
 - runs installed `md2pdf --help`;
 - reinstalls the same tarball into the same temporary prefix;
 - runs installed `md2pdf --help` again.
@@ -75,27 +76,27 @@ npm run test:real-browser
 
 | Check | Observed result |
 | --- | --- |
-| `npm run build` | PASS; `clean` removed `dist/` before `tsc` |
+| `npm.cmd run build` | PASS; `clean` removed `dist/` before `tsc` |
 | `dist/pdfRenderer.*` after clean build | Absent |
-| `npm pack --dry-run --json --ignore-scripts --cache .tmp/npm-cache` | PASS; `entryCount: 62`; no `dist/pdfRenderer.*` |
-| `npm run typecheck` | PASS |
-| `npm test` | PASS; 158 passed, 1 skipped |
-| `npm run test:artifacts` | PASS; 24 passed |
-| `npm run check:artifacts` | PASS; Artifact freshness policy passed |
-| `npm run test:browser` | PASS; 25 passed |
-| `npm run test:real-browser` | PASS; 1 passed |
-| `npm run check:package` | PASS; install added 123 packages, reinstall changed 123 packages |
-| `shasum md2pdf-0.1.2.tgz` | `bf78b0eeeb9a9898fe2e9fddd3551d5730f356cd` |
+| `npm.cmd pack --dry-run --json --ignore-scripts --cache .tmp\npm-cache` | PASS; `entryCount: 62`; no `dist/pdfRenderer.*` |
+| `npm.cmd run typecheck` | PASS |
+| `npm.cmd test` | PASS; 155 passed, 4 skipped |
+| `npm.cmd run test:artifacts` | PASS; 23 passed, 1 skipped |
+| `npm.cmd run check:artifacts` | PASS; Artifact freshness policy passed |
+| `npm.cmd run test:browser` | PASS; 25 passed |
+| `npm.cmd run test:real-browser` | PASS; 1 passed |
+| `npm.cmd run check:package` | PASS; install added 123 packages, reinstall changed 123 packages |
+| `Get-FileHash md2pdf-0.1.2.tgz -Algorithm SHA1` | `970226a520e446e6e137d678392ff2da70448ab4` |
 
-`npm run release:verify` final package-smoke output:
+`npm.cmd run release:verify` final package-smoke output:
 
 ```text
-added 123 packages in 3s
-changed 123 packages in 2s
+added 123 packages in 16s
+changed 123 packages in 18s
 Package smoke passed: md2pdf-0.1.2.tgz
 entryCount: 62
-shasum: bf78b0eeeb9a9898fe2e9fddd3551d5730f356cd
-integrity: sha512-TCb5FKFpI7c19aCMdTXPcUnE64phs4+hS+NJObdsPDsI6V0XNm0KPr499j6jw9FOyYTwNU+G58OQ4D4nChRxrw==
+shasum: 970226a520e446e6e137d678392ff2da70448ab4
+integrity: sha512-7Tlo4xQqDFocfFQMeQageLU6L+oCOlK70VdU8ldGrXWy/lhe/UHvcywR7CwT0VlS4lKeXMt1in5JDbbsK0YuOg==
 ```
 
 ## Packlist

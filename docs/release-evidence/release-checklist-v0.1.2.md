@@ -28,8 +28,8 @@ explicitly accepted in this checklist.
 | Date opened | `2026-06-04` |
 | Date completed | Stream A strict completed `2026-06-11` as historical evidence; Phase 1-2 strict replay passed `2026-06-12`; Phase 8-10 local `release:verify` replay passed `2026-06-15`; global release pending |
 | Owner | `Codex` |
-| Commit SHA | Historical Stream A strict commit `b58c45775b5e25926d7567a230034576949bd603`; Phase 8-10 local evidence tied to base commit `3f2ff86` plus current worktree changes for clean build, package smoke, release evidence, rebuilt tarball |
-| npm tarball or package source | Phase 8-10 current tarball: `md2pdf-0.1.2.tgz`; shasum `bf78b0eeeb9a9898fe2e9fddd3551d5730f356cd`; integrity `sha512-TCb5FKFpI7c19aCMdTXPcUnE64phs4+hS+NJObdsPDsI6V0XNm0KPr499j6jw9FOyYTwNU+G58OQ4D4nChRxrw==`; packed `2026-06-15`; 62 files, 276 965 bytes unpacked. |
+| Commit SHA | Historical Stream A strict commit `b58c45775b5e25926d7567a230034576949bd603`; Phase 8-10 local evidence tied to base commit `72c69ba` plus current worktree changes for Windows package smoke, real-browser cache alignment, release evidence, rebuilt tarball |
+| npm tarball or package source | Phase 8-10 current tarball: `md2pdf-0.1.2.tgz`; shasum `970226a520e446e6e137d678392ff2da70448ab4`; integrity `sha512-7Tlo4xQqDFocfFQMeQageLU6L+oCOlK70VdU8ldGrXWy/lhe/UHvcywR7CwT0VlS4lKeXMt1in5JDbbsK0YuOg==`; packed `2026-06-15`; 62 files, 277 465 bytes unpacked. |
 
 ## Post-Audit Phase 0 Reconciliation
 
@@ -46,16 +46,16 @@ Audited gates and post-merge replay status:
 | Command | Current release status | Source | Notes |
 | --- | --- | --- | --- |
 | `npm run typecheck` | `pass` | `docs/release-evidence/phase-8-9-10-local-replay-2026-06-15.md` | Typecheck passed after packaging/CLI changes. |
-| `npm test` | `pass` | `docs/release-evidence/phase-8-9-10-local-replay-2026-06-15.md` | Phase 10 local replay passed: 158 passed, 1 skipped. |
+| `npm test` | `pass` | `docs/release-evidence/phase-8-9-10-local-replay-2026-06-15.md` | Phase 10 local replay passed: 155 passed, 4 skipped. |
 | `npm.cmd run test:contracts` | `pass` | Current 2026-06-12 checklist update; `audit/2026-06-12-phase-1-post-corrections-teamcomplete-audit.md` | Contract replay passed: 15 tests. |
 | `npm run test:browser` | `pass` | `docs/release-evidence/phase-8-9-10-local-replay-2026-06-15.md` | Browser integration replay passed: 25 tests. |
 | `npm run test:real-browser` | `pass` | `docs/release-evidence/phase-8-9-10-local-replay-2026-06-15.md` | Real installed-browser Mermaid smoke passed: 1 test. |
-| `npm run test:artifacts` | `pass` | `docs/release-evidence/phase-8-9-10-local-replay-2026-06-15.md` | Artifact unit replay passed: 24 tests. |
+| `npm run test:artifacts` | `pass` | `docs/release-evidence/phase-8-9-10-local-replay-2026-06-15.md` | Artifact unit replay passed: 23 passed, 1 skipped. |
 | `npm run check:artifacts` | `pass` | `docs/release-evidence/phase-8-9-10-local-replay-2026-06-15.md` | Artifact freshness policy passed. This local pass does not make the global release ready by itself. |
 | `npm run build` | `pass` | `docs/release-evidence/phase-8-9-10-local-replay-2026-06-15.md` | `dist/` is cleaned before `tsc`; `dist/pdfRenderer.*` is absent. |
 | `npm run test:all` | `pass` | `docs/release-evidence/phase-8-9-10-local-replay-2026-06-15.md` | Executes typecheck, unit tests, artifact tests, artifact freshness, build, browser integration, and real-browser smoke. |
 | `npm run check:package` | `pass` | `docs/release-evidence/phase-8-9-10-local-replay-2026-06-15.md` | Verifies packlist, rejects orphan `dist/` outputs, installs tarball, verifies installed binary target/help, reinstalls tarball, verifies help again. |
-| `npm run release:verify` | `pass` | `docs/release-evidence/phase-8-9-10-local-replay-2026-06-15.md` | Runs `test:all` plus `check:package`; final shasum `bf78b0eeeb9a9898fe2e9fddd3551d5730f356cd`. |
+| `npm run release:verify` | `pass` | `docs/release-evidence/phase-8-9-10-local-replay-2026-06-15.md` | Runs `test:all` plus `check:package`; final shasum `970226a520e446e6e137d678392ff2da70448ab4`. |
 
 Evidence classes after this reset:
 
@@ -121,7 +121,7 @@ A scoped gate-maintenance exception is recorded below.
 | Item | Status | Evidence / command | Notes |
 | --- | --- | --- | --- |
 | TypeScript typecheck | `pass` | `npm run typecheck`; `docs/release-evidence/phase-8-9-10-local-replay-2026-06-15.md` | Current Phase 10 local replay passed. |
-| Unit tests | `pass` | `npm test`; `docs/release-evidence/phase-8-9-10-local-replay-2026-06-15.md` | Current Phase 10 local replay passed: 158 passed, 1 skipped. |
+| Unit tests | `pass` | `npm test`; `docs/release-evidence/phase-8-9-10-local-replay-2026-06-15.md` | Current Phase 10 local replay passed: 155 passed, 4 skipped. |
 | Contract tests | `pass` | `npm.cmd run test:contracts`; current 2026-06-12 checklist update | Current replay passed: 15 tests. |
 | Integration tests | `pass` | `npm run test:browser`; `docs/release-evidence/phase-8-9-10-local-replay-2026-06-15.md` | Browser integration passed: 25 tests. |
 | Browser-backed tests | `pass` for Phase 8-10 local browser evidence | `npm run test:browser`; `npm run test:real-browser`; `npm run test:all` | Local browser integration passed: 25 browser tests plus 1 real-browser Mermaid smoke. Cross-platform browser-family and CI matrix evidence remain separate release blockers. |
@@ -147,7 +147,7 @@ C0, P4, or the release candidate as indicated.
 | Item | Status | Evidence / command | Notes |
 | --- | --- | --- | --- |
 | FR-20 evidence file present | `pass` | `docs/release-evidence/fr-20-system-scope.md` | Template exists from P0 phase 4. |
-| FR-20 evidence completed for release candidate | `blocked` | `docs/release-evidence/fr-20-system-scope.md` | Current Phase 9 refresh records a macOS temporary-prefix simulation only. No real elevated system-scope multi-account proof exists for the global release. |
+| FR-20 evidence completed for release candidate | `blocked` | `docs/release-evidence/fr-20-system-scope.md` | Current Phase 9 refresh records a Windows temporary-prefix simulation only. No real elevated system-scope multi-account proof exists for the global release. |
 | Command resolves by name in tested account | `pass` | `docs/release-evidence/fr-20-system-scope.md`, `where md2pdf` | Historical simulation evidence: temporary global-style npm prefix was placed on `PATH`; `where md2pdf` resolved the command by name. |
 | `md2pdf --help` runs by command name in tested account | `pass` | `docs/release-evidence/fr-20-system-scope.md` | Historical simulation evidence: `md2pdf --help` exited `0` and printed the supported CLI options. |
 | Secondary account or valid simulation documented | `blocked` | `docs/release-evidence/fr-20-system-scope.md` current Phase 9 refresh | The simulation reason and limitations are documented, but this is not equivalent to real FR-20 release proof. |
@@ -158,7 +158,7 @@ C0, P4, or the release candidate as indicated.
 | --- | --- | --- | --- |
 | `dist/` regenerated from `src/` | `pass` for Phase 8-10 local package evidence | `npm run build`; `npm run release:verify`; `docs/release-evidence/phase-8-9-10-local-replay-2026-06-15.md` | `build` runs `clean` before `tsc`; `dist/pdfRenderer.*` is absent. |
 | npm packlist verified | `pass` for Phase 8-10 local package evidence | `npm run check:package`; `docs/release-evidence/phase-8-9-10-local-replay-2026-06-15.md` | Tarball `md2pdf-0.1.2.tgz` contains 62 files including `dist/`, `assets/`, `README.md`, `ARTIFACT_FRESHNESS_POLICY.md`, `artifacts.json`, and `package.json`; orphan `dist/` outputs are rejected by script. |
-| User-scope install works | `pass` for Phase 8-10 local package evidence | `npm run check:package`; `docs/release-evidence/phase-8-9-10-local-replay-2026-06-15.md` | Install added 123 packages; installed POSIX symlink target and installed help output were verified. |
+| User-scope install works | `pass` for Phase 8-10 local package evidence | `npm run check:package`; `docs/release-evidence/phase-8-9-10-local-replay-2026-06-15.md` | Install added 123 packages; installed Windows `.cmd` shim and installed help output were verified. |
 | Reinstall is idempotent | `pass` for Phase 8-10 local package evidence | `npm run check:package`; `docs/release-evidence/phase-8-9-10-local-replay-2026-06-15.md` | Reinstall changed 123 packages and installed help output still matched. |
 
 ## README And CLI Options

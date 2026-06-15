@@ -2,7 +2,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { convertFile } from "../../src/converter.js";
 
@@ -19,6 +19,16 @@ if (skipRealBrowserTests) {
 const realBrowserIt = skipRealBrowserTests ? it.skip : it;
 
 let tempRoot: string;
+let previousArtifactCache: string | undefined;
+
+beforeAll(() => {
+  previousArtifactCache = process.env.MD2PDF_ARTIFACT_CACHE;
+  process.env.MD2PDF_ARTIFACT_CACHE ??= path.join(
+    process.cwd(),
+    ".tmp",
+    "md2pdf-real-browser-cache",
+  );
+});
 
 beforeEach(async () => {
   tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "md2pdf-real-browser-"));
@@ -26,6 +36,15 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await fs.rm(tempRoot, { recursive: true, force: true });
+});
+
+afterAll(() => {
+  if (previousArtifactCache === undefined) {
+    delete process.env.MD2PDF_ARTIFACT_CACHE;
+    return;
+  }
+
+  process.env.MD2PDF_ARTIFACT_CACHE = previousArtifactCache;
 });
 
 describe("Stream A P3 real browser Mermaid smoke", () => {
