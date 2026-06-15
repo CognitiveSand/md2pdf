@@ -66,19 +66,21 @@ describe("P3-8 DocumentConverter", () => {
     const tempRoot = await createTempRoot(tempRoots);
     const sourcePath = join(tempRoot, "doc.md");
     const outputPath = join(tempRoot, "doc.pdf");
+    let driverStopped = false;
 
     await writeFile(sourcePath, "# Hello\n", "utf8");
 
     const converter = new DocumentConverter({
       browserLocatorFactory: () => fakeLocator([]),
       tempDir: tempRoot,
-      webdriverSessionFactory: fakeSessionFactory([]),
+      webdriverSessionFactory: fakeSessionFactory([], () => { driverStopped = true; }),
       printPdf: async () => pdfBytes,
     });
 
     await converter.convertFile(sourcePath, outputPath);
 
     await expect(readFile(outputPath, "utf8")).resolves.toBe(pdfBytes.toString("utf8"));
+    expect(driverStopped).toBe(true);
   });
 
   it("@req NFR-02 browserLocatorFactory does not receive Markdown source content", async () => {
@@ -135,6 +137,7 @@ describe("P3-8 DocumentConverter", () => {
     const sourcePath = join(tempRoot, "doc.md");
     const outputPath = join(tempRoot, "out.pdf");
     let driverStopped = false;
+    let printCalled = false;
     let resolveStart!: () => void;
     const startGate = new Promise<void>((resolve) => { resolveStart = resolve; });
 
@@ -152,7 +155,10 @@ describe("P3-8 DocumentConverter", () => {
           };
         },
       },
-      printPdf: async () => pdfBytes,
+      printPdf: async () => {
+        printCalled = true;
+        return pdfBytes;
+      },
     });
 
     // Schedule start() completion after the timeout fires — no gap before handler attachment
@@ -165,6 +171,7 @@ describe("P3-8 DocumentConverter", () => {
     // Wait for the delayed start() to complete and the post-start cleanup to run
     await new Promise<void>((resolve) => setTimeout(resolve, 100));
     expect(driverStopped).toBe(true);
+    expect(printCalled).toBe(false);
   });
 
   it("@req FR-24 keeps existing output untouched and removes temporary PDF files when rendering fails", async () => {

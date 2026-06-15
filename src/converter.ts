@@ -10,7 +10,7 @@ import {
   type LocatedBrowser,
 } from "./browserLocator.js";
 import type { ConvertOptions } from "./contracts.js";
-import { ConversionError } from "./errors.js";
+import { ConversionError, RenderError } from "./errors.js";
 import { provisionFallbackBrowser } from "./fallbackBrowserProvisioner.js";
 import { withTempHtml } from "./markdownRenderer.js";
 import { JsonReleaseCatalog } from "./releaseCatalog.js";
@@ -143,25 +143,36 @@ export class DocumentConverter {
     signal: AbortSignal,
     renderTimeoutMs: number,
   ): Promise<Buffer> {
-    let driverProcess: DriverProcessHandle | undefined;
+    let driverProcess: ManagedDriverProcess | undefined;
+    let primaryFailure: unknown;
     const onAbort = (): void => { void driverProcess?.stop().catch(() => undefined); };
     signal.addEventListener("abort", onAbort, { once: true });
 
     try {
       const session = await this.webdriverSessionFactory.start(browser, options);
-      driverProcess = session.driverProcess;
+      driverProcess = new ManagedDriverProcess(session.driverProcess);
       if (signal.aborted) {
-        void session.driverProcess.stop().catch(() => undefined);
+        await driverProcess.stop().catch(() => undefined);
+        throw new RenderError({
+          message: "WebDriver session startup was cancelled",
+          actionHint: "Increase the render timeout or check that the WebDriver process starts promptly.",
+          cause: signal.reason ?? "conversion-aborted",
+        });
       }
-      return await this.printPdf({
+      const pdf = await this.printPdf({
         browser,
         htmlFileUrl,
         transport: session.transport,
-        driverProcess: session.driverProcess,
+        driverProcess,
         renderTimeoutMs,
       });
+      return pdf;
+    } catch (cause) {
+      primaryFailure = cause;
+      throw cause;
     } finally {
       signal.removeEventListener("abort", onAbort);
+      await cleanupDriverProcess(driverProcess, primaryFailure);
     }
   }
 
@@ -198,6 +209,44 @@ export class DocumentConverter {
     } catch {
       // Best effort cleanup: the conversion has already failed.
     }
+  }
+}
+
+class ManagedDriverProcess implements DriverProcessHandle {
+  private stopped = false;
+
+  constructor(private readonly driverProcess: DriverProcessHandle) {}
+
+  async stop(signal?: AbortSignal): Promise<void> {
+    if (this.stopped) {
+      return;
+    }
+
+    this.stopped = true;
+    await this.driverProcess.stop(signal);
+  }
+}
+
+async function cleanupDriverProcess(
+  driverProcess: DriverProcessHandle | undefined,
+  primaryFailure: unknown,
+): Promise<void> {
+  if (driverProcess === undefined) {
+    return;
+  }
+
+  try {
+    await driverProcess.stop();
+  } catch (cause) {
+    if (primaryFailure !== undefined) {
+      return;
+    }
+
+    throw new RenderError({
+      message: "WebDriver driver process cleanup failed",
+      actionHint: "Ensure WebDriver can stop the driver process after rendering.",
+      cause,
+    });
   }
 }
 
