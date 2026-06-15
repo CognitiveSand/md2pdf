@@ -59,7 +59,7 @@ describe("P3-8 DocumentConverter", () => {
     expect(htmlDuringRender).toContain("<h1>Title</h1>");
     expect(htmlDuringRender).toContain('class="mermaid"');
     expect(driverStopped).toBe(true);
-    expect(order).toEqual(["read", "locate", "start", "print", "mkdir", "write", "rename"]);
+    expect(order).toEqual(["locate", "read", "start", "print", "mkdir", "write", "rename"]);
   });
 
   it("@req NFR-01 converts without any options or config file", async () => {
@@ -108,6 +108,54 @@ describe("P3-8 DocumentConverter", () => {
     const serialized = JSON.stringify(capturedOptions);
     expect(serialized).not.toContain("Private");
     expect(serialized).not.toContain("Sensitive source content");
+  });
+
+  it("@req NFR-02 locates or provisions the browser before reading Markdown", async () => {
+    const tempRoot = await createTempRoot(tempRoots);
+    const sourcePath = join(tempRoot, "private.md");
+    const outputPath = join(tempRoot, "private.pdf");
+    const order: string[] = [];
+
+    await writeFile(sourcePath, "# Private\n\nSensitive content.\n", "utf8");
+
+    const converter = new DocumentConverter({
+      browserLocatorFactory: () => fakeLocator(order),
+      fileSystem: recordingFileSystem(order),
+      tempDir: tempRoot,
+      webdriverSessionFactory: fakeSessionFactory(order),
+      printPdf: async () => pdfBytes,
+    });
+
+    await converter.convertFile(sourcePath, outputPath);
+
+    expect(order.indexOf("locate")).toBeLessThan(order.indexOf("read"));
+  });
+
+  it("@req NFR-02 does not read Markdown when browser provisioning fails", async () => {
+    const tempRoot = await createTempRoot(tempRoots);
+    const sourcePath = join(tempRoot, "private.md");
+    const outputPath = join(tempRoot, "private.pdf");
+    const order: string[] = [];
+
+    await writeFile(sourcePath, "# Private\n\nSensitive content.\n", "utf8");
+
+    const converter = new DocumentConverter({
+      browserLocatorFactory: () => ({
+        async locate() {
+          order.push("locate");
+          throw new Error("no eligible browser artifact");
+        },
+      }),
+      fileSystem: recordingFileSystem(order),
+      tempDir: tempRoot,
+      webdriverSessionFactory: fakeSessionFactory(order),
+      printPdf: async () => pdfBytes,
+    });
+
+    await expect(converter.convertFile(sourcePath, outputPath)).rejects.toThrow(
+      "no eligible browser artifact",
+    );
+    expect(order).toEqual(["locate"]);
   });
 
   it("@req FR-16 stops the driver process when the render timeout fires", async () => {

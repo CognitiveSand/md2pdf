@@ -100,6 +100,7 @@ export class DocumentConverter {
     const absoluteSourcePath = resolve(sourcePath);
     const absoluteOutputPath = resolve(outputPath);
     const renderTimeoutMs = options.renderTimeoutMs ?? defaultRenderTimeoutMs;
+    const browser = await this.browserLocatorFactory(options).locate();
     let markdown: string;
     try {
       markdown = await this.fileSystem.readFile(absoluteSourcePath, "utf8");
@@ -112,8 +113,6 @@ export class DocumentConverter {
         cause,
       });
     }
-
-    const browser = await this.browserLocatorFactory(options).locate();
 
     // renderTimeoutMs bounds two clocks that start at different instants: the
     // outer withTempHtml budget covers the whole callback including WebDriver

@@ -76,7 +76,9 @@ describe("Stream A P3 runtime converter boundary", () => {
   it("reports source read failures as conversion errors with both paths", async () => {
     const sourcePath = path.join(tempRoot, "missing.md");
     const outputPath = path.join(tempRoot, "missing.pdf");
-    const convertFile = createConverter();
+    const convertFile = createConverter({
+      browserLocatorFactory: () => fakeLocator("/browser"),
+    });
 
     await expect(convertFile(sourcePath, outputPath)).rejects.toMatchObject({
       kind: "conversion",

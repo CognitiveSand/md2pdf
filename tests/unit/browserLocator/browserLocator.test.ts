@@ -256,6 +256,30 @@ describe("BrowserLocator installed browser scan", () => {
     });
   });
 
+  it("@req NFR-02 does not use fallback provisioning when an installed browser has an eligible driver", async () => {
+    const chromePath = absoluteTestPath("usr", "bin", "google-chrome");
+    const fallbackBrowserResolver = new TrackingFallbackBrowserResolver();
+    const locator = new BrowserLocator({
+      env: {},
+      candidatePaths: [chromePath],
+      fileSystem: fakeFileSystem({
+        [chromePath]: { executable: true },
+      }),
+      browserProbe: new FakeBrowserProbe(),
+      driverResolver: new FakeDriverResolver({
+        chromedriver: { artifactName: "chromedriver", driverPath: "/drivers/chromedriver" },
+      }),
+      fallbackBrowserResolver,
+    });
+
+    await expect(locator.locate()).resolves.toMatchObject({
+      browserPath: chromePath,
+      driverPath: "/drivers/chromedriver",
+      driverArtifactName: "chromedriver",
+    });
+    expect(fallbackBrowserResolver.calls).toBe(0);
+  });
+
   it("@req NFR-03 inspects a launchable browser only once when version is needed", async () => {
     const chromePath = absoluteTestPath("usr", "bin", "google-chrome");
     const browserProbe = new InspectingBrowserProbe({
@@ -622,6 +646,15 @@ class SuccessfulFallbackBrowserResolver implements FallbackBrowserResolver {
       driverPath: "/fallback/chromedriver",
       driverArtifactName: "chromedriver",
     };
+  }
+}
+
+class TrackingFallbackBrowserResolver implements FallbackBrowserResolver {
+  calls = 0;
+
+  async resolveFallbackBrowser(): Promise<LocatedBrowser | null> {
+    this.calls += 1;
+    return null;
   }
 }
 
