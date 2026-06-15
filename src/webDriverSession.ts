@@ -22,6 +22,7 @@ export interface WebDriverSessionFactory {
 }
 
 const defaultDriverStopTimeoutMs = 5_000;
+const readinessProbeTimeoutMs = 250;
 
 export class SpawnedWebDriverSessionFactory implements WebDriverSessionFactory {
   async start(browser: LocatedBrowser, options: ConvertOptions = {}): Promise<WebDriverSession> {
@@ -88,7 +89,7 @@ function driverArgs(browser: LocatedBrowser, port: number): string[] {
   return [`--port=${port}`, "--allowed-ips="];
 }
 
-async function waitForDriver(
+export async function waitForDriver(
   port: number,
   timeoutMs: number,
   child: ChildProcess,
@@ -100,22 +101,37 @@ async function waitForDriver(
       throw new Error("WebDriver process exited before accepting requests");
     }
 
-    if (await driverResponds(port)) {
+    const remainingMs = deadline - Date.now();
+    if (remainingMs <= 0) {
+      break;
+    }
+
+    if (await driverResponds(port, Math.min(readinessProbeTimeoutMs, remainingMs))) {
       return;
     }
 
-    await delay(50);
+    await delay(Math.min(50, Math.max(0, deadline - Date.now())));
   }
 
-  throw new Error("Timed out waiting for WebDriver readiness");
+  throw new Error("webdriver-readiness-timeout");
 }
 
-async function driverResponds(port: number): Promise<boolean> {
+async function driverResponds(port: number, timeoutMs: number): Promise<boolean> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => {
+    controller.abort(new Error("webdriver-readiness-probe-timeout"));
+  }, timeoutMs);
+  timeout.unref();
+
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/status`);
+    const response = await fetch(`http://127.0.0.1:${port}/status`, {
+      signal: controller.signal,
+    });
     return response.ok;
   } catch {
     return false;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 

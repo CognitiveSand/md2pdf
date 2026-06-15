@@ -3,7 +3,7 @@ import type { ChildProcess } from "node:child_process";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { SpawnedDriverProcess } from "../../../src/webDriverSession.js";
+import { SpawnedDriverProcess, waitForDriver } from "../../../src/webDriverSession.js";
 
 describe("SpawnedDriverProcess", () => {
   afterEach(() => {
@@ -32,6 +32,29 @@ describe("SpawnedDriverProcess", () => {
     expect(child.killSignals).toEqual([undefined, "SIGKILL"]);
     child.exit(null, "SIGKILL");
     await expect(stop).resolves.toBeUndefined();
+  });
+});
+
+describe("waitForDriver", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("@req FR-16 aborts a /status probe that accepts the connection but never responds", async () => {
+    vi.stubGlobal("fetch", (_url: string, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => {
+          reject(init.signal?.reason);
+        }, { once: true });
+      }));
+
+    const child = new FakeChildProcess();
+    const startedAt = Date.now();
+
+    await expect(
+      waitForDriver(12345, 100, child.asChildProcess()),
+    ).rejects.toThrow("webdriver-readiness-timeout");
+    expect(Date.now() - startedAt).toBeLessThan(1_000);
   });
 });
 
