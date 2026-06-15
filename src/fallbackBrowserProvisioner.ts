@@ -354,6 +354,10 @@ async function makeExecutablePaths(
   try {
     await chmod(browserPath, 0o755);
     await chmod(driverPath, 0o755);
+    // On macOS, .app bundles contain helper processes (GPU, Renderer, crashpad) that
+    // also require execute permission. ZIP extraction does not preserve the execute bit
+    // for these helpers, so chmod them recursively within the bundle.
+    await chmodAppBundleContents(browserPath);
   } catch (cause) {
     if (isPermissionError(cause)) {
       throw cacheNotWritableError(artifactName, cacheDir);
@@ -361,6 +365,33 @@ async function makeExecutablePaths(
 
     throw missingExecutableError(artifactName);
   }
+}
+
+async function chmodAppBundleContents(browserPath: string): Promise<void> {
+  const match = /^(.+\.app)\//u.exec(browserPath);
+  if (match === null) {
+    return;
+  }
+
+  await chmodDirectoryExecutable(match[1]);
+}
+
+async function chmodDirectoryExecutable(dirPath: string): Promise<void> {
+  let entries;
+  try {
+    entries = await readdir(dirPath, { withFileTypes: true });
+  } catch {
+    return;
+  }
+
+  await Promise.all(entries.map(async (entry) => {
+    const fullPath = join(dirPath, entry.name);
+    if (entry.isDirectory()) {
+      await chmodDirectoryExecutable(fullPath);
+    } else if (entry.isFile()) {
+      await chmod(fullPath, 0o755).catch(() => undefined);
+    }
+  }));
 }
 
 function executablePaths(

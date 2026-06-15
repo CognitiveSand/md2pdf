@@ -143,10 +143,10 @@ export class DocumentConverter {
       await this.fileSystem.access(sourcePath);
     } catch (cause) {
       throw new ConversionError({
-        message: "Markdown source could not be read during conversion",
+        message: "Markdown source does not exist or is not accessible",
         sourcePath,
         outputPath,
-        actionHint: "Check that the Markdown source still exists and is readable.",
+        actionHint: "Check that the Markdown source file exists at the specified path.",
         cause,
       });
     }

@@ -11,7 +11,7 @@ import {
   type BrowserLocatorLike,
   type WebDriverSessionFactory,
 } from "../../../src/converter.js";
-import { ConversionError, RenderError } from "../../../src/errors.js";
+import { RenderError } from "../../../src/errors.js";
 
 let tempRoot: string;
 
@@ -83,7 +83,7 @@ describe("Stream A P3 runtime converter boundary", () => {
     await expect(convertFile(sourcePath, outputPath)).rejects.toMatchObject({
       kind: "conversion",
       context: {
-        message: "Markdown source could not be read during conversion",
+        message: "Markdown source does not exist or is not accessible",
         sourcePath,
         outputPath,
       },
@@ -106,7 +106,7 @@ describe("Stream A P3 runtime converter boundary", () => {
     await expect(convertFile(sourcePath, outputPath)).rejects.toMatchObject({
       kind: "conversion",
       context: {
-        message: "Markdown source could not be read during conversion",
+        message: "Markdown source does not exist or is not accessible",
         sourcePath,
         outputPath,
       },

@@ -11,6 +11,17 @@ import { provisionFallbackBrowser } from "../../src/fallbackBrowserProvisioner.j
 import { JsonReleaseCatalog } from "../../src/releaseCatalog.js";
 
 const skipRealBrowserTests = process.env.MD2PDF_SKIP_REAL_BROWSER_TESTS === "1";
+// When real browser tests are skipped, a sentinel test fails explicitly so the gate
+// cannot be marked green without actually running the browser-backed conversions.
+if (skipRealBrowserTests) {
+  it("@req NFR-02 [GATE] real browser tests must not be skipped in the test:browser suite", () => {
+    throw new Error(
+      "MD2PDF_SKIP_REAL_BROWSER_TESTS=1 is set: real browser tests were skipped. " +
+      "This is not a valid gate result for phase 5. Remove the env var and ensure " +
+      "a darwin-arm64 or win32-x64 Chromium artifact is declared in artifacts.json.",
+    );
+  });
+}
 const realBrowserIt = skipRealBrowserTests ? it.skip : it;
 
 describe("P3 browser-backed conversion", () => {

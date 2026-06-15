@@ -32,7 +32,7 @@
       "kind": "runtime-provisioned-browser",
       "source": "Chrome for Testing",
       "provenance": "Chrome for Testing known-good-versions-with-downloads catalog and immutable Google Cloud Storage archive",
-      "comparisonSource": "https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json checked on 2026-06-15; win64 151.0.7881.0 is newer than 151.0.7875.0 and completed quarantine, while 151.0.7882.0 had not.",
+      "comparisonSource": "https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json checked on 2026-06-15; 151.0.7881.0 is the newest version available for both win64 and mac-arm64 that completed quarantine.",
       "releases": [
         {
           "version": "151.0.7881.0",
@@ -43,6 +43,16 @@
           "size": 195240482,
           "browserPath": "chrome-win64/chrome.exe",
           "driverPath": "chromedriver-win64/chromedriver.exe"
+        },
+        {
+          "version": "151.0.7881.0",
+          "publishedAt": "2026-06-08T06:00:37.000Z",
+          "platform": "darwin-arm64",
+          "url": "https://storage.googleapis.com/chrome-for-testing-public/151.0.7881.0/mac-arm64/chrome-mac-arm64.zip",
+          "sha256": "2caadabcfffb7b2005cff56fa1caba6e73c0c8c0888076e87e5928821e7fbf80",
+          "size": 180624336,
+          "browserPath": "chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
+          "driverPath": "chromedriver-mac-arm64/chromedriver"
         }
       ]
     },
@@ -51,7 +61,7 @@
       "kind": "runtime-provisioned-webdriver",
       "source": "Chrome for Testing",
       "provenance": "Chrome for Testing known-good-versions-with-downloads catalog and immutable Google Cloud Storage archive",
-      "comparisonSource": "https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json checked on 2026-06-15; win64 151.0.7881.0 is the newest eligible ChromeDriver matching the fallback browser.",
+      "comparisonSource": "https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json checked on 2026-06-15; 151.0.7881.0 is the newest eligible ChromeDriver matching the fallback browser for both win64 and mac-arm64.",
       "releases": [
         {
           "version": "151.0.7881.0",
@@ -61,6 +71,15 @@
           "url": "https://storage.googleapis.com/chrome-for-testing-public/151.0.7881.0/win64/chromedriver-win64.zip",
           "sha256": "766efed7d9c6a3aa89733d59b64316849775002bdde7e247318c8129bbd6d747",
           "size": 19122110
+        },
+        {
+          "version": "151.0.7881.0",
+          "compatibleWith": "151.0.7881.0",
+          "publishedAt": "2026-06-08T06:00:39.000Z",
+          "platform": "darwin-arm64",
+          "url": "https://storage.googleapis.com/chrome-for-testing-public/151.0.7881.0/mac-arm64/chromedriver-mac-arm64.zip",
+          "sha256": "0bfbda9352bbae72755b463f656a6f335481bc02be1ba8edfe1fb74a08ce0d7b",
+          "size": 8877547
         }
       ]
     },

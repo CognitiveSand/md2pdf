@@ -6,7 +6,7 @@ export default defineConfig({
     exclude: ['tests/integration/real-browser-mermaid.test.ts'],
     environment: 'node',
     testTimeout: 60_000,
-    hookTimeout: 30_000,
+    hookTimeout: 300_000,
     reporters: ['verbose'],
   },
 });

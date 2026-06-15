@@ -417,9 +417,16 @@ for browser-less hosts (negative). *Status:* accepted.
   request interception, local-only rendering relies on inlined assets, `file:`
   loading, and offline/no-proxy browser launch. This risk concerns conversion
   only; provisioning is a separate pre-conversion artifact-policy concern.
-  *Mitigation:* a test asserting no external URLs in the assembled HTML and a
+  *Mitigation:* a test asserting no external URLs in the assembled HTML; a
   real browser-backed conversion test from a pre-provisioned browser/driver
-  state (NFR-02).
+  state (NFR-02); browser launched with `--no-proxy-server` and
+  `--proxy-server=direct://` flags. *Verified limit:* no network-level stub is
+  applied during the browser-backed tests — the offline guarantee for the browser
+  process itself (post-launch) relies on these flags and is not intercepted at the
+  test layer. The provisioner (`ArtifactPolicyFallbackBrowserResolver`) is
+  bypassed entirely in the pre-provisioned test path via `browserLocatorFactory`
+  injection, so no outbound connection can occur through the provisioning layer
+  during conversion.
 - **R-4 — Inlined engine/asset version drift.** The Mermaid engine and
   highlight.js are pinned dependencies updated deliberately. *Mitigation:* pin in
   `package.json`; treat updates as scoped dependency changes.
