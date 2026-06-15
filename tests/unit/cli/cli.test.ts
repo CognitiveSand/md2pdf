@@ -240,6 +240,36 @@ describe("Stream A P1 CLI", () => {
     expect(stderr.toString()).toContain("hint: check that missing.md exists and is readable");
   });
 
+  it("@req FR-15 @req FR-17 returns exit 1 when the output parent is not writable", async () => {
+    await writeFile("source.md");
+    const stdout = new MemoryWriter();
+    const stderr = new MemoryWriter();
+    const calls: string[] = [];
+    const outputPath = path.join(tempRoot, "locked", "source.pdf");
+    const access = vi.spyOn(fs, "access").mockImplementation(async (target) => {
+      if (canonicalTestPath(String(target)) === canonicalTestPath(path.join(tempRoot, "locked"))) {
+        throw Object.assign(new Error("permission denied"), { code: "EACCES" });
+      }
+    });
+
+    try {
+      const exitCode = await main(
+        ["--output-dir", "locked", "source.md"],
+        fakeIo(stdout, stderr, tempRoot),
+        { convertFile: recordingConverter(calls) },
+      );
+
+      expect(exitCode).toBe(1);
+      expect(calls).toEqual([]);
+      expect(stdout.toString()).toBe("");
+      expect(stderr.toString()).toContain("[conversion] output directory is not writable");
+      expect(stderr.toString()).toContain(`output: ${outputPath}`);
+      expect(stderr.toString()).toContain("hint: check output directory permissions");
+    } finally {
+      access.mockRestore();
+    }
+  });
+
   it("@req FR-15 @req FR-17 returns exit 2 for unreadable directory inputs", async () => {
     await fs.mkdir(path.join(tempRoot, "locked"));
     const stdout = new MemoryWriter();
@@ -491,4 +521,9 @@ async function writeFile(relativePath: string): Promise<void> {
   const fullPath = path.join(tempRoot, relativePath);
   await fs.mkdir(path.dirname(fullPath), { recursive: true });
   await fs.writeFile(fullPath, "# title\n", "utf8");
+}
+
+function canonicalTestPath(filePath: string): string {
+  const normalized = path.normalize(filePath);
+  return path.sep === "\\" ? normalized.toLowerCase() : normalized;
 }
