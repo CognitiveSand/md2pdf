@@ -73,6 +73,7 @@ export interface ArtifactPolicyDriverResolverOptions {
   catalog: ReleaseCatalog;
   now?: Date;
   quarantineDays?: number;
+  platform?: string;
   fileSystem?: BrowserLocatorFileSystem;
 }
 
@@ -108,24 +109,6 @@ const POSIX_BROWSER_NAMES = [
   "vivaldi",
   "vivaldi-stable",
 ];
-
-export async function locateBrowser(explicitBrowserPath?: string): Promise<string> {
-  if (explicitBrowserPath !== undefined && explicitBrowserPath.trim() !== "") {
-    return requireExecutable(explicitBrowserPath, "configured browser path is not usable");
-  }
-
-  for (const candidate of browserCandidates()) {
-    if (await isUsableExecutable(candidate)) {
-      return candidate;
-    }
-  }
-
-  throw new BrowserNotFoundError({
-    message: "No supported browser executable was found",
-    actionHint:
-      "Install a Chromium-family browser, or set MD2PDF_BROWSER to a browser executable path.",
-  });
-}
 
 export class BrowserLocator {
   private readonly env: Record<string, string | undefined>;
@@ -322,6 +305,7 @@ export class ArtifactPolicyDriverResolver implements BrowserDriverResolver {
   private readonly catalog: ReleaseCatalog;
   private readonly now: Date;
   private readonly quarantineDays: number;
+  private readonly platform: string | undefined;
   private readonly fileSystem: BrowserLocatorFileSystem;
 
   constructor(options: ArtifactPolicyDriverResolverOptions) {
@@ -329,6 +313,7 @@ export class ArtifactPolicyDriverResolver implements BrowserDriverResolver {
     this.catalog = options.catalog;
     this.now = options.now ?? new Date();
     this.quarantineDays = options.quarantineDays ?? 7;
+    this.platform = options.platform;
     this.fileSystem = options.fileSystem ?? nodeFileSystem;
   }
 
@@ -340,6 +325,7 @@ export class ArtifactPolicyDriverResolver implements BrowserDriverResolver {
         await this.catalog.listReleases(artifactName),
         {
           quarantineDays: this.quarantineDays,
+          platform: this.platform,
           ...driverCompatibilityConstraint(browser),
         },
         this.now,
@@ -478,39 +464,6 @@ async function requireExecutable(path: string, message: string): Promise<string>
     actionHint: "Check MD2PDF_BROWSER or pass an existing browser executable path.",
     cause: path,
   });
-}
-
-function browserCandidates(): string[] {
-  return process.platform === "win32" ? windowsCandidates(process.env) : posixCandidates();
-}
-
-function windowsCandidates(env: Record<string, string | undefined>): string[] {
-  const candidates: string[] = [];
-
-  for (const [envName, ...parts] of WINDOWS_BROWSER_PATHS) {
-    const root = env[envName] ?? env[envName.toUpperCase()];
-    if (root !== undefined && root !== "") {
-      candidates.push(join(root, ...parts));
-    }
-  }
-
-  candidates.push(
-    ...pathCandidates(["msedge.exe", "chrome.exe", "chromium.exe", "brave.exe", "vivaldi.exe"]),
-  );
-
-  return candidates;
-}
-
-function posixCandidates(): string[] {
-  return pathCandidates(POSIX_BROWSER_NAMES);
-}
-
-function pathCandidates(names: string[]): string[] {
-  const path = process.env.PATH ?? "";
-  return path
-    .split(delimiter)
-    .filter(Boolean)
-    .flatMap((directory) => names.map((name) => join(directory, name)));
 }
 
 async function isUsableExecutable(path: string): Promise<boolean> {

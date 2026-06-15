@@ -32,7 +32,7 @@
       "kind": "runtime-provisioned-browser",
       "source": "Chrome for Testing",
       "provenance": "Chrome for Testing known-good-versions-with-downloads catalog and immutable Google Cloud Storage archive",
-      "comparisonSource": "https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json checked on 2026-06-15; 151.0.7881.0 is the newest version available for both win64 and mac-arm64 that completed quarantine.",
+      "comparisonSource": "https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json checked on 2026-06-15; 151.0.7881.0 is the newest version available for win64, mac-arm64, and linux64 that completed quarantine.",
       "releases": [
         {
           "version": "151.0.7881.0",
@@ -53,6 +53,16 @@
           "size": 180624336,
           "browserPath": "chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
           "driverPath": "chromedriver-mac-arm64/chromedriver"
+        },
+        {
+          "version": "151.0.7881.0",
+          "publishedAt": "2026-06-08T04:33:09.000Z",
+          "platform": "linux-x64",
+          "url": "https://storage.googleapis.com/chrome-for-testing-public/151.0.7881.0/linux64/chrome-linux64.zip",
+          "sha256": "233070f6b438a12011824b4d09c05a58484410e0f4de0f0e5c8d9e9df2fa39a2",
+          "size": 187449737,
+          "browserPath": "chrome-linux64/chrome",
+          "driverPath": "chromedriver-linux64/chromedriver"
         }
       ]
     },
@@ -61,7 +71,7 @@
       "kind": "runtime-provisioned-webdriver",
       "source": "Chrome for Testing",
       "provenance": "Chrome for Testing known-good-versions-with-downloads catalog and immutable Google Cloud Storage archive",
-      "comparisonSource": "https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json checked on 2026-06-15; 151.0.7881.0 is the newest eligible ChromeDriver matching the fallback browser for both win64 and mac-arm64.",
+      "comparisonSource": "https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json checked on 2026-06-15; 151.0.7881.0 is the newest eligible ChromeDriver matching the fallback browser for win64, mac-arm64, and linux64.",
       "releases": [
         {
           "version": "151.0.7881.0",
@@ -80,6 +90,15 @@
           "url": "https://storage.googleapis.com/chrome-for-testing-public/151.0.7881.0/mac-arm64/chromedriver-mac-arm64.zip",
           "sha256": "0bfbda9352bbae72755b463f656a6f335481bc02be1ba8edfe1fb74a08ce0d7b",
           "size": 8877547
+        },
+        {
+          "version": "151.0.7881.0",
+          "compatibleWith": "151.0.7881.0",
+          "publishedAt": "2026-06-08T04:33:12.000Z",
+          "platform": "linux-x64",
+          "url": "https://storage.googleapis.com/chrome-for-testing-public/151.0.7881.0/linux64/chromedriver-linux64.zip",
+          "sha256": "d9e12133a8af192f8a28f2ef0d86ac54f7458c71e28bddf95947d5636472d508",
+          "size": 11043887
         }
       ]
     },
@@ -88,7 +107,7 @@
       "kind": "runtime-provisioned-webdriver",
       "source": "Mozilla geckodriver",
       "provenance": "GitHub releases API for mozilla/geckodriver and immutable release asset URL",
-      "comparisonSource": "https://api.github.com/repos/mozilla/geckodriver/releases/latest checked on 2026-06-15; v0.37.0 was published on 2026-06-03 and had completed quarantine.",
+      "comparisonSource": "https://api.github.com/repos/mozilla/geckodriver/releases/tags/v0.37.0 checked on 2026-06-15; v0.37.0 was published on 2026-06-03 and had completed quarantine. Checksums sourced from GitHub release asset metadata.",
       "releases": [
         {
           "version": "0.37.0",
@@ -97,6 +116,22 @@
           "url": "https://github.com/mozilla/geckodriver/releases/download/v0.37.0/geckodriver-v0.37.0-win64.zip",
           "sha256": "9ae5cb90ea9364cd385bb8313b57699e090bbec7c92af4bd65a79d6d8bbc3036",
           "size": 1808312
+        },
+        {
+          "version": "0.37.0",
+          "publishedAt": "2026-06-03T11:15:15.000Z",
+          "platform": "darwin-arm64",
+          "url": "https://github.com/mozilla/geckodriver/releases/download/v0.37.0/geckodriver-v0.37.0-macos-aarch64.tar.gz",
+          "sha256": "369165b614164f8adc43d8e017f55fe1ced208afe474be2f0cc1c01fc6529725",
+          "size": 4274460
+        },
+        {
+          "version": "0.37.0",
+          "publishedAt": "2026-06-03T11:15:15.000Z",
+          "platform": "linux-x64",
+          "url": "https://github.com/mozilla/geckodriver/releases/download/v0.37.0/geckodriver-v0.37.0-linux64.tar.gz",
+          "sha256": "90d4e33bd9816684400c160d1309aaffec23a3f65103511d5a62d8501062e548",
+          "size": 2377632
         }
       ]
     }

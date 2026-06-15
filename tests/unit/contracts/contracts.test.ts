@@ -11,7 +11,6 @@ import {
   UsageError,
 } from "../../../src/errors.js";
 import {
-  convertFile,
   type ConversionJob,
   type ConversionOutcome,
   type ConvertOptions,
@@ -36,7 +35,6 @@ describe("C0 shared contract exports", () => {
     expect(BrowserNotFoundError).toBeTypeOf("function");
     expect(ArtifactFreshnessError).toBeTypeOf("function");
     expect(formatError).toBeTypeOf("function");
-    expect(convertFile).toBeTypeOf("function");
     expect(ArtifactPolicy).toBeTypeOf("function");
     expect(provisionFallbackBrowser).toBeTypeOf("function");
   });

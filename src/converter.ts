@@ -275,7 +275,7 @@ function defaultBrowserLocatorFactory(options: ConvertOptions): BrowserLocatorLi
 
   return new BrowserLocator({
     env,
-    driverResolver: new ArtifactPolicyDriverResolver({ policy, catalog }),
+    driverResolver: new ArtifactPolicyDriverResolver({ policy, catalog, platform: `${process.platform}-${process.arch}` }),
     fallbackBrowserResolver: new ArtifactPolicyFallbackBrowserResolver(policy, catalog),
   });
 }

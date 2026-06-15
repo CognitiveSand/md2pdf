@@ -18,11 +18,3 @@ export interface ConversionOutcome extends ConversionJob {
   error?: Md2PdfError;
 }
 
-export async function convertFile(
-  sourcePath: string,
-  outputPath: string,
-  options?: ConvertOptions,
-): Promise<void> {
-  const converter = await import("./converter.js");
-  await converter.convertFile(sourcePath, outputPath, options);
-}
