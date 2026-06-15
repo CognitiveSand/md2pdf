@@ -59,7 +59,7 @@ describe("P3-8 DocumentConverter", () => {
     expect(htmlDuringRender).toContain("<h1>Title</h1>");
     expect(htmlDuringRender).toContain('class="mermaid"');
     expect(driverStopped).toBe(true);
-    expect(order).toEqual(["locate", "read", "start", "print", "mkdir", "write", "rename"]);
+    expect(order).toEqual(["access", "locate", "read", "start", "print", "mkdir", "write", "rename"]);
   });
 
   it("@req NFR-01 converts without any options or config file", async () => {
@@ -131,6 +131,53 @@ describe("P3-8 DocumentConverter", () => {
     expect(order.indexOf("locate")).toBeLessThan(order.indexOf("read"));
   });
 
+  it("@req NFR-02 converts from a pre-provisioned browser without invoking fallback provisioning", async () => {
+    const tempRoot = await createTempRoot(tempRoots);
+    const sourcePath = join(tempRoot, "private.md");
+    const outputPath = join(tempRoot, "private.pdf");
+    const order: string[] = [];
+    const preProvisionedBrowser: LocatedBrowser = {
+      browserPath: "/pre-provisioned/chrome",
+      displayName: "Pre-provisioned Chrome",
+      driverArtifactName: "chromedriver",
+      driverPath: "/pre-provisioned/chromedriver",
+      kind: "chrome",
+      version: "151.0.7881.0",
+    };
+
+    await writeFile(sourcePath, "# Private\n\nSensitive content.\n", "utf8");
+
+    const converter = new DocumentConverter({
+      browserLocatorFactory: () => ({
+        async locate() {
+          order.push("locate-pre-provisioned");
+          return preProvisionedBrowser;
+        },
+      }),
+      fileSystem: recordingFileSystem(order),
+      tempDir: tempRoot,
+      webdriverSessionFactory: fakeSessionFactory(order),
+      printPdf: async ({ browser }) => {
+        order.push("print");
+        expect(browser).toBe(preProvisionedBrowser);
+        return pdfBytes;
+      },
+    });
+
+    await converter.convertFile(sourcePath, outputPath);
+
+    expect(order).toEqual([
+      "access",
+      "locate-pre-provisioned",
+      "read",
+      "start",
+      "print",
+      "mkdir",
+      "write",
+      "rename",
+    ]);
+  });
+
   it("@req NFR-02 does not read Markdown when browser provisioning fails", async () => {
     const tempRoot = await createTempRoot(tempRoots);
     const sourcePath = join(tempRoot, "private.md");
@@ -155,7 +202,7 @@ describe("P3-8 DocumentConverter", () => {
     await expect(converter.convertFile(sourcePath, outputPath)).rejects.toThrow(
       "no eligible browser artifact",
     );
-    expect(order).toEqual(["locate"]);
+    expect(order).toEqual(["access", "locate"]);
   });
 
   it("@req FR-16 stops the driver process when the render timeout fires", async () => {
@@ -295,6 +342,11 @@ function fakeSessionFactory(
 
 function recordingFileSystem(order: string[]): ConverterFileSystem {
   return {
+    async access(path) {
+      order.push("access");
+      const fs = await import("node:fs/promises");
+      return fs.access(path);
+    },
     async mkdir(path, options) {
       order.push("mkdir");
       const fs = await import("node:fs/promises");

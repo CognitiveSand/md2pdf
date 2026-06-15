@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { basename, dirname, join, resolve } from "node:path";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 
 import { ArtifactPolicy } from "./artifactPolicy.js";
 import {
@@ -31,6 +31,7 @@ export interface BrowserLocatorLike {
 }
 
 export interface ConverterFileSystem {
+  access(path: string): Promise<void>;
   mkdir(path: string, options: { recursive: true }): Promise<unknown>;
   readFile(path: string, encoding: BufferEncoding): Promise<string>;
   rename(oldPath: string, newPath: string): Promise<void>;
@@ -55,6 +56,7 @@ export type ConvertFile = (
 const defaultRenderTimeoutMs = 30_000;
 
 const nodeFileSystem: ConverterFileSystem = {
+  access,
   mkdir,
   readFile,
   rename,
@@ -100,6 +102,7 @@ export class DocumentConverter {
     const absoluteSourcePath = resolve(sourcePath);
     const absoluteOutputPath = resolve(outputPath);
     const renderTimeoutMs = options.renderTimeoutMs ?? defaultRenderTimeoutMs;
+    await this.assertSourceAccessible(absoluteSourcePath, absoluteOutputPath);
     const browser = await this.browserLocatorFactory(options).locate();
     let markdown: string;
     try {
@@ -133,6 +136,20 @@ export class DocumentConverter {
     );
 
     await this.writePdfAtomically(absoluteOutputPath, pdf, sourcePath);
+  }
+
+  private async assertSourceAccessible(sourcePath: string, outputPath: string): Promise<void> {
+    try {
+      await this.fileSystem.access(sourcePath);
+    } catch (cause) {
+      throw new ConversionError({
+        message: "Markdown source could not be read during conversion",
+        sourcePath,
+        outputPath,
+        actionHint: "Check that the Markdown source still exists and is readable.",
+        cause,
+      });
+    }
   }
 
   private async printWithSpawnedDriver(

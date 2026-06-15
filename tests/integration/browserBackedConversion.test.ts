@@ -4,7 +4,11 @@ import { join } from "node:path";
 
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
+import { ArtifactPolicy } from "../../src/artifactPolicy.js";
+import type { LocatedBrowser } from "../../src/browserLocator.js";
 import { DocumentConverter } from "../../src/converter.js";
+import { provisionFallbackBrowser } from "../../src/fallbackBrowserProvisioner.js";
+import { JsonReleaseCatalog } from "../../src/releaseCatalog.js";
 
 const skipRealBrowserTests = process.env.MD2PDF_SKIP_REAL_BROWSER_TESTS === "1";
 const realBrowserIt = skipRealBrowserTests ? it.skip : it;
@@ -12,14 +16,30 @@ const realBrowserIt = skipRealBrowserTests ? it.skip : it;
 describe("P3 browser-backed conversion", () => {
   const tempRoots: string[] = [];
   let previousArtifactCache: string | undefined;
+  let preProvisionedBrowser: LocatedBrowser | undefined;
 
-  beforeAll(() => {
+  beforeAll(async () => {
     previousArtifactCache = process.env.MD2PDF_ARTIFACT_CACHE;
     process.env.MD2PDF_ARTIFACT_CACHE ??= join(
       process.cwd(),
       ".tmp",
       "md2pdf-real-browser-cache",
     );
+
+    if (!skipRealBrowserTests) {
+      const fallback = await provisionFallbackBrowser(
+        new ArtifactPolicy(),
+        new JsonReleaseCatalog(),
+      );
+      preProvisionedBrowser = {
+        browserPath: fallback.browserPath,
+        displayName: "Chromium",
+        driverArtifactName: "chromedriver",
+        driverPath: fallback.driverPath,
+        kind: "chromium",
+        version: fallback.release.version,
+      };
+    }
   });
 
   afterEach(async () => {
@@ -75,9 +95,8 @@ describe("P3 browser-backed conversion", () => {
         "utf8",
       );
 
-      const converter = new DocumentConverter({
-        tempDir: tempRoot,
-      });
+      const locateCalls: string[] = [];
+      const converter = preProvisionedConverter(tempRoot, locateCalls);
 
       await converter.convertFile(sourcePath, outputPath, {
         renderTimeoutMs: Number(process.env.MD2PDF_BROWSER_TEST_TIMEOUT_MS ?? 30_000),
@@ -92,6 +111,7 @@ describe("P3 browser-backed conversion", () => {
       expect(pdfText).not.toContain("A[Start] --> B[Finish]");
       expect(pdfText).toContain("Skia/PDF");
       expect(pdfText).toContain("/StructTreeRoot");
+      expect(locateCalls).toEqual(["pre-provisioned"]);
     },
     60_000,
   );
@@ -130,9 +150,8 @@ describe("P3 browser-backed conversion", () => {
         "utf8",
       );
 
-      const converter = new DocumentConverter({
-        tempDir: tempRoot,
-      });
+      const locateCalls: string[] = [];
+      const converter = preProvisionedConverter(tempRoot, locateCalls);
 
       await converter.convertFile(sourcePath, outputPath, {
         renderTimeoutMs: Number(process.env.MD2PDF_BROWSER_TEST_TIMEOUT_MS ?? 30_000),
@@ -147,9 +166,27 @@ describe("P3 browser-backed conversion", () => {
       expect(pdfText).toContain("/S /Table");
       expect(pdfText).toContain("/Alt (pixel)");
       expect(pdfContainsVisualObject(pdfText)).toBe(true);
+      expect(locateCalls).toEqual(["pre-provisioned"]);
     },
     60_000,
   );
+
+  function preProvisionedConverter(tempDir: string, locateCalls: string[]): DocumentConverter {
+    const browser = preProvisionedBrowser;
+    if (browser === undefined) {
+      throw new Error("Real browser tests require a pre-provisioned browser");
+    }
+
+    return new DocumentConverter({
+      browserLocatorFactory: () => ({
+        async locate() {
+          locateCalls.push("pre-provisioned");
+          return browser;
+        },
+      }),
+      tempDir,
+    });
+  }
 });
 
 function pdfContainsVisualObject(pdfText: string): boolean {

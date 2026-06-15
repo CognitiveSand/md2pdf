@@ -396,8 +396,10 @@ function browserCapabilities(
       binary: browserPath,
       args: [
         "--headless=new",
+        "--remote-debugging-pipe",
         "--disable-background-networking",
         "--disable-dev-shm-usage",
+        "--no-sandbox",
         "--no-proxy-server",
         "--proxy-server=direct://",
         "--proxy-bypass-list=*",

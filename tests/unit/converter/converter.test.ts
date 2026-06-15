@@ -89,6 +89,30 @@ describe("Stream A P3 runtime converter boundary", () => {
       },
     });
   });
+
+  it("@req NFR-02 reports a missing source without entering browser provisioning", async () => {
+    const sourcePath = path.join(tempRoot, "missing.md");
+    const outputPath = path.join(tempRoot, "missing.pdf");
+    let locatorCalled = false;
+    const convertFile = createConverter({
+      browserLocatorFactory: () => ({
+        async locate() {
+          locatorCalled = true;
+          throw new Error("browser provisioning should not run for a missing source");
+        },
+      }),
+    });
+
+    await expect(convertFile(sourcePath, outputPath)).rejects.toMatchObject({
+      kind: "conversion",
+      context: {
+        message: "Markdown source could not be read during conversion",
+        sourcePath,
+        outputPath,
+      },
+    });
+    expect(locatorCalled).toBe(false);
+  });
 });
 
 function fakeLocator(browserPath: string): BrowserLocatorLike {

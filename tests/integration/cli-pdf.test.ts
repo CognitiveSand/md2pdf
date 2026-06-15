@@ -389,6 +389,9 @@ async function fakePrintPdf(options: WebDriverPrintOptions): Promise<Buffer> {
 
 function fakeFileSystem(): ConverterFileSystem {
   return {
+    async access(filePath) {
+      return fs.access(filePath);
+    },
     async mkdir(filePath, options) {
       if (process.env.MD2PDF_FAKE_BROWSER_REPLACE_PARENT_WITH_FILE === "1") {
         const finalOutput = process.env.MD2PDF_FAKE_FINAL_OUTPUT;

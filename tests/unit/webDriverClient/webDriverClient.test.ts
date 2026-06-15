@@ -46,7 +46,9 @@ describe("printPdfWithWebDriver", () => {
           "goog:chromeOptions": {
             args: expect.arrayContaining([
               "--headless=new",
+              "--remote-debugging-pipe",
               "--disable-dev-shm-usage",
+              "--no-sandbox",
               "--no-proxy-server",
               "--proxy-server=direct://",
               expect.stringMatching(/^--user-data-dir=.+/u),
