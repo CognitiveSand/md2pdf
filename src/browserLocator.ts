@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import { access, readFile, realpath as fsRealpath, stat } from "node:fs/promises";
-import { basename, delimiter, extname, isAbsolute, join, resolve } from "node:path";
+import { basename, delimiter, extname, join, resolve } from "node:path";
 
 import {
   type ArtifactPolicy,
@@ -453,31 +453,6 @@ const nodeBrowserProbe: BrowserProbe = {
     }
   },
 };
-
-async function requireExecutable(path: string, message: string): Promise<string> {
-  if (await isUsableExecutable(path)) {
-    return path;
-  }
-
-  throw new BrowserNotFoundError({
-    message,
-    actionHint: "Check MD2PDF_BROWSER or pass an existing browser executable path.",
-    cause: path,
-  });
-}
-
-async function isUsableExecutable(path: string): Promise<boolean> {
-  if (!isAbsolute(path) && !path.includes("/") && !path.includes("\\")) {
-    return false;
-  }
-
-  try {
-    await access(path, process.platform === "win32" ? constants.F_OK : constants.X_OK);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 function locatedBrowser(candidate: BrowserCandidate, driver: LocatedDriver): LocatedBrowser {
   return {

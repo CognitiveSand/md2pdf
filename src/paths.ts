@@ -2,7 +2,7 @@ import { promises as fs, type Dirent } from "node:fs";
 import { constants as fsConstants } from "node:fs";
 import path from "node:path";
 
-import type { ConversionJob } from "./contracts.js";
+import type { ConversionJob, ConversionOutcome } from "./contracts.js";
 import { ConversionError, InputNotFoundError, UsageError } from "./errors.js";
 
 export interface ResolveJobsOptions {
@@ -16,18 +16,37 @@ interface ResolvedSource {
   originEntry: string;
 }
 
+export interface ResolvedConversionPlan {
+  jobs: ConversionJob[];
+  failures: ConversionOutcome[];
+}
+
 export async function resolveConversionJobs(
   entries: string[],
   options: ResolveJobsOptions,
 ): Promise<ConversionJob[]> {
+  const plan = await resolveConversionPlan(entries, options);
+  const firstFailure = plan.failures[0];
+
+  if (firstFailure?.error !== undefined) {
+    throw firstFailure.error;
+  }
+
+  return plan.jobs;
+}
+
+export async function resolveConversionPlan(
+  entries: string[],
+  options: ResolveJobsOptions,
+): Promise<ResolvedConversionPlan> {
   validateResolveOptions(entries, options);
 
-  const sources = await resolveSources(entries, options.cwd);
+  const { sources, failures } = await resolveSources(entries, options);
   const jobs = createJobs(sources, options);
   validateJobs(jobs);
   await createOutputParents(jobs);
 
-  return jobs;
+  return { jobs, failures };
 }
 
 export function isMarkdownPath(filePath: string): boolean {
@@ -50,14 +69,27 @@ function validateResolveOptions(entries: string[], options: ResolveJobsOptions):
   }
 }
 
-async function resolveSources(entries: string[], cwd: string): Promise<ResolvedSource[]> {
+async function resolveSources(
+  entries: string[],
+  options: ResolveJobsOptions,
+): Promise<{ sources: ResolvedSource[]; failures: ConversionOutcome[] }> {
   const sources: ResolvedSource[] = [];
+  const failures: ConversionOutcome[] = [];
 
   for (const entry of entries) {
-    sources.push(...(await resolveEntry(entry, cwd)));
+    try {
+      sources.push(...(await resolveEntry(entry, options.cwd)));
+    } catch (error) {
+      if (error instanceof InputNotFoundError) {
+        failures.push(failedInputOutcome(entry, options, error));
+        continue;
+      }
+
+      throw error;
+    }
   }
 
-  return sources;
+  return { sources, failures };
 }
 
 async function resolveEntry(entry: string, cwd: string): Promise<ResolvedSource[]> {
@@ -154,6 +186,22 @@ function resolveOutputPath(sourcePath: string, options: ResolveJobsOptions): str
   }
 
   return path.join(path.dirname(sourcePath), outputFileName);
+}
+
+function failedInputOutcome(
+  entry: string,
+  options: ResolveJobsOptions,
+  error: InputNotFoundError,
+): ConversionOutcome {
+  const sourcePath = error.context.sourcePath ?? path.resolve(options.cwd, entry);
+
+  return {
+    sourcePath,
+    outputPath: resolveOutputPath(sourcePath, options),
+    originEntry: entry,
+    status: "failed",
+    error,
+  };
 }
 
 function validateJobs(jobs: ConversionJob[]): void {

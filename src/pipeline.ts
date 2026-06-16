@@ -18,7 +18,7 @@ import {
   type OverwritePromptIo,
 } from "./overwrite.js";
 import {
-  resolveConversionJobs,
+  resolveConversionPlan,
   type ResolveJobsOptions,
 } from "./paths.js";
 
@@ -44,9 +44,11 @@ export class ConversionPipeline {
   constructor(private readonly convertFile: ConvertFile) {}
 
   async run(options: ConversionPipelineOptions): Promise<ConversionOutcome[]> {
-    const jobs = await resolveConversionJobs(options.entries, options);
+    const plan = await resolveConversionPlan(options.entries, options);
+    const outcomes = [...plan.failures];
 
-    return this.convertJobs(jobs, options);
+    outcomes.push(...await this.convertJobs(plan.jobs, options));
+    return outcomes;
   }
 
   private async convertJobs(

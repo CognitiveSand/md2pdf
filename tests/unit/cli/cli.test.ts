@@ -235,7 +235,7 @@ describe("Stream A P1 CLI", () => {
     });
   });
 
-  it("@req FR-17 returns exit 2 for preflight input errors before printing a summary", async () => {
+  it("@req FR-15 @req FR-17 returns exit 1 and a summary for missing input entries", async () => {
     const stdout = new MemoryWriter();
     const stderr = new MemoryWriter();
     const calls: string[] = [];
@@ -246,12 +246,33 @@ describe("Stream A P1 CLI", () => {
       { convertFile: recordingConverter(calls) },
     );
 
-    expect(exitCode).toBe(2);
+    expect(exitCode).toBe(1);
     expect(calls).toEqual([]);
-    expect(stdout.toString()).toBe("");
+    expect(stdout.toString()).toBe("0 succeeded, 1 failed, 0 skipped\n");
     expect(stderr.toString()).toContain("[input] input entry was not found");
     expect(stderr.toString()).toContain(`source: ${path.join(tempRoot, "missing.md")}`);
     expect(stderr.toString()).toContain("hint: check that missing.md exists and is readable");
+  });
+
+  it("@req FR-10 @req FR-15 continues a batch after a missing input entry", async () => {
+    await writeFile("good.md");
+    const stdout = new MemoryWriter();
+    const stderr = new MemoryWriter();
+    const calls: string[] = [];
+
+    const exitCode = await main(
+      ["good.md", "missing.md"],
+      fakeIo(stdout, stderr, tempRoot),
+      { convertFile: recordingConverter(calls) },
+    );
+
+    expect(exitCode).toBe(1);
+    expect(calls).toEqual([
+      `${path.join(tempRoot, "good.md")} -> ${path.join(tempRoot, "good.pdf")} default`,
+    ]);
+    expect(stdout.toString()).toBe("1 succeeded, 1 failed, 0 skipped\n");
+    expect(stderr.toString()).toContain("[input] input entry was not found");
+    expect(stderr.toString()).toContain(`source: ${path.join(tempRoot, "missing.md")}`);
   });
 
   it("@req FR-15 @req FR-17 returns exit 1 when the output parent is not writable", async () => {
@@ -284,7 +305,7 @@ describe("Stream A P1 CLI", () => {
     }
   });
 
-  it("@req FR-15 @req FR-17 returns exit 2 for unreadable directory inputs", async () => {
+  it("@req FR-15 @req FR-17 returns exit 1 and a summary for unreadable directory inputs", async () => {
     await fs.mkdir(path.join(tempRoot, "locked"));
     const stdout = new MemoryWriter();
     const stderr = new MemoryWriter();
@@ -304,9 +325,9 @@ describe("Stream A P1 CLI", () => {
         { convertFile: recordingConverter(calls) },
       );
 
-      expect(exitCode).toBe(2);
+      expect(exitCode).toBe(1);
       expect(calls).toEqual([]);
-      expect(stdout.toString()).toBe("");
+      expect(stdout.toString()).toBe("0 succeeded, 1 failed, 0 skipped\n");
       expect(stderr.toString()).toContain("[input] input entry is not readable");
       expect(stderr.toString()).toContain(`source: ${path.join(tempRoot, "locked")}`);
       expect(stderr.toString()).toContain("hint: check that locked exists and is readable");

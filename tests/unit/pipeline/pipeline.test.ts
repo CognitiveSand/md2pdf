@@ -35,23 +35,40 @@ class MemoryWriter {
 }
 
 describe("Stream A P1 conversion pipeline preflight", () => {
-  it("@req FR-08 resolves every job before invoking the converter", async () => {
+  it("@req FR-10 @req FR-15 records missing batch entries as failures and continues", async () => {
     await writeFile("ready.md");
     const calls: string[] = [];
     const pipeline = new ConversionPipeline(recordingConverter(calls));
 
-    await expect(
-      pipeline.run({
-        entries: ["ready.md", "missing.md"],
-        cwd: tempRoot,
-      }),
-    ).rejects.toMatchObject({
-      kind: "input",
-      context: {
-        sourcePath: path.join(tempRoot, "missing.md"),
-      },
+    const outcomes = await pipeline.run({
+      entries: ["ready.md", "missing.md"],
+      cwd: tempRoot,
     });
-    expect(calls).toEqual([]);
+
+    expect(calls).toEqual([
+      `${path.join(tempRoot, "ready.md")} -> ${path.join(tempRoot, "ready.pdf")} default`,
+    ]);
+    expect(outcomes).toMatchObject([
+      {
+        sourcePath: path.join(tempRoot, "missing.md"),
+        outputPath: path.join(tempRoot, "missing.pdf"),
+        originEntry: "missing.md",
+        status: "failed",
+        error: {
+          kind: "input",
+          context: {
+            message: "input entry was not found",
+            sourcePath: path.join(tempRoot, "missing.md"),
+          },
+        },
+      },
+      {
+        sourcePath: path.join(tempRoot, "ready.md"),
+        outputPath: path.join(tempRoot, "ready.pdf"),
+        originEntry: "ready.md",
+        status: "success",
+      },
+    ]);
   });
 
   it("@req FR-09 rejects preflight output collisions before any conversion", async () => {
