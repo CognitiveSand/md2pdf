@@ -377,19 +377,14 @@ async function chmodAppBundleContents(browserPath: string): Promise<void> {
 }
 
 async function chmodDirectoryExecutable(dirPath: string): Promise<void> {
-  let entries;
-  try {
-    entries = await readdir(dirPath, { withFileTypes: true });
-  } catch {
-    return;
-  }
+  const entries = await readdir(dirPath, { withFileTypes: true });
 
   await Promise.all(entries.map(async (entry) => {
     const fullPath = join(dirPath, entry.name);
     if (entry.isDirectory()) {
       await chmodDirectoryExecutable(fullPath);
     } else if (entry.isFile()) {
-      await chmod(fullPath, 0o755).catch(() => undefined);
+      await chmod(fullPath, 0o755);
     }
   }));
 }

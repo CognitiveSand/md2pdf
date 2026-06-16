@@ -1,11 +1,12 @@
 import { lstat, mkdtemp, readlink, realpath, rm } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 
-const packageName = "md2pdf";
-const packageVersion = "0.1.2";
+const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+const packageName = packageJson.name;
+const packageVersion = packageJson.version;
 const tarballName = `${packageName}-${packageVersion}.tgz`;
 const npmCommand = process.platform === "win32" ? process.execPath : "npm";
 const npmArgsPrefix = process.platform === "win32"
@@ -22,7 +23,9 @@ const helpText = [
   "-h, --help                list options with one-line descriptions",
 ].join("\n");
 
-const pack = run(npmCommand, [...npmArgsPrefix, "pack", "--json", "--cache", cacheDir], {
+run(npmCommand, [...npmArgsPrefix, "run", "build"]);
+
+const pack = run(npmCommand, [...npmArgsPrefix, "pack", "--json", "--ignore-scripts", "--cache", cacheDir], {
   allowMixedJsonOutput: true,
 });
 const packOutput = parsePackOutput(pack.stdout);

@@ -9,17 +9,10 @@ md2pdf report.md
 
 ## Status
 
-v0.1.2 is the current MVP implementation track.
-
-Stream A strict covers the user-visible CLI surface: option parsing, path
-resolution, batch orchestration, overwrite/skip behavior, summaries, exit codes,
-npm packaging, installation evidence, and command invocability.
-
-Browser-backed rendering, Mermaid rendering as diagrams, WebDriver, Firefox /
-geckodriver support, Chromium-for-Testing fallback, browser provisioning, and
-browser-family compatibility evidence remain outside Stream A strict. They must
-be closed by Stream B or by global release validation before the whole release
-can be accepted.
+v0.1.2 is the current MVP implementation. It covers the user-visible CLI
+surface, browser-backed Markdown rendering, Mermaid diagrams, local WebDriver
+printing, overwrite/skip behavior, batch summaries, npm packaging, artifact
+freshness checks, and release validation paths.
 
 ## Requirements
 
@@ -144,11 +137,10 @@ Exit codes:
 
 ## Markdown Scope
 
-The product target includes Markdown features such as headings, paragraphs,
-lists, tables, task lists, footnotes, fenced code blocks, relative images, and
-Mermaid code fences. Stream A strict does not claim the final browser-rendered
-fidelity of those features; that evidence belongs to Stream B and global release
-validation.
+md2pdf supports Markdown features such as headings, paragraphs, lists, tables,
+task lists, footnotes, fenced code blocks, relative images, and Mermaid code
+fences. Browser-backed tests cover the rendered PDF behavior for the rich
+Markdown and Mermaid paths.
 
 ## Development
 

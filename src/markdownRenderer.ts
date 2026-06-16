@@ -1,8 +1,8 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { dirname, extname, isAbsolute, relative, resolve } from "node:path";
+import { basename, dirname, extname, isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import hljs from "highlight.js";
@@ -26,12 +26,9 @@ const taskListPlugin = require("markdown-it-task-lists") as PluginWithOptions<{
 const moduleDirectory = dirname(fileURLToPath(import.meta.url));
 const defaultCssPath = resolve(moduleDirectory, "../assets/default.css");
 const highlightCssPath = resolve(moduleDirectory, "../assets/highlight.css");
-let cachedRenderer: MarkdownIt | undefined;
-let cachedDefaultCss: string | undefined;
-let cachedHighlightCss: string | undefined;
-let cachedMermaidBundlePath: string | undefined;
-let cachedMermaidBundle: string | undefined;
-const tempHtmlDirectories = new Set<string>();
+const tempHtmlMarkerFileName = ".md2pdf-temp-html";
+const tempHtmlFileName = "document.html";
+const tempHtmlDirectoryPrefix = "md2pdf-html-";
 
 export interface MarkdownRenderContext {
   sourcePath: string;
@@ -66,11 +63,11 @@ export async function renderToTempHtml(
 ): Promise<string> {
   const tempRoot = resolve(context.tempDir ?? tmpdir());
   await mkdir(tempRoot, { recursive: true });
-  const tempDirectory = await mkdtemp(resolve(tempRoot, "md2pdf-html-"));
-  const htmlPath = resolve(tempDirectory, "document.html");
-  tempHtmlDirectories.add(tempDirectory);
+  const tempDirectory = await mkdtemp(resolve(tempRoot, tempHtmlDirectoryPrefix));
+  const htmlPath = resolve(tempDirectory, tempHtmlFileName);
 
   try {
+    await writeFile(resolve(tempDirectory, tempHtmlMarkerFileName), "", "utf8");
     await writeFile(htmlPath, renderToHtml(markdown, context), "utf8");
     return htmlPath;
   } catch (error) {
@@ -81,7 +78,7 @@ export async function renderToTempHtml(
 
 export async function cleanupTempHtml(htmlPath: string): Promise<void> {
   const tempDirectory = dirname(resolve(htmlPath));
-  if (!tempHtmlDirectories.has(tempDirectory)) {
+  if (!isManagedTempHtmlPath(htmlPath, tempDirectory)) {
     throw new RenderError({
       message: "Refusing to clean an unmanaged temporary HTML path",
       actionHint: "Only pass paths returned by renderToTempHtml to cleanupTempHtml.",
@@ -89,7 +86,14 @@ export async function cleanupTempHtml(htmlPath: string): Promise<void> {
   }
 
   await rm(tempDirectory, { recursive: true, force: true });
-  tempHtmlDirectories.delete(tempDirectory);
+}
+
+function isManagedTempHtmlPath(htmlPath: string, tempDirectory: string): boolean {
+  return (
+    basename(resolve(htmlPath)) === tempHtmlFileName &&
+    basename(tempDirectory).startsWith(tempHtmlDirectoryPrefix) &&
+    existsSync(resolve(tempDirectory, tempHtmlMarkerFileName))
+  );
 }
 
 export async function withTempHtml<T>(
@@ -122,6 +126,7 @@ function createMarkdownRenderer(): MarkdownIt {
     typographer: false,
     highlight: highlightCode,
   });
+  // Keep tokenization permissive; renderLinkOpen below strips every non-relative href.
   md.validateLink = () => true;
 
   md.enable("table");
@@ -136,8 +141,7 @@ function createMarkdownRenderer(): MarkdownIt {
 }
 
 function getMarkdownRenderer(): MarkdownIt {
-  cachedRenderer ??= createMarkdownRenderer();
-  return cachedRenderer;
+  return createMarkdownRenderer();
 }
 
 function renderFence(md: MarkdownIt): RenderRule {
@@ -277,8 +281,8 @@ function readImageFile(imagePath: string, sourcePath: string): Buffer {
 
 function assembleHtml(body: string, context: MarkdownRenderContext): string {
   const title = mdEscapeHtml(context.documentTitle ?? "md2pdf document");
-  const defaultCss = readTextAsset(defaultCssPath, "default");
-  const highlightCss = readTextAsset(highlightCssPath, "highlight");
+  const defaultCss = readTextAsset(defaultCssPath);
+  const highlightCss = readTextAsset(highlightCssPath);
   const hasMermaid = body.includes('class="mermaid"');
 
   return [
@@ -297,7 +301,6 @@ function assembleHtml(body: string, context: MarkdownRenderContext): string {
     hasMermaid
       ? `<script data-md2pdf-asset="mermaid.min.js">\n${readTextAsset(
           mermaidBundlePath(),
-          "mermaid",
         )}\n</script>`
       : "",
     hasMermaid
@@ -309,24 +312,12 @@ function assembleHtml(body: string, context: MarkdownRenderContext): string {
   ].join("\n");
 }
 
-function readTextAsset(path: string, asset: "default" | "highlight" | "mermaid"): string {
-  if (asset === "default") {
-    cachedDefaultCss ??= readFileSync(path, "utf8");
-    return cachedDefaultCss;
-  }
-
-  if (asset === "highlight") {
-    cachedHighlightCss ??= readFileSync(path, "utf8");
-    return cachedHighlightCss;
-  }
-
-  cachedMermaidBundle ??= readFileSync(path, "utf8");
-  return cachedMermaidBundle;
+function readTextAsset(path: string): string {
+  return readFileSync(path, "utf8");
 }
 
 function mermaidBundlePath(): string {
-  cachedMermaidBundlePath ??= require.resolve(["mermaid", "dist", "mermaid.min.js"].join("/"));
-  return cachedMermaidBundlePath;
+  return require.resolve(["mermaid", "dist", "mermaid.min.js"].join("/"));
 }
 
 function mermaidRunnerScript(): string {

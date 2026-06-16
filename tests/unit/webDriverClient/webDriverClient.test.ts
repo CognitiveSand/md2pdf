@@ -176,6 +176,30 @@ describe("printPdfWithWebDriver", () => {
     expect(transport.requests.some((request) => request.method === "DELETE")).toBe(true);
   });
 
+  it("@req FR-24 keeps polling when the Mermaid status attribute is absent", async () => {
+    const transport = new FakeTransport([
+      { value: { sessionId: "session-mermaid-absent" } },
+      { value: null },
+      { value: false },
+      { value: true },
+      { value: Buffer.from("%PDF-1.7").toString("base64") },
+      { value: null },
+    ]);
+
+    await expect(
+      printPdfWithWebDriver({
+        browser: browser("chrome"),
+        htmlFileUrl: "file:///tmp/doc.html",
+        transport,
+        driverProcess: new FakeDriverProcess(),
+        renderTimeoutMs: 100,
+        mermaidPollMs: 1,
+      }),
+    ).resolves.toEqual(Buffer.from("%PDF-1.7"));
+
+    expect(transport.requests.filter((request) => request.path.endsWith("/execute/sync"))).toHaveLength(2);
+  });
+
   it("@req FR-24 surfaces Mermaid render errors and closes session and driver process", async () => {
     const transport = new FakeTransport([
       { value: { sessionId: "session-mermaid-err" } },
