@@ -43,11 +43,20 @@ npm install --global md2pdf
 md2pdf --help
 ```
 
-For local development or release smoke testing:
+To run the CLI from a source checkout, one command builds and installs it:
+
+```bash
+npm install --global .
+```
+
+The `prepare` script compiles `dist/` during install, so `md2pdf` lands on your
+`PATH` in one step — no separate build or link, on Linux, macOS, or Windows.
+Re-run the same command after pulling changes; `md2pdf --help` confirms it.
+
+To smoke-test the exact tarball that would be published instead:
 
 ```bash
 npm ci
-npm run build
 npm pack
 npm install --global --prefix /tmp/md2pdf-user ./<tarball-from-npm-pack>.tgz
 /tmp/md2pdf-user/bin/md2pdf --help
