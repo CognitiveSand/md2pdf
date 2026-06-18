@@ -156,6 +156,8 @@ the target path.
 Modules under `src/`. Each owns one concern (SRP) and stays within the
 40-line-function / 300-line-module limits.
 
+![md2pdf source file relationships](architecture-file-links.svg)
+
 | Module | Component | Responsibility | Serves |
 |---|---|---|---|
 | `cli.ts` | command-line front end | Parse arguments with `node:util` `parseArgs`, wire components, set the process exit code. | FR-13, FR-17, FR-18, NFR-04 |
