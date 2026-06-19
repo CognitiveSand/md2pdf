@@ -354,10 +354,9 @@ async function makeExecutablePaths(
   try {
     await chmod(browserPath, 0o755);
     await chmod(driverPath, 0o755);
-    // On macOS, .app bundles contain helper processes (GPU, Renderer, crashpad) that
-    // also require execute permission. ZIP extraction does not preserve the execute bit
-    // for these helpers, so chmod them recursively within the bundle.
-    await chmodAppBundleContents(browserPath);
+    // ZIP extraction does not preserve the execute bit on bundled helper binaries
+    // (e.g. chrome_crashpad_handler), so restore it across the whole browser bundle.
+    await restoreBundleExecutableBits(browserPath);
   } catch (cause) {
     if (isPermissionError(cause)) {
       throw cacheNotWritableError(artifactName, cacheDir);
@@ -367,13 +366,13 @@ async function makeExecutablePaths(
   }
 }
 
-async function chmodAppBundleContents(browserPath: string): Promise<void> {
-  const match = /^(.+\.app)\//u.exec(browserPath);
-  if (match === null) {
-    return;
-  }
-
-  await chmodDirectoryExecutable(match[1]);
+async function restoreBundleExecutableBits(browserPath: string): Promise<void> {
+  // macOS keeps helpers under the .app root (Frameworks/...); elsewhere they sit in the
+  // same directory as the browser binary (e.g. the Linux chrome-linux64 dir). Restore the
+  // execute bit across the whole bundle so helpers like chrome_crashpad_handler can launch.
+  const macAppMatch = /^(.+\.app)\//u.exec(browserPath);
+  const bundleRoot = macAppMatch !== null ? macAppMatch[1] : dirname(browserPath);
+  await chmodDirectoryExecutable(bundleRoot);
 }
 
 async function chmodDirectoryExecutable(dirPath: string): Promise<void> {
