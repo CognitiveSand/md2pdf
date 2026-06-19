@@ -258,6 +258,12 @@ conversion guarantee is structural:
   explicitly with `MD2PDF_SKIP_REAL_BROWSER_TESTS=1`, but release evidence must
   run it without the skip.
 
+Additional hostile-Markdown hardening is tracked in
+[`security-hardening-plan.md`](security-hardening-plan.md). That plan covers SVG
+rejection, image realpath containment, input limits, raster image validation,
+safe clickable PDF links, and browser/WebDriver hardening while preserving the
+local-only conversion boundary described here.
+
 ## 10. Styling and assets
 
 A single bundled `default.css` provides the zero-configuration look (body
