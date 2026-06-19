@@ -22,6 +22,7 @@ export interface BrowserLocatorOptions {
   driverResolver?: BrowserDriverResolver;
   fallbackBrowserResolver?: FallbackBrowserResolver;
   browserProbe?: BrowserProbe;
+  systemDriverProbe?: SystemDriverProbe;
 }
 
 export interface BrowserLocatorFileSystem {
@@ -48,6 +49,10 @@ export interface BrowserProbeInspection {
 
 export interface FallbackBrowserResolver {
   resolveFallbackBrowser(): Promise<LocatedBrowser | null>;
+}
+
+export interface SystemDriverProbe {
+  driverVersion(driverPath: string): Promise<string | null>;
 }
 
 export interface BrowserCandidate {
@@ -79,6 +84,7 @@ export interface ArtifactPolicyDriverResolverOptions {
 
 const supportedBrowsers = ["Chrome", "Chromium", "Edge", "Brave", "Firefox", "Vivaldi"];
 const envBrowserVariable = "MD2PDF_BROWSER";
+const snapGeckodriverPath = "/snap/bin/geckodriver";
 
 const WINDOWS_BROWSER_PATHS = [
   ["ProgramFiles", "Microsoft", "Edge", "Application", "msedge.exe"],
@@ -96,6 +102,7 @@ const WINDOWS_BROWSER_PATHS = [
 ];
 
 const POSIX_BROWSER_NAMES = [
+  "firefox",
   "google-chrome",
   "google-chrome-stable",
   "chromium",
@@ -105,7 +112,6 @@ const POSIX_BROWSER_NAMES = [
   "msedge",
   "brave-browser",
   "brave",
-  "firefox",
   "vivaldi",
   "vivaldi-stable",
 ];
@@ -118,6 +124,7 @@ export class BrowserLocator {
   private readonly driverResolver: BrowserDriverResolver;
   private readonly fallbackBrowserResolver: FallbackBrowserResolver | undefined;
   private readonly browserProbe: BrowserProbe;
+  private readonly systemDriverProbe: SystemDriverProbe;
 
   constructor(options: BrowserLocatorOptions = {}) {
     this.env = options.env ?? process.env;
@@ -126,6 +133,7 @@ export class BrowserLocator {
     this.driverResolver = options.driverResolver ?? new NullDriverResolver();
     this.fallbackBrowserResolver = options.fallbackBrowserResolver;
     this.browserProbe = options.browserProbe ?? nodeBrowserProbe;
+    this.systemDriverProbe = options.systemDriverProbe ?? nodeSystemDriverProbe;
     this.candidatePaths =
       options.candidatePaths ?? defaultBrowserCandidates(this.platform, this.env);
   }
@@ -163,7 +171,10 @@ export class BrowserLocator {
         continue;
       }
 
-      const driver = await this.driverResolver.resolveDriver(candidate);
+      let driver = await this.driverResolver.resolveDriver(candidate);
+      if (driver === null && this.platform === "linux" && isSnapBrowser(candidate.browserPath)) {
+        driver = await this.resolveSystemBundledDriver(candidate);
+      }
       if (driver !== null) {
         return locatedBrowser(candidate, driver);
       }
@@ -209,6 +220,28 @@ export class BrowserLocator {
 
       throw error;
     }
+  }
+
+  async locateProvisionedFallbackBrowser(): Promise<LocatedBrowser | null> {
+    return this.locateFallbackBrowser();
+  }
+
+  private async resolveSystemBundledDriver(browser: BrowserCandidate): Promise<LocatedDriver | null> {
+    // Only Firefox ships a usable bundled WebDriver (geckodriver). Chromium-family
+    // snaps expose a wrapper that cannot be driven this way.
+    if (browser.kind !== "firefox") {
+      return null;
+    }
+    if (!(await this.fileSystem.exists(snapGeckodriverPath))) {
+      return null;
+    }
+
+    const versionOutput = await this.systemDriverProbe.driverVersion(snapGeckodriverPath);
+    if (versionOutput === null || !isGeckodriverVersion(versionOutput)) {
+      return null;
+    }
+
+    return { driverPath: snapGeckodriverPath, artifactName: "geckodriver" };
   }
 
   private async validateExplicitBrowser(browserPath: string): Promise<BrowserCandidate> {
@@ -454,6 +487,16 @@ const nodeBrowserProbe: BrowserProbe = {
   },
 };
 
+const nodeSystemDriverProbe: SystemDriverProbe = {
+  async driverVersion(driverPath: string): Promise<string | null> {
+    try {
+      return await execFileOutput(driverPath, ["--version"], 3_000);
+    } catch {
+      return null;
+    }
+  },
+};
+
 function locatedBrowser(candidate: BrowserCandidate, driver: LocatedDriver): LocatedBrowser {
   return {
     ...candidate,
@@ -632,6 +675,14 @@ function withBrowserInspection(
 function parseBrowserVersion(output: string): string | null {
   const match = /(\d+(?:[.]\d+)+|\d+)/u.exec(output);
   return match?.[1] ?? null;
+}
+
+export function isSnapBrowser(browserPath: string): boolean {
+  return browserPath.startsWith("/snap/");
+}
+
+function isGeckodriverVersion(output: string): boolean {
+  return /geckodriver\s+\d+(?:[.]\d+)*/iu.test(output);
 }
 
 function defaultBrowserCandidates(
