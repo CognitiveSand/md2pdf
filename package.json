@@ -35,6 +35,7 @@
   "scripts": {
     "clean": "node scripts/cleanDist.mjs",
     "build": "npm run clean && tsc",
+    "prepare": "tsc",
     "prepack": "npm run test:all",
     "test": "vitest run --reporter=verbose",
     "test:contracts": "vitest run tests/unit/contracts --reporter=verbose",
