@@ -104,6 +104,57 @@ describe("printPdfWithWebDriver", () => {
     });
   });
 
+  it("@req NFR-08 omits the binary capability for a snap Firefox so geckodriver auto-detects it", async () => {
+    const transport = new FakeTransport([
+      { value: { sessionId: "session-snap-firefox" } },
+      { value: null },
+      { value: true },
+      { value: Buffer.from("%PDF-1.7").toString("base64") },
+      { value: null },
+    ]);
+
+    await printPdfWithWebDriver({
+      browser: {
+        kind: "firefox",
+        displayName: "Firefox",
+        browserPath: "/snap/firefox/current/usr/lib/firefox/firefox",
+        driverPath: "/snap/bin/geckodriver",
+        driverArtifactName: "geckodriver",
+      },
+      htmlFileUrl: "file:///home/user/md2pdf-tmp/doc.html",
+      transport,
+      driverProcess: new FakeDriverProcess(),
+      renderTimeoutMs: 50,
+      mermaidPollMs: 1,
+    });
+
+    const firefoxOptions = firefoxOptionsOf(transport.requests[0]);
+    expect(firefoxOptions.binary).toBeUndefined();
+    expect(firefoxOptions.args).toEqual(expect.arrayContaining(["-headless", "--offline"]));
+  });
+
+  it("@req NFR-08 keeps the binary capability for a non-snap Firefox", async () => {
+    const transport = new FakeTransport([
+      { value: { sessionId: "session-deb-firefox" } },
+      { value: null },
+      { value: true },
+      { value: Buffer.from("%PDF-1.7").toString("base64") },
+      { value: null },
+    ]);
+
+    await printPdfWithWebDriver({
+      browser: browser("firefox"),
+      htmlFileUrl: "file:///tmp/doc.html",
+      transport,
+      driverProcess: new FakeDriverProcess(),
+      renderTimeoutMs: 50,
+      mermaidPollMs: 1,
+    });
+
+    const firefoxOptions = firefoxOptionsOf(transport.requests[0]);
+    expect(firefoxOptions.binary).toBe("/browsers/firefox");
+  });
+
   it("@req FR-07 sends explicit print settings to WebDriver", async () => {
     const transport = new FakeTransport([
       { value: { sessionId: "session-print-settings" } },
@@ -515,6 +566,13 @@ function browser(kind: LocatedBrowser["kind"]): LocatedBrowser {
     driverPath: "/drivers/driver",
     driverArtifactName: kind === "firefox" ? "geckodriver" : "chromedriver",
   };
+}
+
+function firefoxOptionsOf(request: WebDriverRequest | undefined): { binary?: string; args: string[] } {
+  const body = request?.body as {
+    capabilities: { alwaysMatch: { "moz:firefoxOptions": { binary?: string; args: string[] } } };
+  };
+  return body.capabilities.alwaysMatch["moz:firefoxOptions"];
 }
 
 class FakeTransport implements WebDriverTransport {

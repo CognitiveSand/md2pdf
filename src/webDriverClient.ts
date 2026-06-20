@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
-import type { BrowserKind, LocatedBrowser } from "./browserLocator.js";
+import { isSnapBrowser, type BrowserKind, type LocatedBrowser } from "./browserLocator.js";
 import { RenderError } from "./errors.js";
 
 export interface WebDriverRequest {
@@ -379,13 +379,20 @@ function browserCapabilities(
   const proxy = { proxyType: "direct" };
 
   if (kind === "firefox") {
+    // Snap Firefox: omit the binary capability so geckodriver auto-detects and
+    // launches the snap launcher. Passing the snap path fails with
+    // "binary is not a Firefox executable".
+    const firefoxOptions: Record<string, unknown> = {
+      args: ["-headless", "--offline"],
+    };
+    if (!isSnapBrowser(browserPath)) {
+      firefoxOptions.binary = browserPath;
+    }
+
     return {
       browserName: "firefox",
       proxy,
-      "moz:firefoxOptions": {
-        binary: browserPath,
-        args: ["-headless", "--offline"],
-      },
+      "moz:firefoxOptions": firefoxOptions,
     };
   }
 

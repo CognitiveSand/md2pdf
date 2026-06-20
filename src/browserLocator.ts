@@ -71,6 +71,7 @@ export interface LocatedDriver {
 export interface LocatedBrowser extends BrowserCandidate {
   driverPath: string;
   driverArtifactName: DriverArtifactName;
+  provisioned?: boolean;
 }
 
 export interface ArtifactPolicyDriverResolverOptions {
