@@ -15,6 +15,8 @@ import {
   tinyWebp,
 } from "../../fixtures/imageFixtures.js";
 
+const itIfFileSymlinkSupported = canCreateFileSymlink() ? it : it.skip;
+
 describe("markdownRenderer renderToHtml", () => {
   it("@req FR-04 renders CommonMark with tables, task lists, and footnotes", () => {
     const html = renderToHtml(
@@ -288,6 +290,25 @@ describe("markdownRenderer renderToHtml", () => {
     }
   });
 
+  it("@req FR-06 @req NFR-02 rejects PNG files with invalid IHDR CRC", () => {
+    const dir = mkdtempSync(join(tmpdir(), "md2pdf-markdown-renderer-"));
+
+    try {
+      writeFileSync(join(dir, "corrupt.png"), pngWithCorruptIhdrCrc());
+
+      expectRenderError(
+        "![corrupt](./corrupt.png)",
+        (error) => {
+          expect(error.message).toContain("not a valid PNG, JPEG, or WebP");
+          expect(error.context.actionHint).toContain("valid local");
+        },
+        { sourcePath: join(dir, "source.md") },
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("@req FR-06 @req NFR-02 rejects oversized single image files", () => {
     const dir = mkdtempSync(join(tmpdir(), "md2pdf-markdown-renderer-"));
 
@@ -485,7 +506,7 @@ describe("markdownRenderer renderToHtml", () => {
     }
   });
 
-  it("@req FR-06 @req NFR-02 rejects symlinks that escape the real baseDir", () => {
+  itIfFileSymlinkSupported("@req FR-06 @req NFR-02 rejects symlinks that escape the real baseDir", () => {
     const dir = mkdtempSync(join(tmpdir(), "md2pdf-markdown-renderer-"));
     const docsDir = join(dir, "docs");
     const outsideDir = join(dir, "outside");
@@ -494,12 +515,7 @@ describe("markdownRenderer renderToHtml", () => {
       mkdirSync(docsDir);
       mkdirSync(outsideDir);
       writeFileSync(join(outsideDir, "outside.png"), tinyPng());
-
-      try {
-        symlinkSync(join(outsideDir, "outside.png"), join(docsDir, "linked.png"), "file");
-      } catch {
-        return;
-      }
+      symlinkSync(join(outsideDir, "outside.png"), join(docsDir, "linked.png"), "file");
 
       expectRenderError(
         "![linked](./linked.png)",
@@ -517,6 +533,20 @@ describe("markdownRenderer renderToHtml", () => {
 
 function context(): { sourcePath: string } {
   return { sourcePath: "/tmp/source.md" };
+}
+
+function canCreateFileSymlink(): boolean {
+  const dir = mkdtempSync(join(tmpdir(), "md2pdf-symlink-capability-"));
+
+  try {
+    writeFileSync(join(dir, "target.txt"), "target");
+    symlinkSync(join(dir, "target.txt"), join(dir, "linked.txt"), "file");
+    return true;
+  } catch {
+    return false;
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 function expectRenderError(
@@ -537,6 +567,13 @@ function pngWithDimensions(width: number, height: number): Buffer {
   const data = Buffer.from(tinyPng());
   data.writeUInt32BE(width, 16);
   data.writeUInt32BE(height, 20);
+  data.writeUInt32BE(pngCrc32(data.subarray(12, 29)), 29);
+  return data;
+}
+
+function pngWithCorruptIhdrCrc(): Buffer {
+  const data = Buffer.from(tinyPng());
+  data[32] ^= 0xff;
   return data;
 }
 
@@ -552,4 +589,17 @@ function pngWithTrailingBytes(byteLength: number): Buffer {
 function mainContent(html: string): string {
   const match = html.match(/<main class="markdown-body">\n(?<body>[\s\S]*?)<\/main>/u);
   return match?.groups?.body ?? html;
+}
+
+function pngCrc32(data: Buffer): number {
+  let crc = 0xffffffff;
+
+  for (const byte of data) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+    }
+  }
+
+  return (crc ^ 0xffffffff) >>> 0;
 }

@@ -576,7 +576,13 @@ function parsePngInfo(data: Buffer): ImageInfo | null {
     return null;
   }
 
-  if (data.byteLength < 24 || data.toString("ascii", 12, 16) !== "IHDR") {
+  if (data.byteLength < 33 || data.readUInt32BE(8) !== 13 || data.toString("ascii", 12, 16) !== "IHDR") {
+    return null;
+  }
+
+  const expectedCrc = data.readUInt32BE(29);
+  const actualCrc = crc32(data.subarray(12, 29));
+  if (actualCrc !== expectedCrc) {
     return null;
   }
 
@@ -757,6 +763,19 @@ function isJpegStandaloneMarker(marker: number): boolean {
 
 function readUInt24LE(data: Buffer, offset: number): number {
   return data[offset] + (data[offset + 1] << 8) + (data[offset + 2] << 16);
+}
+
+function crc32(data: Buffer): number {
+  let crc = 0xffffffff;
+
+  for (const byte of data) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+    }
+  }
+
+  return (crc ^ 0xffffffff) >>> 0;
 }
 
 function simplifyDocumentHint(): string {
