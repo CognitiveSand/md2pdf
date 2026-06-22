@@ -47,6 +47,30 @@ describe("markdownRenderer renderToHtml", () => {
     expect(html).toContain("answer");
   });
 
+  it("@req NFR-02 rejects oversized Markdown before parsing", () => {
+    expectRenderError("a".repeat(10 * 1024 * 1024 + 1), (error) => {
+      expect(error.message).toContain("Markdown document is too large");
+      expect(error.context.actionHint).toContain("Simplify the document");
+    });
+  });
+
+  it("@req NFR-02 rejects oversized Markdown lines before parsing", () => {
+    expectRenderError(`short\n${"a".repeat(1024 * 1024 + 1)}`, (error) => {
+      expect(error.message).toContain("line that is too large");
+      expect(error.context.actionHint).toContain("Simplify the document");
+    });
+  });
+
+  it("@req NFR-02 rejects oversized highlighted code fences", () => {
+    const largeCode = Array.from({ length: 1025 }, () => "a".repeat(1024)).join("\n");
+    const markdown = ["```ts", largeCode, "```"].join("\n");
+
+    expectRenderError(markdown, (error) => {
+      expect(error.message).toContain("Code fence is too large");
+      expect(error.context.actionHint).toContain("Simplify the document");
+    });
+  });
+
   it("@req FR-07 inlines heading page-break protection", () => {
     const html = renderToHtml("# Heading\n\nBody", context());
 
@@ -64,6 +88,26 @@ describe("markdownRenderer renderToHtml", () => {
     expect(html).toContain('data-md2pdf-asset="mermaid-runner"');
     expect(html).toContain("flowchart TD");
     expect(html).not.toContain("<pre><code class=\"language-mermaid\"");
+  });
+
+  it("@req FR-24 @req NFR-02 rejects too many Mermaid blocks", () => {
+    const markdown = Array.from({ length: 51 }, (_, index) =>
+      ["```mermaid", `flowchart TD`, `  A${index} --> B${index}`, "```"].join("\n"),
+    ).join("\n\n");
+
+    expectRenderError(markdown, (error) => {
+      expect(error.message).toContain("too many Mermaid blocks");
+      expect(error.context.actionHint).toContain("Simplify the document");
+    });
+  });
+
+  it("@req FR-24 @req NFR-02 rejects oversized Mermaid blocks", () => {
+    const markdown = ["```mermaid", "a".repeat(256 * 1024 + 1), "```"].join("\n");
+
+    expectRenderError(markdown, (error) => {
+      expect(error.message).toContain("Mermaid block is too large");
+      expect(error.context.actionHint).toContain("Simplify the document");
+    });
   });
 
   it("@req FR-24 marks documents without Mermaid as already rendered", () => {
@@ -112,6 +156,68 @@ describe("markdownRenderer renderToHtml", () => {
       expect(html).toContain('src="data:image/webp;base64,');
     } finally {
       rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("@req FR-06 @req NFR-02 rejects more than 100 Markdown images", () => {
+    const dir = mkdtempSync(join(tmpdir(), "md2pdf-markdown-renderer-"));
+
+    try {
+      writeFileSync(join(dir, "pixel.png"), tinyPng());
+      const markdown = Array.from({ length: 101 }, (_, index) => {
+        return `![pixel-${index}](./pixel.png)`;
+      }).join("\n");
+
+      expectRenderError(
+        markdown,
+        (error) => {
+          expect(error.message).toContain("too many images");
+          expect(error.context.actionHint).toContain("Simplify the document");
+        },
+        { sourcePath: join(dir, "source.md") },
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("@req FR-06 @req NFR-02 rejects SVG images before content handling", () => {
+    const dir = mkdtempSync(join(tmpdir(), "md2pdf-markdown-renderer-"));
+    const svgPayloads = [
+      "<svg></svg>",
+      '<svg><image href="http://example.invalid/x.png"/></svg>',
+      '<svg><image href="https://example.invalid/x.png"/></svg>',
+      '<svg><image href="file:///etc/passwd"/></svg>',
+      "<svg><script>alert(1)</script></svg>",
+      "<svg><foreignObject>html</foreignObject></svg>",
+    ];
+
+    try {
+      for (const [index, payload] of svgPayloads.entries()) {
+        writeFileSync(join(dir, `hostile-${index}.svg`), payload);
+
+        expectRenderError(
+          `![hostile](./hostile-${index}.svg)`,
+          (error) => {
+            expect(error.message).toBe(
+              "SVG images are not supported for security reasons; use PNG/JPEG/WebP.",
+            );
+            expect(error.context.actionHint).toContain("PNG");
+          },
+          { sourcePath: join(dir, "source.md") },
+        );
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("@req FR-06 @req NFR-02 rejects GIF, extensionless, and unknown image formats", () => {
+    for (const src of ["./animated.gif", "./no-extension", "./archive.bmp"]) {
+      expectRenderError(`![unsupported](${src})`, (error) => {
+        expect(error.message).toContain("image format is not supported");
+        expect(error.context.actionHint).toContain(".png");
+      });
     }
   });
 
@@ -227,4 +333,18 @@ describe("markdownRenderer renderToHtml", () => {
 
 function context(): { sourcePath: string } {
   return { sourcePath: "/tmp/source.md" };
+}
+
+function expectRenderError(
+  markdown: string,
+  inspect: (error: RenderError) => void,
+  renderContext = context(),
+): void {
+  try {
+    renderToHtml(markdown, renderContext);
+    throw new Error("Expected renderToHtml to throw a RenderError");
+  } catch (error) {
+    expect(error).toBeInstanceOf(RenderError);
+    inspect(error as RenderError);
+  }
 }

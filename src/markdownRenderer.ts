@@ -29,6 +29,15 @@ const highlightCssPath = resolve(moduleDirectory, "../assets/highlight.css");
 const tempHtmlMarkerFileName = ".md2pdf-temp-html";
 const tempHtmlFileName = "document.html";
 const tempHtmlDirectoryPrefix = "md2pdf-html-";
+const MAX_MARKDOWN_BYTES = 10 * 1024 * 1024;
+const MAX_MARKDOWN_LINE_BYTES = 1 * 1024 * 1024;
+const MAX_IMAGE_COUNT = 100;
+const MAX_MERMAID_BLOCK_COUNT = 50;
+const MAX_MERMAID_BLOCK_BYTES = 256 * 1024;
+const MAX_HIGHLIGHT_CODE_BYTES = 1 * 1024 * 1024;
+const MAX_SINGLE_IMAGE_BYTES = 20 * 1024 * 1024;
+const MAX_TOTAL_IMAGE_BYTES = 100 * 1024 * 1024;
+const MAX_IMAGE_PIXELS = 25_000_000;
 
 export interface MarkdownRenderContext {
   sourcePath: string;
@@ -46,13 +55,24 @@ export type TempHtmlCallback<T> = (
   signal: AbortSignal,
 ) => Promise<T>;
 
-interface RenderEnvironment {
+interface RenderState {
   context: MarkdownRenderContext;
+  imageCount: number;
+  totalImageBytes: number;
+  mermaidBlockCount: number;
+}
+
+interface RenderEnvironment {
+  state: RenderState;
 }
 
 export function renderToHtml(markdown: string, context: MarkdownRenderContext): string {
+  validateMarkdownSize(markdown, context);
+
   const renderer = getMarkdownRenderer();
-  const body = renderer.render(markdown, { context } satisfies RenderEnvironment);
+  const body = renderer.render(markdown, {
+    state: createRenderState(context),
+  } satisfies RenderEnvironment);
 
   return assembleHtml(body, context);
 }
@@ -126,7 +146,7 @@ function createMarkdownRenderer(): MarkdownIt {
     typographer: false,
     highlight: highlightCode,
   });
-  // Keep tokenization permissive; renderLinkOpen below strips every non-relative href.
+  // Keep tokenization permissive; renderLinkOpen applies the local link policy.
   md.validateLink = () => true;
 
   md.enable("table");
@@ -145,11 +165,13 @@ function getMarkdownRenderer(): MarkdownIt {
 }
 
 function renderFence(md: MarkdownIt): RenderRule {
-  return (tokens, idx, options, _env, self) => {
+  return (tokens, idx, options, env, self) => {
+    const renderEnv = env as RenderEnvironment;
     const token = tokens[idx];
     const language = firstInfoWord(token.info);
 
     if (language === "mermaid") {
+      registerMermaidBlock(renderEnv.state, token.content);
       return [
         '<div class="mermaid" data-md2pdf-mermaid="pending">',
         md.utils.escapeHtml(token.content),
@@ -157,11 +179,18 @@ function renderFence(md: MarkdownIt): RenderRule {
       ].join("");
     }
 
-    return renderHighlightedFence(token, options, self);
+    return renderHighlightedFence(token, options, self, renderEnv.state.context);
   };
 }
 
-function renderHighlightedFence(token: Token, options: Options, self: Renderer): string {
+function renderHighlightedFence(
+  token: Token,
+  options: Options,
+  self: Renderer,
+  context: MarkdownRenderContext,
+): string {
+  rejectIfCodeFenceTooLarge(token.content, context);
+
   const language = firstInfoWord(token.info);
   const languageClass = language === "" ? "" : ` class="language-${mdEscapeAttr(language)}"`;
   const highlighted = highlightCode(token.content, language, "");
@@ -192,12 +221,13 @@ function renderImage(md: MarkdownIt): RenderRule {
     if (src === null || src.trim() === "") {
       throw new RenderError({
         message: "Markdown image is missing a source path",
-        sourcePath: renderEnv.context.sourcePath,
+        sourcePath: renderEnv.state.context.sourcePath,
         actionHint: "Provide a relative image path, for example: ![alt](./image.png).",
       });
     }
 
-    token.attrSet("src", imageSourceToDataUri(src, renderEnv.context));
+    registerImage(renderEnv.state);
+    token.attrSet("src", imageSourceToDataUri(src, renderEnv.state.context));
     token.attrSet("alt", self.renderInlineAsText(token.children ?? [], options, env));
 
     return self.renderToken(tokens, idx, options);
@@ -227,17 +257,9 @@ function imageSourceToDataUri(src: string, context: MarkdownRenderContext): stri
     });
   }
 
+  const mimeType = supportedImageMimeType(src, context.sourcePath);
   const imagePath = resolveImagePath(src, context);
   const data = readImageFile(imagePath, context.sourcePath);
-  const mimeType = mimeTypeForPath(imagePath);
-
-  if (mimeType === "image/svg+xml" && containsHttpUrl(data.toString("utf8"))) {
-    throw new RenderError({
-      message: "SVG images with external URLs are not supported during local rendering",
-      sourcePath: context.sourcePath,
-      actionHint: "Remove external references from the SVG or use a raster local image.",
-    });
-  }
 
   return `data:${mimeType};base64,${data.toString("base64")}`;
 }
@@ -345,24 +367,103 @@ function firstInfoWord(info: string): string {
   return info.trim().split(/\s+/u)[0]?.toLowerCase() ?? "";
 }
 
-function mimeTypeForPath(path: string): string {
+function validateMarkdownSize(markdown: string, context: MarkdownRenderContext): void {
+  if (Buffer.byteLength(markdown, "utf8") > MAX_MARKDOWN_BYTES) {
+    throw new RenderError({
+      message: "Markdown document is too large to render safely",
+      sourcePath: context.sourcePath,
+      actionHint: simplifyDocumentHint(),
+    });
+  }
+
+  for (const line of markdown.split(/\r\n|[\n\r]/u)) {
+    if (Buffer.byteLength(line, "utf8") > MAX_MARKDOWN_LINE_BYTES) {
+      throw new RenderError({
+        message: "Markdown document contains a line that is too large to render safely",
+        sourcePath: context.sourcePath,
+        actionHint: simplifyDocumentHint(),
+      });
+    }
+  }
+}
+
+function createRenderState(context: MarkdownRenderContext): RenderState {
+  return {
+    context,
+    imageCount: 0,
+    totalImageBytes: 0,
+    mermaidBlockCount: 0,
+  };
+}
+
+function registerImage(state: RenderState): void {
+  state.imageCount += 1;
+
+  if (state.imageCount > MAX_IMAGE_COUNT) {
+    throw new RenderError({
+      message: "Markdown document contains too many images to render safely",
+      sourcePath: state.context.sourcePath,
+      actionHint: simplifyDocumentHint(),
+    });
+  }
+}
+
+function registerMermaidBlock(state: RenderState, content: string): void {
+  state.mermaidBlockCount += 1;
+
+  if (state.mermaidBlockCount > MAX_MERMAID_BLOCK_COUNT) {
+    throw new RenderError({
+      message: "Markdown document contains too many Mermaid blocks to render safely",
+      sourcePath: state.context.sourcePath,
+      actionHint: simplifyDocumentHint(),
+    });
+  }
+
+  if (Buffer.byteLength(content, "utf8") > MAX_MERMAID_BLOCK_BYTES) {
+    throw new RenderError({
+      message: "Mermaid block is too large to render safely",
+      sourcePath: state.context.sourcePath,
+      actionHint: simplifyDocumentHint(),
+    });
+  }
+}
+
+function rejectIfCodeFenceTooLarge(code: string, context: MarkdownRenderContext): void {
+  if (Buffer.byteLength(code, "utf8") > MAX_HIGHLIGHT_CODE_BYTES) {
+    throw new RenderError({
+      message: "Code fence is too large to highlight safely",
+      sourcePath: context.sourcePath,
+      actionHint: simplifyDocumentHint(),
+    });
+  }
+}
+
+function supportedImageMimeType(path: string, sourcePath: string): string {
   switch (extname(path).toLowerCase()) {
-    case ".avif":
-      return "image/avif";
-    case ".gif":
-      return "image/gif";
     case ".jpg":
     case ".jpeg":
       return "image/jpeg";
     case ".png":
       return "image/png";
     case ".svg":
-      return "image/svg+xml";
+      throw new RenderError({
+        message: "SVG images are not supported for security reasons; use PNG/JPEG/WebP.",
+        sourcePath,
+        actionHint: "Export the image as PNG, JPEG, or WebP before referencing it.",
+      });
     case ".webp":
       return "image/webp";
     default:
-      return "application/octet-stream";
+      throw new RenderError({
+        message: "Markdown image format is not supported; use PNG, JPEG, or WebP",
+        sourcePath,
+        actionHint: "Reference a local image with a .png, .jpg, .jpeg, or .webp extension.",
+      });
   }
+}
+
+function simplifyDocumentHint(): string {
+  return "Simplify the document by reducing large sections, splitting long lines, or moving heavy content out of Markdown.";
 }
 
 function isHttpUrl(value: string): boolean {
@@ -376,10 +477,6 @@ function hasUriScheme(value: string): boolean {
 function isPathInsideDirectory(path: string, directory: string): boolean {
   const relativePath = relative(directory, path);
   return relativePath === "" || (!relativePath.startsWith("..") && !isAbsolute(relativePath));
-}
-
-function containsHttpUrl(value: string): boolean {
-  return /\bhttps?:/iu.test(value);
 }
 
 function mdEscapeHtml(value: string): string {
