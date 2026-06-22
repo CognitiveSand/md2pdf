@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
@@ -64,6 +64,19 @@ interface RenderState {
 
 interface RenderEnvironment {
   state: RenderState;
+}
+
+type SupportedImageFormat = "jpeg" | "png" | "webp";
+
+interface SupportedImageType {
+  format: SupportedImageFormat;
+  mimeType: string;
+}
+
+interface ImageInfo {
+  format: SupportedImageFormat;
+  width: number;
+  height: number;
 }
 
 export function renderToHtml(markdown: string, context: MarkdownRenderContext): string {
@@ -227,7 +240,7 @@ function renderImage(md: MarkdownIt): RenderRule {
     }
 
     registerImage(renderEnv.state);
-    token.attrSet("src", imageSourceToDataUri(src, renderEnv.state.context));
+    token.attrSet("src", imageSourceToDataUri(src, renderEnv.state));
     token.attrSet("alt", self.renderInlineAsText(token.children ?? [], options, env));
 
     return self.renderToken(tokens, idx, options);
@@ -239,7 +252,7 @@ function renderLinkOpen(): RenderRule {
     const token = tokens[idx];
     const href = token.attrGet("href");
 
-    if (href !== null && (isHttpUrl(href) || hasUriScheme(href))) {
+    if (href !== null && !isPassiveHttpsLink(href)) {
       token.attrSet("data-md2pdf-blocked-href", "true");
       token.attrs = token.attrs?.filter(([name]) => name !== "href") ?? null;
     }
@@ -248,8 +261,9 @@ function renderLinkOpen(): RenderRule {
   };
 }
 
-function imageSourceToDataUri(src: string, context: MarkdownRenderContext): string {
-  if (isHttpUrl(src) || src.startsWith("//") || hasUriScheme(src)) {
+function imageSourceToDataUri(src: string, state: RenderState): string {
+  const context = state.context;
+  if (isRemoteOrSchemeReference(src)) {
     throw new RenderError({
       message: "Markdown images must use relative local paths",
       sourcePath: context.sourcePath,
@@ -257,14 +271,22 @@ function imageSourceToDataUri(src: string, context: MarkdownRenderContext): stri
     });
   }
 
-  const mimeType = supportedImageMimeType(src, context.sourcePath);
+  const imageType = supportedImageType(src, context.sourcePath);
   const imagePath = resolveImagePath(src, context);
-  const data = readImageFile(imagePath, context.sourcePath);
+  const data = readValidatedImageFile(imagePath, imageType, state);
 
-  return `data:${mimeType};base64,${data.toString("base64")}`;
+  return `data:${imageType.mimeType};base64,${data.toString("base64")}`;
 }
 
 function resolveImagePath(src: string, context: MarkdownRenderContext): string {
+  if (isRemoteOrSchemeReference(src)) {
+    throw new RenderError({
+      message: "Markdown images must use relative local paths",
+      sourcePath: context.sourcePath,
+      actionHint: "Reference images with a path relative to the Markdown source file.",
+    });
+  }
+
   if (isAbsolute(src)) {
     throw new RenderError({
       message: "Absolute Markdown image paths are not supported during local rendering",
@@ -274,10 +296,19 @@ function resolveImagePath(src: string, context: MarkdownRenderContext): string {
   }
 
   const sourceDirectory = dirname(resolve(context.sourcePath));
-  const baseDirectory = resolve(context.baseDir ?? sourceDirectory);
+  const baseDirectory = realpathForExistingPath(
+    resolve(context.baseDir ?? sourceDirectory),
+    context.sourcePath,
+    "Markdown image base directory could not be resolved",
+  );
   const imagePath = resolve(sourceDirectory, src);
+  const realImagePath = realpathForExistingPath(
+    imagePath,
+    context.sourcePath,
+    "Markdown image could not be read",
+  );
 
-  if (!isPathInsideDirectory(imagePath, baseDirectory)) {
+  if (!isPathInsideDirectory(realImagePath, baseDirectory)) {
     throw new RenderError({
       message: "Markdown image paths must stay inside the source image directory",
       sourcePath: context.sourcePath,
@@ -285,7 +316,50 @@ function resolveImagePath(src: string, context: MarkdownRenderContext): string {
     });
   }
 
-  return imagePath;
+  return realImagePath;
+}
+
+function realpathForExistingPath(path: string, sourcePath: string, message: string): string {
+  try {
+    return realpathSync(path);
+  } catch (cause) {
+    throw new RenderError({
+      message,
+      sourcePath,
+      actionHint: `Check that the referenced image exists and is readable: ${path}`,
+      cause,
+    });
+  }
+}
+
+function readValidatedImageFile(
+  imagePath: string,
+  expectedType: SupportedImageType,
+  state: RenderState,
+): Buffer {
+  const data = readImageFile(imagePath, state.context.sourcePath);
+
+  if (data.byteLength > MAX_SINGLE_IMAGE_BYTES) {
+    throw new RenderError({
+      message: "Markdown image file is too large to embed safely",
+      sourcePath: state.context.sourcePath,
+      actionHint: simplifyDocumentHint(),
+    });
+  }
+
+  const imageInfo = parseImageInfo(data, state.context.sourcePath);
+  if (imageInfo.format !== expectedType.format) {
+    throw new RenderError({
+      message: "Markdown image content does not match its file extension",
+      sourcePath: state.context.sourcePath,
+      actionHint: "Use an image whose file extension matches its PNG, JPEG, or WebP content.",
+    });
+  }
+
+  rejectIfImageDimensionsTooLarge(imageInfo, state.context.sourcePath);
+  registerImageBytes(state, data.byteLength);
+
+  return data;
 }
 
 function readImageFile(imagePath: string, sourcePath: string): Buffer {
@@ -408,6 +482,18 @@ function registerImage(state: RenderState): void {
   }
 }
 
+function registerImageBytes(state: RenderState, byteLength: number): void {
+  state.totalImageBytes += byteLength;
+
+  if (state.totalImageBytes > MAX_TOTAL_IMAGE_BYTES) {
+    throw new RenderError({
+      message: "Markdown document embeds too many image bytes to render safely",
+      sourcePath: state.context.sourcePath,
+      actionHint: simplifyDocumentHint(),
+    });
+  }
+}
+
 function registerMermaidBlock(state: RenderState, content: string): void {
   state.mermaidBlockCount += 1;
 
@@ -438,13 +524,13 @@ function rejectIfCodeFenceTooLarge(code: string, context: MarkdownRenderContext)
   }
 }
 
-function supportedImageMimeType(path: string, sourcePath: string): string {
+function supportedImageType(path: string, sourcePath: string): SupportedImageType {
   switch (extname(path).toLowerCase()) {
     case ".jpg":
     case ".jpeg":
-      return "image/jpeg";
+      return { format: "jpeg", mimeType: "image/jpeg" };
     case ".png":
-      return "image/png";
+      return { format: "png", mimeType: "image/png" };
     case ".svg":
       throw new RenderError({
         message: "SVG images are not supported for security reasons; use PNG/JPEG/WebP.",
@@ -452,7 +538,7 @@ function supportedImageMimeType(path: string, sourcePath: string): string {
         actionHint: "Export the image as PNG, JPEG, or WebP before referencing it.",
       });
     case ".webp":
-      return "image/webp";
+      return { format: "webp", mimeType: "image/webp" };
     default:
       throw new RenderError({
         message: "Markdown image format is not supported; use PNG, JPEG, or WebP",
@@ -462,12 +548,228 @@ function supportedImageMimeType(path: string, sourcePath: string): string {
   }
 }
 
+function parseImageInfo(data: Buffer, sourcePath: string): ImageInfo {
+  const parsers: Array<() => ImageInfo | null> = [
+    () => parsePngInfo(data),
+    () => parseJpegInfo(data),
+    () => parseWebpInfo(data),
+  ];
+
+  for (const parse of parsers) {
+    const info = parse();
+    if (info !== null) {
+      return info;
+    }
+  }
+
+  throw new RenderError({
+    message: "Markdown image file is not a valid PNG, JPEG, or WebP image",
+    sourcePath,
+    actionHint: "Use a valid local PNG, JPEG, or WebP image.",
+  });
+}
+
+function parsePngInfo(data: Buffer): ImageInfo | null {
+  const pngSignature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+  if (!data.subarray(0, pngSignature.length).equals(pngSignature)) {
+    return null;
+  }
+
+  if (data.byteLength < 24 || data.toString("ascii", 12, 16) !== "IHDR") {
+    return null;
+  }
+
+  return validImageInfo("png", data.readUInt32BE(16), data.readUInt32BE(20));
+}
+
+function parseJpegInfo(data: Buffer): ImageInfo | null {
+  if (data.byteLength < 4 || data[0] !== 0xff || data[1] !== 0xd8) {
+    return null;
+  }
+
+  let offset = 2;
+  while (offset + 3 < data.byteLength) {
+    if (data[offset] !== 0xff) {
+      offset += 1;
+      continue;
+    }
+
+    while (data[offset] === 0xff) {
+      offset += 1;
+    }
+
+    const marker = data[offset];
+    offset += 1;
+
+    if (marker === 0xd9 || marker === 0xda) {
+      break;
+    }
+
+    if (isJpegStandaloneMarker(marker)) {
+      continue;
+    }
+
+    if (offset + 2 > data.byteLength) {
+      return null;
+    }
+
+    const segmentLength = data.readUInt16BE(offset);
+    const segmentEnd = offset + segmentLength;
+    if (segmentLength < 2 || segmentEnd > data.byteLength) {
+      return null;
+    }
+
+    if (isJpegStartOfFrameMarker(marker)) {
+      if (segmentLength < 7) {
+        return null;
+      }
+
+      const height = data.readUInt16BE(offset + 3);
+      const width = data.readUInt16BE(offset + 5);
+      return validImageInfo("jpeg", width, height);
+    }
+
+    offset = segmentEnd;
+  }
+
+  return scanJpegStartOfFrame(data);
+}
+
+function scanJpegStartOfFrame(data: Buffer): ImageInfo | null {
+  for (let offset = 2; offset + 8 < data.byteLength; offset += 1) {
+    if (data[offset] !== 0xff || !isJpegStartOfFrameMarker(data[offset + 1])) {
+      continue;
+    }
+
+    const segmentLength = data.readUInt16BE(offset + 2);
+    if (segmentLength < 7 || offset + 2 + segmentLength > data.byteLength) {
+      continue;
+    }
+
+    const height = data.readUInt16BE(offset + 5);
+    const width = data.readUInt16BE(offset + 7);
+    const info = validImageInfo("jpeg", width, height);
+    if (info !== null) {
+      return info;
+    }
+  }
+
+  return null;
+}
+
+function parseWebpInfo(data: Buffer): ImageInfo | null {
+  if (
+    data.byteLength < 30 ||
+    data.toString("ascii", 0, 4) !== "RIFF" ||
+    data.toString("ascii", 8, 12) !== "WEBP"
+  ) {
+    return null;
+  }
+
+  let offset = 12;
+  while (offset + 8 <= data.byteLength) {
+    const chunkType = data.toString("ascii", offset, offset + 4);
+    const chunkSize = data.readUInt32LE(offset + 4);
+    const chunkDataOffset = offset + 8;
+    const chunkEnd = chunkDataOffset + chunkSize;
+    if (chunkEnd > data.byteLength) {
+      return null;
+    }
+
+    const imageInfo = parseWebpChunkInfo(data, chunkType, chunkDataOffset, chunkSize);
+    if (imageInfo !== null) {
+      return imageInfo;
+    }
+
+    offset = chunkEnd + (chunkSize % 2);
+  }
+
+  return null;
+}
+
+function parseWebpChunkInfo(
+  data: Buffer,
+  chunkType: string,
+  offset: number,
+  size: number,
+): ImageInfo | null {
+  if (chunkType === "VP8 " && size >= 10) {
+    if (data[offset + 3] !== 0x9d || data[offset + 4] !== 0x01 || data[offset + 5] !== 0x2a) {
+      return null;
+    }
+
+    const width = data.readUInt16LE(offset + 6) & 0x3fff;
+    const height = data.readUInt16LE(offset + 8) & 0x3fff;
+    return validImageInfo("webp", width, height);
+  }
+
+  if (chunkType === "VP8L" && size >= 5) {
+    if (data[offset] !== 0x2f) {
+      return null;
+    }
+
+    const bits = data.readUInt32LE(offset + 1);
+    const width = (bits & 0x3fff) + 1;
+    const height = ((bits >> 14) & 0x3fff) + 1;
+    return validImageInfo("webp", width, height);
+  }
+
+  if (chunkType === "VP8X" && size >= 10) {
+    const width = readUInt24LE(data, offset + 4) + 1;
+    const height = readUInt24LE(data, offset + 7) + 1;
+    return validImageInfo("webp", width, height);
+  }
+
+  return null;
+}
+
+function validImageInfo(format: SupportedImageFormat, width: number, height: number): ImageInfo | null {
+  if (width <= 0 || height <= 0) {
+    return null;
+  }
+
+  return { format, width, height };
+}
+
+function rejectIfImageDimensionsTooLarge(info: ImageInfo, sourcePath: string): void {
+  if (info.width * info.height > MAX_IMAGE_PIXELS) {
+    throw new RenderError({
+      message: "Markdown image dimensions are too large to render safely",
+      sourcePath,
+      actionHint: simplifyDocumentHint(),
+    });
+  }
+}
+
+function isJpegStartOfFrameMarker(marker: number): boolean {
+  return (
+    (marker >= 0xc0 && marker <= 0xc3) ||
+    (marker >= 0xc5 && marker <= 0xc7) ||
+    (marker >= 0xc9 && marker <= 0xcb) ||
+    (marker >= 0xcd && marker <= 0xcf)
+  );
+}
+
+function isJpegStandaloneMarker(marker: number): boolean {
+  return marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7);
+}
+
+function readUInt24LE(data: Buffer, offset: number): number {
+  return data[offset] + (data[offset + 1] << 8) + (data[offset + 2] << 16);
+}
+
 function simplifyDocumentHint(): string {
   return "Simplify the document by reducing large sections, splitting long lines, or moving heavy content out of Markdown.";
 }
 
-function isHttpUrl(value: string): boolean {
-  return /^https?:/iu.test(value.trim());
+function isPassiveHttpsLink(value: string): boolean {
+  return /^https:\/\//iu.test(value.trim());
+}
+
+function isRemoteOrSchemeReference(value: string): boolean {
+  const normalizedValue = value.trim();
+  return normalizedValue.startsWith("//") || hasUriScheme(normalizedValue);
 }
 
 function hasUriScheme(value: string): boolean {

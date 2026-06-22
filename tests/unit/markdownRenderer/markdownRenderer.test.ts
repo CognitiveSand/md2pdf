@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -7,7 +7,13 @@ import { describe, expect, it } from "vitest";
 
 import { RenderError } from "../../../src/errors.js";
 import { renderToHtml } from "../../../src/markdownRenderer.js";
-import { tinyJpeg, tinyPng, tinyWebp } from "../../fixtures/imageFixtures.js";
+import {
+  deceptiveImageBytes,
+  syntheticOversizedImageBytes,
+  tinyJpeg,
+  tinyPng,
+  tinyWebp,
+} from "../../fixtures/imageFixtures.js";
 
 describe("markdownRenderer renderToHtml", () => {
   it("@req FR-04 renders CommonMark with tables, task lists, and footnotes", () => {
@@ -159,6 +165,27 @@ describe("markdownRenderer renderToHtml", () => {
     }
   });
 
+  it("@req FR-06 accepts normal images in the source directory and subdirectories", () => {
+    const dir = mkdtempSync(join(tmpdir(), "md2pdf-markdown-renderer-"));
+    const imageDir = join(dir, "images");
+
+    try {
+      mkdirSync(imageDir);
+      writeFileSync(join(dir, "pixel.png"), tinyPng());
+      writeFileSync(join(imageDir, "nested.png"), tinyPng());
+
+      const html = renderToHtml(["![root](./pixel.png)", "![nested](./images/nested.png)"].join("\n"), {
+        sourcePath: join(dir, "source.md"),
+      });
+
+      expect(html).toContain('alt="root"');
+      expect(html).toContain('alt="nested"');
+      expect(html.match(/src="data:image\/png;base64,/gu)).toHaveLength(2);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("@req FR-06 @req NFR-02 rejects more than 100 Markdown images", () => {
     const dir = mkdtempSync(join(tmpdir(), "md2pdf-markdown-renderer-"));
 
@@ -221,6 +248,112 @@ describe("markdownRenderer renderToHtml", () => {
     }
   });
 
+  it("@req FR-06 @req NFR-02 rejects image content that does not match the extension", () => {
+    const dir = mkdtempSync(join(tmpdir(), "md2pdf-markdown-renderer-"));
+
+    try {
+      for (const fileName of ["fake.png", "fake.jpg", "fake.jpeg", "fake.webp"]) {
+        writeFileSync(join(dir, fileName), deceptiveImageBytes());
+
+        expectRenderError(
+          `![fake](./${fileName})`,
+          (error) => {
+            expect(error.message).toContain("not a valid PNG, JPEG, or WebP");
+            expect(error.context.actionHint).toContain("valid local");
+          },
+          { sourcePath: join(dir, "source.md") },
+        );
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("@req FR-06 @req NFR-02 rejects mismatched image signatures", () => {
+    const dir = mkdtempSync(join(tmpdir(), "md2pdf-markdown-renderer-"));
+
+    try {
+      writeFileSync(join(dir, "wrong.png"), tinyJpeg());
+
+      expectRenderError(
+        "![wrong](./wrong.png)",
+        (error) => {
+          expect(error.message).toContain("does not match");
+          expect(error.context.actionHint).toContain("extension matches");
+        },
+        { sourcePath: join(dir, "source.md") },
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("@req FR-06 @req NFR-02 rejects oversized single image files", () => {
+    const dir = mkdtempSync(join(tmpdir(), "md2pdf-markdown-renderer-"));
+
+    try {
+      writeFileSync(join(dir, "large.png"), syntheticOversizedImageBytes(20 * 1024 * 1024 + 1));
+
+      expectRenderError(
+        "![large](./large.png)",
+        (error) => {
+          expect(error.message).toContain("image file is too large");
+          expect(error.context.actionHint).toContain("Simplify the document");
+        },
+        { sourcePath: join(dir, "source.md") },
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("@req FR-06 @req NFR-02 rejects images above the pixel limit", () => {
+    const dir = mkdtempSync(join(tmpdir(), "md2pdf-markdown-renderer-"));
+
+    try {
+      writeFileSync(join(dir, "huge-dimensions.png"), pngWithDimensions(5001, 5000));
+
+      expectRenderError(
+        "![huge](./huge-dimensions.png)",
+        (error) => {
+          expect(error.message).toContain("image dimensions are too large");
+          expect(error.context.actionHint).toContain("Simplify the document");
+        },
+        { sourcePath: join(dir, "source.md") },
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("@req FR-06 @req NFR-02 rejects cumulative image bytes above the total limit", () => {
+    const dir = mkdtempSync(join(tmpdir(), "md2pdf-markdown-renderer-"));
+    const twentyMbPng = pngWithTrailingBytes(20 * 1024 * 1024);
+
+    try {
+      for (let index = 0; index < 5; index += 1) {
+        writeFileSync(join(dir, `large-${index}.png`), twentyMbPng);
+      }
+      writeFileSync(join(dir, "one-more.png"), tinyPng());
+
+      const markdown = [
+        ...Array.from({ length: 5 }, (_, index) => `![large-${index}](./large-${index}.png)`),
+        "![one-more](./one-more.png)",
+      ].join("\n");
+
+      expectRenderError(
+        markdown,
+        (error) => {
+          expect(error.message).toContain("too many image bytes");
+          expect(error.context.actionHint).toContain("Simplify the document");
+        },
+        { sourcePath: join(dir, "source.md") },
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("@req FR-06 allows relative images under an explicit baseDir", () => {
     const dir = mkdtempSync(join(tmpdir(), "md2pdf-markdown-renderer-"));
     const imageDir = join(dir, "assets");
@@ -265,17 +398,20 @@ describe("markdownRenderer renderToHtml", () => {
     }
   });
 
-  it("@req NFR-02 emits no exploitable external resource URLs", () => {
+  it("@req NFR-02 keeps HTTPS links passive and blocks active resource URLs", () => {
     const html = renderToHtml(
       [
         "[remote](https://example.invalid/page)",
+        "[insecure](http://example.invalid/page)",
         "",
         "https://example.invalid/plain-text",
       ].join("\n"),
       context(),
     );
 
-    expect(html).not.toMatch(/<a\b[^>]*\bhref=["']https?:/iu);
+    expect(html).toMatch(/<a\b[^>]*\bhref="https:\/\/example\.invalid\/page"/iu);
+    expect(html).not.toMatch(/<a\b[^>]*\bhref="http:\/\/example\.invalid\/page"/iu);
+    expect(html).toMatch(/<a\b[^>]*data-md2pdf-blocked-href="true"[^>]*>insecure<\/a>/iu);
     expect(html).not.toMatch(/<img\b[^>]*\bsrc=["']https?:/iu);
     expect(html).not.toMatch(/<script\b[^>]*\bsrc=/iu);
     expect(html).not.toMatch(/<link\b[^>]*\bhref=/iu);
@@ -283,6 +419,25 @@ describe("markdownRenderer renderToHtml", () => {
     expect(html).not.toContain("img-src data: file:");
     expect(html).toContain("remote");
     expect(html).toContain("https://example.invalid/plain-text");
+  });
+
+  it("@req NFR-02 blocks dangerous and local link hrefs", () => {
+    const html = renderToHtml(
+      [
+        "[javascript](javascript:alert(1))",
+        "[data](data:text/html;base64,PGgxPkJvb208L2gxPg==)",
+        "[file](file:///etc/passwd)",
+        "[blob](blob:https://example.invalid/id)",
+        "[ftp](ftp://example.invalid/file)",
+        "[unknown](custom://example.invalid/file)",
+        "[root](/etc/passwd)",
+        "[relative](./local-file.md)",
+      ].join("\n"),
+      context(),
+    );
+
+    expect(mainContent(html)).not.toMatch(/<a\b[^>]*\shref=/iu);
+    expect(html.match(/data-md2pdf-blocked-href="true"/gu)).toHaveLength(8);
   });
 
   it("@req NFR-02 rejects remote image URLs", () => {
@@ -329,6 +484,35 @@ describe("markdownRenderer renderToHtml", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it("@req FR-06 @req NFR-02 rejects symlinks that escape the real baseDir", () => {
+    const dir = mkdtempSync(join(tmpdir(), "md2pdf-markdown-renderer-"));
+    const docsDir = join(dir, "docs");
+    const outsideDir = join(dir, "outside");
+
+    try {
+      mkdirSync(docsDir);
+      mkdirSync(outsideDir);
+      writeFileSync(join(outsideDir, "outside.png"), tinyPng());
+
+      try {
+        symlinkSync(join(outsideDir, "outside.png"), join(docsDir, "linked.png"), "file");
+      } catch {
+        return;
+      }
+
+      expectRenderError(
+        "![linked](./linked.png)",
+        (error) => {
+          expect(error.message).toContain("must stay inside");
+          expect(error.context.actionHint).toContain("baseDir");
+        },
+        { sourcePath: join(docsDir, "source.md") },
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
 
 function context(): { sourcePath: string } {
@@ -347,4 +531,25 @@ function expectRenderError(
     expect(error).toBeInstanceOf(RenderError);
     inspect(error as RenderError);
   }
+}
+
+function pngWithDimensions(width: number, height: number): Buffer {
+  const data = Buffer.from(tinyPng());
+  data.writeUInt32BE(width, 16);
+  data.writeUInt32BE(height, 20);
+  return data;
+}
+
+function pngWithTrailingBytes(byteLength: number): Buffer {
+  const image = tinyPng();
+  if (byteLength < image.byteLength) {
+    throw new RangeError("byteLength must fit the tiny PNG fixture");
+  }
+
+  return Buffer.concat([image, Buffer.alloc(byteLength - image.byteLength)]);
+}
+
+function mainContent(html: string): string {
+  const match = html.match(/<main class="markdown-body">\n(?<body>[\s\S]*?)<\/main>/u);
+  return match?.groups?.body ?? html;
 }
