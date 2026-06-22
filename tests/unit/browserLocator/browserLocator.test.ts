@@ -9,6 +9,7 @@ import { ArtifactPolicy, type ArtifactRelease } from "../../../src/artifactPolic
 import {
   ArtifactPolicyDriverResolver,
   BrowserLocator,
+  isSnapBrowser,
   type BrowserCandidate,
   type BrowserDriverResolver,
   type BrowserLocatorFileSystem,
@@ -17,6 +18,7 @@ import {
   type FallbackBrowserResolver,
   type LocatedBrowser,
   type LocatedDriver,
+  type SystemDriverProbe,
 } from "../../../src/browserLocator.js";
 import { ArtifactFreshnessError, BrowserNotFoundError } from "../../../src/errors.js";
 
@@ -507,6 +509,89 @@ describe("ArtifactPolicyDriverResolver", () => {
     });
   });
 });
+
+describe("BrowserLocator system-bundled WebDriver (NFR-08)", () => {
+  const snapFirefox = "/snap/firefox/current/usr/lib/firefox/firefox";
+  const snapGeckodriver = "/snap/bin/geckodriver";
+
+  it("@req NFR-08 drives a snap Firefox with its bundled geckodriver when no catalog driver resolves", async () => {
+    const locator = new BrowserLocator({
+      env: {},
+      platform: "linux",
+      candidatePaths: [snapFirefox],
+      fileSystem: fakeFileSystem({
+        [snapFirefox]: { executable: true },
+        [snapGeckodriver]: { executable: true },
+      }),
+      browserProbe: new FakeBrowserProbe(),
+      driverResolver: new FakeDriverResolver(),
+      systemDriverProbe: new FakeSystemDriverProbe("geckodriver 0.36.0 ( 2026-06-08)"),
+    });
+
+    await expect(locator.locate()).resolves.toMatchObject({
+      kind: "firefox",
+      browserPath: snapFirefox,
+      driverPath: snapGeckodriver,
+      driverArtifactName: "geckodriver",
+    });
+  });
+
+  it("@req NFR-08 ignores a bundled driver whose version is not a geckodriver release", async () => {
+    const locator = new BrowserLocator({
+      env: {},
+      platform: "linux",
+      candidatePaths: [snapFirefox],
+      fileSystem: fakeFileSystem({
+        [snapFirefox]: { executable: true },
+        [snapGeckodriver]: { executable: true },
+      }),
+      browserProbe: new FakeBrowserProbe(),
+      driverResolver: new FakeDriverResolver(),
+      systemDriverProbe: new FakeSystemDriverProbe("not a driver"),
+      fallbackBrowserResolver: new SuccessfulFallbackBrowserResolver(),
+    });
+
+    await expect(locator.locate()).resolves.toMatchObject({
+      kind: "chromium",
+      browserPath: "/fallback/chromium",
+    });
+  });
+
+  it("@req NFR-08 does not use a bundled driver on non-Linux platforms", async () => {
+    const locator = new BrowserLocator({
+      env: {},
+      platform: "darwin",
+      candidatePaths: [snapFirefox],
+      fileSystem: fakeFileSystem({
+        [snapFirefox]: { executable: true },
+        [snapGeckodriver]: { executable: true },
+      }),
+      browserProbe: new FakeBrowserProbe(),
+      driverResolver: new FakeDriverResolver(),
+      systemDriverProbe: new FakeSystemDriverProbe("geckodriver 0.36.0"),
+      fallbackBrowserResolver: new SuccessfulFallbackBrowserResolver(),
+    });
+
+    await expect(locator.locate()).resolves.toMatchObject({
+      kind: "chromium",
+      browserPath: "/fallback/chromium",
+    });
+  });
+
+  it("@req NFR-08 isSnapBrowser detects /snap paths only", () => {
+    expect(isSnapBrowser(snapFirefox)).toBe(true);
+    expect(isSnapBrowser("/usr/bin/firefox")).toBe(false);
+    expect(isSnapBrowser("/Applications/Firefox.app/Contents/MacOS/firefox")).toBe(false);
+  });
+});
+
+class FakeSystemDriverProbe implements SystemDriverProbe {
+  constructor(private readonly output: string | null) {}
+
+  async driverVersion(): Promise<string | null> {
+    return this.output;
+  }
+}
 
 interface FakeFile {
   executable: boolean;

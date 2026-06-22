@@ -22,6 +22,9 @@ freshness checks, and release validation paths.
 - A matching WebDriver binary declared in `artifacts.json` and selected by the
   artifact freshness policy, or a fallback browser/driver provisioned by md2pdf
   into a per-user cache from an eligible declared artifact.
+- For a browser whose WebDriver ships bundled with it (such as the Firefox
+  snap), md2pdf uses that bundled driver to drive that browser, validated by a
+  compatibility check rather than the freshness policy.
 
 `MD2PDF_BROWSER` may point the runtime converter at a specific browser
 executable. It is an environment variable, not a CLI option:
@@ -30,8 +33,11 @@ executable. It is an environment variable, not a CLI option:
 MD2PDF_BROWSER=/usr/bin/chromium md2pdf notes.md
 ```
 
-WebDriver binaries are runtime artifacts. They must be declared in
-`artifacts.json`; md2pdf does not select arbitrary drivers from `PATH`.
+WebDriver binaries md2pdf provisions are runtime artifacts declared in
+`artifacts.json`; md2pdf does not select arbitrary drivers from `PATH`. The sole
+exception is a WebDriver bundled inside a user-installed browser (see the
+Artifact Freshness Policy, "System-Bundled WebDriver"), used only to drive that
+same browser and only after a compatibility check.
 
 ## Install
 
@@ -43,11 +49,20 @@ npm install --global md2pdf
 md2pdf --help
 ```
 
-For local development or release smoke testing:
+To run the CLI from a source checkout, one command builds and installs it:
+
+```bash
+npm install --global .
+```
+
+The `prepare` script compiles `dist/` during install, so `md2pdf` lands on your
+`PATH` in one step — no separate build or link, on Linux, macOS, or Windows.
+Re-run the same command after pulling changes; `md2pdf --help` confirms it.
+
+To smoke-test the exact tarball that would be published instead:
 
 ```bash
 npm ci
-npm run build
 npm pack
 npm install --global --prefix /tmp/md2pdf-user ./<tarball-from-npm-pack>.tgz
 /tmp/md2pdf-user/bin/md2pdf --help

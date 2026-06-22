@@ -110,6 +110,7 @@ concern, not grounds for dropping the requirement.
 | NFR-03 | Platform portability | md2pdf shall perform single-file conversion on Linux, macOS, and Windows hosts running Node.js 20 or later. | Quality Attribute | Should | MVP | Test |
 | NFR-04 | Self-describing usage | When md2pdf is invoked with the help option, md2pdf shall display each supported option with a one-line description on standard output. | Quality Attribute | Should | MVP | Demonstration |
 | NFR-05 | Artifact freshness policy | When any artifact is added, updated, embedded, locked, referenced, distributed, vendored, generated from a third-party source, or provisioned by md2pdf, md2pdf shall use the newest eligible artifact version available after a 7-day quarantine period, except where an approved quarantine waiver authorises a specific in-quarantine version; no other exception, override, bypass, emergency exemption, or force mode exists. | Quality Attribute | Must | MVP | Test |
+| NFR-08 | Use of an installed browser | When a supported browser is installed on the user's system, md2pdf shall use it to produce the output PDF rather than downloading a browser. | Quality Attribute | Must | MVP | Test |
 
 ## 8. Compliance checklist (C1–C14 self-assessment)
 

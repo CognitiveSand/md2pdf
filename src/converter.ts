@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { access, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 
@@ -6,13 +7,14 @@ import { ArtifactPolicy } from "./artifactPolicy.js";
 import {
   ArtifactPolicyDriverResolver,
   BrowserLocator,
+  isSnapBrowser,
   type FallbackBrowserResolver,
   type LocatedBrowser,
 } from "./browserLocator.js";
 import type { ConvertOptions } from "./contracts.js";
 import { ConversionError, RenderError } from "./errors.js";
 import { provisionFallbackBrowser } from "./fallbackBrowserProvisioner.js";
-import { withTempHtml } from "./markdownRenderer.js";
+import { withTempHtml, type MarkdownRenderContext } from "./markdownRenderer.js";
 import { JsonReleaseCatalog } from "./releaseCatalog.js";
 import {
   printPdfWithWebDriver,
@@ -28,6 +30,7 @@ export type { WebDriverSession, WebDriverSessionFactory } from "./webDriverSessi
 
 export interface BrowserLocatorLike {
   locate(): Promise<LocatedBrowser>;
+  locateProvisionedFallbackBrowser?(): Promise<LocatedBrowser | null>;
 }
 
 export interface ConverterFileSystem {
@@ -103,7 +106,8 @@ export class DocumentConverter {
     const absoluteOutputPath = resolve(outputPath);
     const renderTimeoutMs = options.renderTimeoutMs ?? defaultRenderTimeoutMs;
     await this.assertSourceAccessible(absoluteSourcePath, absoluteOutputPath);
-    const browser = await this.browserLocatorFactory(options).locate();
+    const locator = this.browserLocatorFactory(options);
+    const browser = await locator.locate();
     let markdown: string;
     try {
       markdown = await this.fileSystem.readFile(absoluteSourcePath, "utf8");
@@ -117,21 +121,18 @@ export class DocumentConverter {
       });
     }
 
-    // renderTimeoutMs bounds two clocks that start at different instants: the
-    // outer withTempHtml budget covers the whole callback including WebDriver
-    // session startup, while the same value caps each WebDriver request after
-    // the session exists. The outer timeout aborts the inner work via the
-    // callback signal, so the conversion never outlives the outer budget.
-    const pdf = await withTempHtml(
+    const renderContext: MarkdownRenderContext = {
+      sourcePath: absoluteSourcePath,
+      baseDir: dirname(absoluteSourcePath),
+      documentTitle: basename(absoluteSourcePath),
+    };
+
+    const pdf = await this.renderWithFallback(
+      locator,
+      browser,
+      options,
       markdown,
-      {
-        sourcePath: absoluteSourcePath,
-        baseDir: dirname(absoluteSourcePath),
-        documentTitle: basename(absoluteSourcePath),
-        tempDir: this.tempDir,
-      },
-      (_htmlPath, htmlFileUrl, signal) =>
-        this.printWithSpawnedDriver(browser, options, htmlFileUrl, signal, renderTimeoutMs),
+      renderContext,
       renderTimeoutMs,
     );
 
@@ -150,6 +151,68 @@ export class DocumentConverter {
         cause,
       });
     }
+  }
+
+  private async renderWithFallback(
+    locator: BrowserLocatorLike,
+    browser: LocatedBrowser,
+    options: ConvertOptions,
+    markdown: string,
+    renderContext: MarkdownRenderContext,
+    renderTimeoutMs: number,
+  ): Promise<Buffer> {
+    try {
+      return await this.renderWithBrowser(browser, options, markdown, renderContext, renderTimeoutMs);
+    } catch (cause) {
+      // NFR-08: a locally installed browser was preferred but could not render
+      // ("broken"). Fall back to the policy-governed provisioned browser when one
+      // is available and the failed browser was not already that fallback.
+      if (browser.provisioned === true || locator.locateProvisionedFallbackBrowser === undefined) {
+        throw cause;
+      }
+
+      const fallback = await locator.locateProvisionedFallbackBrowser();
+      if (fallback === null) {
+        throw cause;
+      }
+
+      return this.renderWithBrowser(fallback, options, markdown, renderContext, renderTimeoutMs);
+    }
+  }
+
+  private async renderWithBrowser(
+    browser: LocatedBrowser,
+    options: ConvertOptions,
+    markdown: string,
+    renderContext: MarkdownRenderContext,
+    renderTimeoutMs: number,
+  ): Promise<Buffer> {
+    // renderTimeoutMs bounds two clocks that start at different instants: the
+    // outer withTempHtml budget covers the whole callback including WebDriver
+    // session startup, while the same value caps each WebDriver request after
+    // the session exists. The outer timeout aborts the inner work via the
+    // callback signal, so the conversion never outlives the outer budget.
+    return withTempHtml(
+      markdown,
+      { ...renderContext, tempDir: this.resolveTempDir(browser) },
+      (_htmlPath, htmlFileUrl, signal) =>
+        this.printWithSpawnedDriver(browser, options, htmlFileUrl, signal, renderTimeoutMs),
+      renderTimeoutMs,
+    );
+  }
+
+  private resolveTempDir(browser: LocatedBrowser): string | undefined {
+    if (this.tempDir !== undefined) {
+      return this.tempDir;
+    }
+
+    // Snap-confined browsers cannot read host /tmp; they can read a non-hidden
+    // directory under the user's home. macOS/Windows keep the OS temp dir.
+    if (process.platform === "linux" && isSnapBrowser(browser.browserPath)) {
+      return join(homedir(), "md2pdf-tmp");
+    }
+
+    return undefined;
   }
 
   private async printWithSpawnedDriver(
@@ -295,6 +358,7 @@ class ArtifactPolicyFallbackBrowserResolver implements FallbackBrowserResolver {
       driverArtifactName: "chromedriver",
       driverPath: fallback.driverPath,
       kind: "chromium",
+      provisioned: true,
       version: fallback.release.version,
     };
   }

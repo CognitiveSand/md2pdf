@@ -163,6 +163,42 @@ describe("fallback browser provisioning", () => {
     }
   });
 
+  itOnPosix("@req NFR-05 restores execute bits on bundled helper binaries beside the browser", async () => {
+    const cacheDir = await tempRoot();
+    const archive = zipArchive({
+      "chrome-linux64/chrome": "browser",
+      "chrome-linux64/chrome_crashpad_handler": "helper",
+      "chromedriver-linux64/chromedriver": "driver",
+    });
+
+    const result = await provisionFallbackBrowser(
+      policy(),
+      catalog([
+        release("121.0.0", {
+          browserPath: "chrome-linux64/chrome",
+          driverPath: "chromedriver-linux64/chromedriver",
+          sha256: sha256(archive),
+          size: archive.byteLength,
+        }),
+      ]),
+      {
+        cacheDir,
+        downloader: new RecordingDownloader(archive),
+        now,
+      },
+    );
+
+    expect((await stat(result.browserPath)).mode & 0o111).not.toBe(0);
+    expect((await stat(result.driverPath)).mode & 0o111).not.toBe(0);
+
+    // The bug: a helper binary that ships beside the browser must also be executable,
+    // otherwise headless Chrome aborts spawning chrome_crashpad_handler.
+    const helper = await stat(
+      join(cacheDir, "chromium-for-testing", "121.0.0", "chrome-linux64", "chrome_crashpad_handler"),
+    );
+    expect(helper.mode & 0o111).not.toBe(0);
+  });
+
   it("@req NFR-05 provisions Chrome and ChromeDriver from separate eligible archives", async () => {
     const cacheDir = await tempRoot();
     const browserArchive = zipArchive({
