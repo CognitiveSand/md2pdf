@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { basename, dirname, extname, isAbsolute, relative, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { URL, fileURLToPath, pathToFileURL } from "node:url";
 
 import hljs from "highlight.js";
 import MarkdownIt from "markdown-it";
@@ -38,6 +38,8 @@ const MAX_HIGHLIGHT_CODE_BYTES = 1 * 1024 * 1024;
 const MAX_SINGLE_IMAGE_BYTES = 20 * 1024 * 1024;
 const MAX_TOTAL_IMAGE_BYTES = 100 * 1024 * 1024;
 const MAX_IMAGE_PIXELS = 25_000_000;
+const REMOVE_HIDDEN_FORMATTING_HINT =
+  "Remove hidden formatting characters from the Markdown source before converting it.";
 
 export interface MarkdownRenderContext {
   sourcePath: string;
@@ -79,8 +81,16 @@ interface ImageInfo {
   height: number;
 }
 
+interface DangerousMarkdownCharacter {
+  codePoint: number;
+  line: number;
+  column: number;
+  kind: "control" | "format";
+}
+
 export function renderToHtml(markdown: string, context: MarkdownRenderContext): string {
   validateMarkdownSize(markdown, context);
+  validateMarkdownCharacters(markdown, context);
 
   const renderer = getMarkdownRenderer();
   const body = renderer.render(markdown, {
@@ -252,13 +262,69 @@ function renderLinkOpen(): RenderRule {
     const token = tokens[idx];
     const href = token.attrGet("href");
 
-    if (href !== null && !isPassiveHttpsLink(href)) {
-      token.attrSet("data-md2pdf-blocked-href", "true");
-      token.attrs = token.attrs?.filter(([name]) => name !== "href") ?? null;
+    if (href !== null && !isClearVisibleHttpsLink(href, extractVisibleLinkText(tokens, idx))) {
+      blockLinkHref(token);
     }
 
     return self.renderToken(tokens, idx, options);
   };
+}
+
+function blockLinkHref(token: Token): void {
+  token.attrSet("data-md2pdf-blocked-href", "true");
+  token.attrs = token.attrs?.filter(([name]) => name !== "href") ?? null;
+}
+
+function extractVisibleLinkText(tokens: Token[], openIndex: number): string {
+  const closeIndex = findMatchingLinkCloseIndex(tokens, openIndex);
+
+  if (closeIndex === undefined) {
+    return "";
+  }
+
+  return extractVisibleInlineText(tokens.slice(openIndex + 1, closeIndex));
+}
+
+function findMatchingLinkCloseIndex(tokens: Token[], openIndex: number): number | undefined {
+  const openToken = tokens[openIndex];
+
+  for (let index = openIndex + 1; index < tokens.length; index += 1) {
+    const token = tokens[index];
+
+    if (token.type === "link_close" && token.level === openToken.level) {
+      return index;
+    }
+  }
+
+  return undefined;
+}
+
+function extractVisibleInlineText(tokens: Token[]): string {
+  return tokens.map((token) => visibleTokenText(token)).join("");
+}
+
+function visibleTokenText(token: Token): string {
+  if (token.type === "text" || token.type === "code_inline") {
+    return token.content;
+  }
+
+  if (token.type === "softbreak" || token.type === "hardbreak") {
+    return "\n";
+  }
+
+  if (token.type === "image") {
+    return token.content || extractVisibleInlineText(token.children ?? []);
+  }
+
+  if (token.children !== null && token.children.length > 0) {
+    return extractVisibleInlineText(token.children);
+  }
+
+  if (token.nesting === 0 && token.content !== "" && token.type !== "html_inline") {
+    return token.content;
+  }
+
+  return "";
 }
 
 function imageSourceToDataUri(src: string, state: RenderState): string {
@@ -459,6 +525,106 @@ function validateMarkdownSize(markdown: string, context: MarkdownRenderContext):
       });
     }
   }
+}
+
+function validateMarkdownCharacters(markdown: string, context: MarkdownRenderContext): void {
+  const dangerousCharacter = findDangerousMarkdownCharacter(markdown);
+
+  if (dangerousCharacter === undefined) {
+    return;
+  }
+
+  throw new RenderError({
+    message:
+      dangerousCharacter.kind === "control"
+        ? "Markdown document contains unsafe control characters"
+        : "Markdown document contains hidden or unsafe formatting characters",
+    sourcePath: context.sourcePath,
+    actionHint: REMOVE_HIDDEN_FORMATTING_HINT,
+    cause: [
+      formatCodePoint(dangerousCharacter.codePoint),
+      `at line ${dangerousCharacter.line}, column ${dangerousCharacter.column}`,
+    ].join(" "),
+  });
+}
+
+function findDangerousMarkdownCharacter(markdown: string): DangerousMarkdownCharacter | undefined {
+  let line = 1;
+  let column = 1;
+
+  for (let index = 0; index < markdown.length; ) {
+    const codePoint = markdown.codePointAt(index);
+
+    if (codePoint === undefined) {
+      return undefined;
+    }
+
+    const kind = dangerousMarkdownCharacterKind(codePoint);
+    if (kind !== undefined) {
+      return { codePoint, line, column, kind };
+    }
+
+    if (codePoint === 0x0d) {
+      const nextCodePoint = markdown.codePointAt(index + 1);
+      index += nextCodePoint === 0x0a ? 2 : 1;
+      line += 1;
+      column = 1;
+      continue;
+    }
+
+    if (codePoint === 0x0a) {
+      index += 1;
+      line += 1;
+      column = 1;
+      continue;
+    }
+
+    index += codePoint > 0xffff ? 2 : 1;
+    column += 1;
+  }
+
+  return undefined;
+}
+
+function dangerousMarkdownCharacterKind(
+  codePoint: number,
+): DangerousMarkdownCharacter["kind"] | undefined {
+  if (isUnsafeControlCharacter(codePoint)) {
+    return "control";
+  }
+
+  if (isUnsafeFormattingCharacter(codePoint)) {
+    return "format";
+  }
+
+  return undefined;
+}
+
+function isUnsafeControlCharacter(codePoint: number): boolean {
+  if (codePoint === 0x09 || codePoint === 0x0a || codePoint === 0x0d) {
+    return false;
+  }
+
+  return (
+    (codePoint >= 0x00 && codePoint <= 0x1f) ||
+    (codePoint >= 0x7f && codePoint <= 0x9f)
+  );
+}
+
+function isUnsafeFormattingCharacter(codePoint: number): boolean {
+  return (
+    codePoint === 0x00ad ||
+    (codePoint >= 0x200b && codePoint <= 0x200d) ||
+    (codePoint >= 0x202a && codePoint <= 0x202e) ||
+    codePoint === 0x2060 ||
+    codePoint === 0x2063 ||
+    (codePoint >= 0x2066 && codePoint <= 0x2069) ||
+    codePoint === 0xfeff
+  );
+}
+
+function formatCodePoint(codePoint: number): string {
+  return `U+${codePoint.toString(16).toUpperCase().padStart(4, "0")}`;
 }
 
 function createRenderState(context: MarkdownRenderContext): RenderState {
@@ -782,8 +948,45 @@ function simplifyDocumentHint(): string {
   return "Simplify the document by reducing large sections, splitting long lines, or moving heavy content out of Markdown.";
 }
 
-function isPassiveHttpsLink(value: string): boolean {
-  return /^https:\/\//iu.test(value.trim());
+function isClearVisibleHttpsLink(href: string, visibleText: string): boolean {
+  const trimmedHref = href.trim();
+
+  if (findDangerousMarkdownCharacter(trimmedHref) !== undefined) {
+    return false;
+  }
+
+  if (!hasExplicitHttpsHost(trimmedHref)) {
+    return false;
+  }
+
+  let url: URL;
+  try {
+    url = new URL(trimmedHref);
+  } catch {
+    return false;
+  }
+
+  return (
+    url.protocol === "https:" &&
+    url.host !== "" &&
+    url.username === "" &&
+    url.password === "" &&
+    visibleText.trim() === href
+  );
+}
+
+function hasExplicitHttpsHost(value: string): boolean {
+  const prefix = "https://";
+
+  if (!value.toLowerCase().startsWith(prefix)) {
+    return false;
+  }
+
+  const afterScheme = value.slice(prefix.length);
+  const hostEndIndex = afterScheme.search(/[/?#]/u);
+  const host = hostEndIndex === -1 ? afterScheme : afterScheme.slice(0, hostEndIndex);
+
+  return host !== "";
 }
 
 function isRemoteOrSchemeReference(value: string): boolean {

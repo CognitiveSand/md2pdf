@@ -271,7 +271,38 @@ describe("P3-8 DocumentConverter", () => {
     expect(sessionStarted).toBe(false);
   });
 
-  it("@req NFR-02 prints local HTML with passive HTTPS links and blocked dangerous hrefs", async () => {
+  it("@req NFR-02 rejects hidden Markdown characters before starting WebDriver", async () => {
+    const tempRoot = await createTempRoot(tempRoots);
+    const sourcePath = join(tempRoot, "hidden.md");
+    const outputPath = join(tempRoot, "hidden.pdf");
+    let sessionStarted = false;
+
+    await writeFile(sourcePath, "# Hidden\n\n[https://example.invalid](https://example.invalid/\u200Breport)\n", "utf8");
+
+    const converter = new DocumentConverter({
+      browserLocatorFactory: () => fakeLocator([]),
+      tempDir: tempRoot,
+      webdriverSessionFactory: {
+        async start() {
+          sessionStarted = true;
+          return fakeSessionFactory([]).start(browser("chrome"));
+        },
+      },
+      printPdf: async () => pdfBytes,
+    });
+
+    await expect(converter.convertFile(sourcePath, outputPath)).rejects.toMatchObject({
+      kind: "render",
+      context: {
+        message: "Markdown document contains hidden or unsafe formatting characters",
+        actionHint: expect.stringContaining("Remove hidden formatting characters"),
+      },
+    });
+    await expect(stat(outputPath)).rejects.toMatchObject({ code: "ENOENT" });
+    expect(sessionStarted).toBe(false);
+  });
+
+  it("@req NFR-02 prints local HTML with only clear visible HTTPS links clickable", async () => {
     const tempRoot = await createTempRoot(tempRoots);
     const sourcePath = join(tempRoot, "links.md");
     const outputPath = join(tempRoot, "links.pdf");
@@ -282,7 +313,9 @@ describe("P3-8 DocumentConverter", () => {
       [
         "# Links",
         "",
+        "[https://example.invalid/report](https://example.invalid/report)",
         "[safe](https://example.invalid/report)",
+        "[https://evil.example](https://example.invalid/report)",
         "[danger](javascript:alert(1))",
         "[local](/etc/passwd)",
         "",
@@ -303,8 +336,13 @@ describe("P3-8 DocumentConverter", () => {
     await converter.convertFile(sourcePath, outputPath);
 
     expect(printedHtml).toMatch(/<a\b[^>]*href="https:\/\/example\.invalid\/report"/iu);
+    expect(printedHtml).toMatch(/<a\b[^>]*data-md2pdf-blocked-href="true"[^>]*>safe<\/a>/iu);
+    expect(printedHtml).toMatch(
+      /<a\b[^>]*data-md2pdf-blocked-href="true"[^>]*>https:\/\/evil\.example<\/a>/iu,
+    );
     expect(printedHtml).toMatch(/<a\b[^>]*data-md2pdf-blocked-href="true"[^>]*>danger<\/a>/iu);
     expect(printedHtml).toMatch(/<a\b[^>]*data-md2pdf-blocked-href="true"[^>]*>local<\/a>/iu);
+    expect(printedHtml.match(/\bhref="https:\/\/example\.invalid\/report"/giu)).toHaveLength(1);
     expect(printedHtml).not.toMatch(/\bhref="javascript:/iu);
     expect(printedHtml).not.toMatch(/\bhref="\/etc\/passwd"/iu);
     expect(printedHtml).not.toMatch(/<img\b[^>]*\bsrc=["']https?:/iu);

@@ -69,6 +69,83 @@ describe("markdownRenderer renderToHtml", () => {
     });
   });
 
+  it("@req NFR-02 rejects zero-width Markdown characters before parsing", () => {
+    const sourcePath = join(tmpdir(), "hidden-character-source.md");
+
+    expectRenderError(
+      ["safe", "bad\u200Btext"].join("\n"),
+      (error) => {
+        expect(error.message).toContain("hidden or unsafe formatting characters");
+        expect(error.context).toMatchObject({
+          sourcePath,
+          actionHint: expect.stringContaining("Remove hidden formatting characters"),
+          cause: expect.stringContaining("U+200B at line 2, column 4"),
+        });
+      },
+      { sourcePath },
+    );
+  });
+
+  it("@req NFR-02 rejects bidirectional override Markdown characters before parsing", () => {
+    expectRenderError("safe\u202Etxt", (error) => {
+      expect(error.message).toContain("hidden or unsafe formatting characters");
+      expect(error.context.actionHint).toContain("Remove hidden formatting characters");
+      expect(error.context.cause).toBe("U+202E at line 1, column 5");
+    });
+  });
+
+  it("@req NFR-02 rejects unexpected control characters before parsing", () => {
+    expectRenderError("safe\u0008text", (error) => {
+      expect(error.message).toContain("unsafe control characters");
+      expect(error.context.actionHint).toContain("Remove hidden formatting characters");
+      expect(error.context.cause).toBe("U+0008 at line 1, column 5");
+    });
+
+    expectRenderError("safe\u0085text", (error) => {
+      expect(error.message).toContain("unsafe control characters");
+      expect(error.context.cause).toBe("U+0085 at line 1, column 5");
+    });
+  });
+
+  it("@req NFR-02 allows ordinary Markdown line breaks and tab characters", () => {
+    const html = renderToHtml(["alpha\tbeta", "gamma", "delta"].join("\r\n"), context());
+
+    expect(html).toContain("alpha\tbeta");
+    expect(html).toContain("gamma");
+    expect(html).toContain("delta");
+  });
+
+  it("@req NFR-02 rejects dangerous Markdown characters before image resolution", () => {
+    expectRenderError("![missing](./missing.png)\u200B", (error) => {
+      expect(error.message).toContain("hidden or unsafe formatting characters");
+      expect(error.message).not.toContain("could not be read");
+      expect(error.context.cause).toBe("U+200B at line 1, column 26");
+    });
+  });
+
+  it("@req NFR-02 rejects invisible characters inside link hrefs before rendering", () => {
+    expectRenderError("[https://example.invalid](https://example.invalid/\u200Breport)", (error) => {
+      expect(error.message).toContain("hidden or unsafe formatting characters");
+      expect(error.context.actionHint).toContain("Remove hidden formatting characters");
+      expect(error.context.cause).toBe("U+200B at line 1, column 51");
+    });
+  });
+
+  it("@req NFR-02 rejects dangerous Markdown characters before fenced code rendering", () => {
+    expectRenderError(["```ts", "const value = '\u200B';", "```"].join("\n"), (error) => {
+      expect(error.message).toContain("hidden or unsafe formatting characters");
+      expect(error.context.cause).toBe("U+200B at line 2, column 16");
+    });
+
+    expectRenderError(
+      ["```mermaid", "flowchart TD", "  A \u202E--> B", "```"].join("\n"),
+      (error) => {
+        expect(error.message).toContain("hidden or unsafe formatting characters");
+        expect(error.context.cause).toBe("U+202E at line 3, column 5");
+      },
+    );
+  });
+
   it("@req NFR-02 rejects oversized highlighted code fences", () => {
     const largeCode = Array.from({ length: 1025 }, () => "a".repeat(1024)).join("\n");
     const markdown = ["```ts", largeCode, "```"].join("\n");
@@ -419,26 +496,51 @@ describe("markdownRenderer renderToHtml", () => {
     }
   });
 
-  it("@req NFR-02 keeps HTTPS links passive and blocks active resource URLs", () => {
+  it("@req NFR-02 keeps only clear visible HTTPS links clickable", () => {
     const html = renderToHtml(
       [
-        "[remote](https://example.invalid/page)",
+        "[https://example.invalid/page](https://example.invalid/page)",
+        "[ https://example.invalid/spaced ](https://example.invalid/spaced)",
+        "[`https://example.invalid/code`](https://example.invalid/code)",
+        "[remote](https://example.invalid/remote)",
+        "[https://evil.example](https://example.invalid/report)",
+        "[example.invalid](https://example.invalid)",
+        "[credentials](https://user@example.invalid/report)",
+        "[password](https://user:pass@example.invalid/report)",
+        "[empty-host](https:///path)",
+        "[empty-url](https://)",
         "[insecure](http://example.invalid/page)",
         "",
         "https://example.invalid/plain-text",
       ].join("\n"),
       context(),
     );
+    const body = mainContent(html);
 
-    expect(html).toMatch(/<a\b[^>]*\bhref="https:\/\/example\.invalid\/page"/iu);
-    expect(html).not.toMatch(/<a\b[^>]*\bhref="http:\/\/example\.invalid\/page"/iu);
-    expect(html).toMatch(/<a\b[^>]*data-md2pdf-blocked-href="true"[^>]*>insecure<\/a>/iu);
+    expect(body).toMatch(/<a\b[^>]*\bhref="https:\/\/example\.invalid\/page"/iu);
+    expect(body).toMatch(/<a\b[^>]*\bhref="https:\/\/example\.invalid\/spaced"/iu);
+    expect(body).toMatch(/<a\b[^>]*\bhref="https:\/\/example\.invalid\/code"/iu);
+    expect(body).not.toMatch(/<a\b[^>]*\bhref="https:\/\/example\.invalid\/remote"/iu);
+    expect(body).not.toMatch(/<a\b[^>]*\bhref="https:\/\/example\.invalid\/report"/iu);
+    expect(body).not.toMatch(/<a\b[^>]*\bhref="https:\/\/example\.invalid"/iu);
+    expect(body).not.toMatch(/<a\b[^>]*\bhref="https:\/\/user(?::pass)?@example\.invalid\/report"/iu);
+    expect(body).not.toMatch(/<a\b[^>]*\bhref="https:\/\/\/path"/iu);
+    expect(body).not.toMatch(/<a\b[^>]*\bhref="https:\/\/"/iu);
+    expect(body).not.toMatch(/<a\b[^>]*\bhref="http:\/\/example\.invalid\/page"/iu);
+    expect(body.match(/data-md2pdf-blocked-href="true"/gu)).toHaveLength(8);
+    expect(body).toContain(">remote</a>");
+    expect(body).toContain(">https://evil.example</a>");
+    expect(body).toContain(">example.invalid</a>");
+    expect(body).toContain(">credentials</a>");
+    expect(body).toContain(">password</a>");
+    expect(body).toContain(">empty-host</a>");
+    expect(body).toContain(">empty-url</a>");
+    expect(body).toContain(">insecure</a>");
     expect(html).not.toMatch(/<img\b[^>]*\bsrc=["']https?:/iu);
     expect(html).not.toMatch(/<script\b[^>]*\bsrc=/iu);
     expect(html).not.toMatch(/<link\b[^>]*\bhref=/iu);
     expect(html).toContain("img-src data:");
     expect(html).not.toContain("img-src data: file:");
-    expect(html).toContain("remote");
     expect(html).toContain("https://example.invalid/plain-text");
   });
 
