@@ -285,8 +285,17 @@ function webDriverEndpoint(baseUrl: URL, path: string): URL {
     });
   }
 
-  const endpoint = new URL(path.startsWith("/") ? path.slice(1) : path, baseUrl);
-  if (endpoint.origin !== baseUrl.origin) {
+  const relativePath = path.startsWith("/") ? path.slice(1) : path;
+  if (hasUnsafeWebDriverPathSegment(relativePath)) {
+    throw new RenderError({
+      message: "WebDriver request path must stay on the local WebDriver endpoint",
+      actionHint: "Use a relative WebDriver command path such as /session.",
+      cause: "non-local-webdriver-path",
+    });
+  }
+
+  const endpoint = new URL(relativePath, baseUrl);
+  if (endpoint.origin !== baseUrl.origin || !endpoint.pathname.startsWith(baseUrl.pathname)) {
     throw new RenderError({
       message: "WebDriver request path must stay on the local WebDriver endpoint",
       actionHint: "Use a relative WebDriver command path such as /session.",
@@ -295,6 +304,21 @@ function webDriverEndpoint(baseUrl: URL, path: string): URL {
   }
 
   return endpoint;
+}
+
+function hasUnsafeWebDriverPathSegment(path: string): boolean {
+  if (path.includes("\\")) {
+    return true;
+  }
+
+  return path.split("/").some((segment) => {
+    try {
+      const decodedSegment = decodeURIComponent(segment);
+      return decodedSegment === "." || decodedSegment === "..";
+    } catch {
+      return true;
+    }
+  });
 }
 
 function requestWithTimeout<T>(
@@ -364,10 +388,6 @@ async function handleCleanup(
 }
 
 async function createBrowserProfileDir(browser: LocatedBrowser): Promise<string | undefined> {
-  if (browser.kind === "firefox") {
-    return undefined;
-  }
-
   return mkdtemp(join(tmpdir(), "md2pdf-browser-profile-"));
 }
 
@@ -384,7 +404,12 @@ function browserCapabilities(
       proxy,
       "moz:firefoxOptions": {
         binary: browserPath,
-        args: ["-headless", "--offline"],
+        args: [
+          "-headless",
+          "--offline",
+          ...(browserProfileDir === undefined ? [] : ["-profile", browserProfileDir]),
+        ],
+        prefs: firefoxHardeningPreferences(),
       },
     };
   }
@@ -398,14 +423,56 @@ function browserCapabilities(
         "--headless=new",
         "--remote-debugging-pipe",
         "--disable-background-networking",
+        "--disable-client-side-phishing-detection",
+        "--disable-component-update",
         "--disable-dev-shm-usage",
+        "--disable-domain-reliability",
+        "--disable-extensions",
+        "--disable-features=AutofillServerCommunication,MediaRouter,OptimizationHints,Translate",
+        "--disable-notifications",
         "--no-sandbox",
+        "--no-first-run",
         "--no-proxy-server",
         "--proxy-server=direct://",
         "--proxy-bypass-list=*",
+        "--deny-permission-prompts",
+        "--disable-sync",
+        "--disable-default-apps",
+        "--metrics-recording-only",
         ...(browserProfileDir === undefined ? [] : [`--user-data-dir=${browserProfileDir}`]),
       ],
     },
+  };
+}
+
+function firefoxHardeningPreferences(): Record<string, boolean | number | string> {
+  return {
+    "app.normandy.enabled": false,
+    "browser.newtabpage.activity-stream.feeds.telemetry": false,
+    "browser.newtabpage.activity-stream.telemetry": false,
+    "browser.ping-centre.telemetry": false,
+    "browser.safebrowsing.downloads.remote.enabled": false,
+    "browser.search.update": false,
+    "browser.shell.checkDefaultBrowser": false,
+    "datareporting.healthreport.uploadEnabled": false,
+    "datareporting.policy.dataSubmissionEnabled": false,
+    "dom.push.enabled": false,
+    "extensions.getAddons.cache.enabled": false,
+    "extensions.update.enabled": false,
+    "geo.enabled": false,
+    "identity.fxaccounts.enabled": false,
+    "media.navigator.enabled": false,
+    "network.captive-portal-service.enabled": false,
+    "network.connectivity-service.enabled": false,
+    "network.dns.disablePrefetch": true,
+    "network.http.speculative-parallel-limit": 0,
+    "network.predictor.enabled": false,
+    "network.prefetch-next": false,
+    "permissions.default.desktop-notification": 2,
+    "signon.rememberSignons": false,
+    "toolkit.telemetry.enabled": false,
+    "toolkit.telemetry.server": "",
+    "toolkit.telemetry.unified": false,
   };
 }
 

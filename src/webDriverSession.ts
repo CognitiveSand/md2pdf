@@ -81,12 +81,12 @@ async function allocatePort(): Promise<number> {
   });
 }
 
-function driverArgs(browser: LocatedBrowser, port: number): string[] {
+export function driverArgs(browser: LocatedBrowser, port: number): string[] {
   if (browser.driverArtifactName === "geckodriver") {
     return ["--host", "127.0.0.1", "--port", String(port)];
   }
 
-  return [`--port=${port}`, "--allowed-ips="];
+  return [`--port=${port}`, "--allowed-ips=127.0.0.1,::1"];
 }
 
 export async function waitForDriver(
