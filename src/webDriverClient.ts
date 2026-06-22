@@ -388,10 +388,6 @@ async function handleCleanup(
 }
 
 async function createBrowserProfileDir(browser: LocatedBrowser): Promise<string | undefined> {
-  if (browser.kind === "firefox") {
-    return undefined;
-  }
-
   return mkdtemp(join(tmpdir(), "md2pdf-browser-profile-"));
 }
 
@@ -408,7 +404,11 @@ function browserCapabilities(
       proxy,
       "moz:firefoxOptions": {
         binary: browserPath,
-        args: ["-headless", "--offline"],
+        args: [
+          "-headless",
+          "--offline",
+          ...(browserProfileDir === undefined ? [] : ["-profile", browserProfileDir]),
+        ],
         prefs: firefoxHardeningPreferences(),
       },
     };

@@ -160,7 +160,7 @@ describe("printPdfWithWebDriver", () => {
       capabilities: {
         alwaysMatch: {
           "moz:firefoxOptions": {
-            args: expect.arrayContaining(["-headless", "--offline"]),
+            args: expect.arrayContaining(["-headless", "--offline", "-profile"]),
             prefs: expect.objectContaining({
               "browser.safebrowsing.downloads.remote.enabled": false,
               "datareporting.policy.dataSubmissionEnabled": false,
@@ -183,6 +183,9 @@ describe("printPdfWithWebDriver", () => {
         },
       },
     });
+    const profileDir = firefoxProfileDir(transport.requests[0]);
+    expect(profileDir).toBeDefined();
+    await expect(stat(profileDir ?? "")).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("@req FR-07 sends explicit print settings to WebDriver", async () => {
@@ -628,6 +631,13 @@ function alwaysMatch(request: WebDriverRequest | undefined): Record<string, unkn
 function chromeArgs(request: WebDriverRequest | undefined): string[] {
   const chromeOptions = alwaysMatch(request)["goog:chromeOptions"] as { args?: string[] } | undefined;
   return chromeOptions?.args ?? [];
+}
+
+function firefoxProfileDir(request: WebDriverRequest | undefined): string | undefined {
+  const firefoxOptions = alwaysMatch(request)["moz:firefoxOptions"] as { args?: string[] } | undefined;
+  const args = firefoxOptions?.args ?? [];
+  const profileFlagIndex = args.indexOf("-profile");
+  return profileFlagIndex === -1 ? undefined : args[profileFlagIndex + 1];
 }
 
 class FakeTransport implements WebDriverTransport {
