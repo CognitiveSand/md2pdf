@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 
 import { RenderError } from "../../../src/errors.js";
 import { renderToHtml } from "../../../src/markdownRenderer.js";
+import { tinyJpeg, tinyPng, tinyWebp } from "../../fixtures/imageFixtures.js";
 
 describe("markdownRenderer renderToHtml", () => {
   it("@req FR-04 renders CommonMark with tables, task lists, and footnotes", () => {
@@ -83,6 +84,32 @@ describe("markdownRenderer renderToHtml", () => {
 
       expect(html).toContain('src="data:image/png;base64,');
       expect(html).toContain('alt="pixel"');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("@req FR-06 embeds local raster image fixtures as data URIs", () => {
+    const dir = mkdtempSync(join(tmpdir(), "md2pdf-markdown-renderer-"));
+    try {
+      writeFileSync(join(dir, "pixel.png"), tinyPng());
+      writeFileSync(join(dir, "pixel.jpg"), tinyJpeg());
+      writeFileSync(join(dir, "pixel.webp"), tinyWebp());
+
+      const html = renderToHtml(
+        [
+          "![png](./pixel.png)",
+          "![jpeg](./pixel.jpg)",
+          "![webp](./pixel.webp)",
+        ].join("\n"),
+        {
+          sourcePath: join(dir, "source.md"),
+        },
+      );
+
+      expect(html).toContain('src="data:image/png;base64,');
+      expect(html).toContain('src="data:image/jpeg;base64,');
+      expect(html).toContain('src="data:image/webp;base64,');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -200,11 +227,4 @@ describe("markdownRenderer renderToHtml", () => {
 
 function context(): { sourcePath: string } {
   return { sourcePath: "/tmp/source.md" };
-}
-
-function tinyPng(): Buffer {
-  return Buffer.from(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
-    "base64",
-  );
 }

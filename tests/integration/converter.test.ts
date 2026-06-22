@@ -234,7 +234,11 @@ describe("P3-8 DocumentConverter", () => {
     let driverStopped = false;
     let printCalled = false;
     let resolveStart!: () => void;
+    let resolveStartEntered!: () => void;
+    let resolveDriverStopped!: () => void;
     const startGate = new Promise<void>((resolve) => { resolveStart = resolve; });
+    const startEntered = new Promise<void>((resolve) => { resolveStartEntered = resolve; });
+    const driverStoppedSignal = new Promise<void>((resolve) => { resolveDriverStopped = resolve; });
 
     await writeFile(sourcePath, "# Test\n", "utf8");
 
@@ -243,9 +247,15 @@ describe("P3-8 DocumentConverter", () => {
       tempDir: tempRoot,
       webdriverSessionFactory: {
         async start() {
+          resolveStartEntered();
           await startGate;
           return {
-            driverProcess: { async stop() { driverStopped = true; } },
+            driverProcess: {
+              async stop() {
+                driverStopped = true;
+                resolveDriverStopped();
+              },
+            },
             transport: { async request() { throw new Error("unused"); } },
           };
         },
@@ -256,15 +266,13 @@ describe("P3-8 DocumentConverter", () => {
       },
     });
 
-    // Schedule start() completion after the timeout fires — no gap before handler attachment
-    setTimeout(() => resolveStart(), 100);
+    const conversion = converter.convertFile(sourcePath, outputPath, { renderTimeoutMs: 50 });
+    await startEntered;
 
-    await expect(
-      converter.convertFile(sourcePath, outputPath, { renderTimeoutMs: 50 }),
-    ).rejects.toMatchObject({ kind: "render" });
+    await expect(conversion).rejects.toMatchObject({ kind: "render" });
 
-    // Wait for the delayed start() to complete and the post-start cleanup to run
-    await new Promise<void>((resolve) => setTimeout(resolve, 100));
+    resolveStart();
+    await driverStoppedSignal;
     expect(driverStopped).toBe(true);
     expect(printCalled).toBe(false);
   });
