@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,6 +14,7 @@ import {
 } from "../../src/converter.js";
 import { RenderError } from "../../src/errors.js";
 import type { ConvertOptions } from "../../src/contracts.js";
+import { tinyPng } from "../fixtures/imageFixtures.js";
 
 const pdfBytes = Buffer.from("%PDF-1.7\n%md2pdf test\n", "utf8");
 
@@ -203,6 +204,113 @@ describe("P3-8 DocumentConverter", () => {
       "no eligible browser artifact",
     );
     expect(order).toEqual(["access", "locate"]);
+  });
+
+  it("@req FR-06 @req NFR-02 rejects image traversal and preserves an existing PDF", async () => {
+    const tempRoot = await createTempRoot(tempRoots);
+    const docsDir = join(tempRoot, "docs");
+    const sourcePath = join(docsDir, "hostile.md");
+    const outputPath = join(tempRoot, "hostile.pdf");
+    let sessionStarted = false;
+
+    await mkdir(docsDir, { recursive: true });
+    await writeFile(join(tempRoot, "outside.png"), tinyPng());
+    await writeFile(sourcePath, "# Hostile\n\n![outside](../outside.png)\n", "utf8");
+    await writeFile(outputPath, "previous pdf", "utf8");
+
+    const converter = new DocumentConverter({
+      browserLocatorFactory: () => fakeLocator([]),
+      tempDir: tempRoot,
+      webdriverSessionFactory: {
+        async start() {
+          sessionStarted = true;
+          return fakeSessionFactory([]).start(browser("chrome"));
+        },
+      },
+      printPdf: async () => pdfBytes,
+    });
+
+    await expect(converter.convertFile(sourcePath, outputPath)).rejects.toMatchObject({
+      kind: "render",
+      context: {
+        message: "Markdown image paths must stay inside the source image directory",
+      },
+    });
+    await expect(readFile(outputPath, "utf8")).resolves.toBe("previous pdf");
+    expect(sessionStarted).toBe(false);
+  });
+
+  it("@req FR-06 @req NFR-02 rejects SVG before starting WebDriver", async () => {
+    const tempRoot = await createTempRoot(tempRoots);
+    const sourcePath = join(tempRoot, "svg.md");
+    const outputPath = join(tempRoot, "svg.pdf");
+    let sessionStarted = false;
+
+    await writeFile(join(tempRoot, "diagram.svg"), "<svg><script>alert(1)</script></svg>", "utf8");
+    await writeFile(sourcePath, "# SVG\n\n![diagram](./diagram.svg)\n", "utf8");
+
+    const converter = new DocumentConverter({
+      browserLocatorFactory: () => fakeLocator([]),
+      tempDir: tempRoot,
+      webdriverSessionFactory: {
+        async start() {
+          sessionStarted = true;
+          return fakeSessionFactory([]).start(browser("chrome"));
+        },
+      },
+      printPdf: async () => pdfBytes,
+    });
+
+    await expect(converter.convertFile(sourcePath, outputPath)).rejects.toMatchObject({
+      kind: "render",
+      context: {
+        message: "SVG images are not supported for security reasons; use PNG/JPEG/WebP.",
+      },
+    });
+    await expect(stat(outputPath)).rejects.toMatchObject({ code: "ENOENT" });
+    expect(sessionStarted).toBe(false);
+  });
+
+  it("@req NFR-02 prints local HTML with passive HTTPS links and blocked dangerous hrefs", async () => {
+    const tempRoot = await createTempRoot(tempRoots);
+    const sourcePath = join(tempRoot, "links.md");
+    const outputPath = join(tempRoot, "links.pdf");
+    let printedHtml = "";
+
+    await writeFile(
+      sourcePath,
+      [
+        "# Links",
+        "",
+        "[safe](https://example.invalid/report)",
+        "[danger](javascript:alert(1))",
+        "[local](/etc/passwd)",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const converter = new DocumentConverter({
+      browserLocatorFactory: () => fakeLocator([]),
+      tempDir: tempRoot,
+      webdriverSessionFactory: fakeSessionFactory([]),
+      printPdf: async ({ htmlFileUrl }) => {
+        printedHtml = await readFile(fileURLToPath(htmlFileUrl), "utf8");
+        return pdfBytes;
+      },
+    });
+
+    await converter.convertFile(sourcePath, outputPath);
+
+    expect(printedHtml).toMatch(/<a\b[^>]*href="https:\/\/example\.invalid\/report"/iu);
+    expect(printedHtml).toMatch(/<a\b[^>]*data-md2pdf-blocked-href="true"[^>]*>danger<\/a>/iu);
+    expect(printedHtml).toMatch(/<a\b[^>]*data-md2pdf-blocked-href="true"[^>]*>local<\/a>/iu);
+    expect(printedHtml).not.toMatch(/\bhref="javascript:/iu);
+    expect(printedHtml).not.toMatch(/\bhref="\/etc\/passwd"/iu);
+    expect(printedHtml).not.toMatch(/<img\b[^>]*\bsrc=["']https?:/iu);
+    expect(printedHtml).not.toMatch(/<script\b[^>]*\bsrc=["']https?:/iu);
+    expect(printedHtml).not.toMatch(/<link\b[^>]*\bhref=["']https?:/iu);
+    await expect(readFile(outputPath, "utf8")).resolves.toBe(pdfBytes.toString("utf8"));
   });
 
   it("@req FR-16 stops the driver process when the render timeout fires", async () => {
