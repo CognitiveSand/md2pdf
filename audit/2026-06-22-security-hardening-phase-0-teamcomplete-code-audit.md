@@ -35,7 +35,7 @@ Sources relues:
 
 Verdict global: **AUDIT_FAIL pour l'objectif final de security hardening**, **baseline Phase 0 exploitable**. Les defauts ci-dessous sont pour la plupart attendus avant les phases 1-8, mais ils doivent etre traites avant toute declaration de hardening complet.
 
-Totaux normalises: Critical 0 · High 4 · Medium 4 · Low 1
+Totaux normalises: Critical 0 · High 4 · Medium 4 · Low 0
 
 ## Index Des Sous-Audits
 
@@ -93,7 +93,7 @@ Totaux normalises: Critical 0 · High 4 · Medium 4 · Low 1
 
 - **[High]** `src/markdownRenderer.ts:269` : `readImageFile` lit l'image entiere sans `stat`, limite par fichier, cumul, signature ou dimensions. Un PDF converter qui avale n'importe quel blob image, c'est une cuisine ouverte sans extincteur.
 - **[Medium]** `tests/unit/markdownRenderer/markdownRenderer.test.ts:211` : Le test traversal couvre `../outside.png`, mais pas le symlink sortant, pourtant explicitement requis. Une mutation qui remplace la verification par une validation de chemin superficielle resterait probablement verte.
-- **[Low]** Commande d'audit: `npm test -- tests/unit/markdownRenderer/markdownRenderer.test.ts` a ete interrompue apres blocage anormal. Les tests WebDriver et typecheck passent; cette suite doit etre relancee seule dans un environnement calme avant gate final.
+- **Reserve levee le 2026-06-22**: `npm test -- tests/unit/markdownRenderer/markdownRenderer.test.ts` a ete relance en isolation et passe avec 1 fichier, 13 tests, duree 3.17 s.
 
 ### Division Architecture (Steve Jobs)
 
@@ -194,7 +194,7 @@ Findings:
 
 - Medium: le test NFR-02 actuel encode l'ancien comportement "aucun href HTTPS" et devra etre inverse (`tests/unit/markdownRenderer/markdownRenderer.test.ts:162-179`).
 - Medium: les tests fixtures valides existent, mais les helpers hostiles `deceptiveImageBytes` et `syntheticOversizedImageBytes` ne sont pas encore consommes par des tests de rejet (`tests/fixtures/imageFixtures.ts:35-45`).
-- Low: le run cible Markdown de cet audit a bloque jusqu'a interruption; verifier isolément avant de s'appuyer sur ce fichier comme gate local.
+- Reserve levee: le run cible Markdown a ete relance en isolation le 2026-06-22 et passe avec 13 tests.
 
 Points conformes:
 
@@ -336,7 +336,7 @@ Commandes executees pendant cet audit:
 | Lectures `nl -ba` des sources/docs/tests cites | OK. |
 | `npm run typecheck` | Pass: `tsc --noEmit` termine avec code 0. |
 | `npm test -- tests/unit/webDriverClient/webDriverClient.test.ts tests/unit/webDriverSession/webDriverSession.test.ts` | Pass: 2 fichiers, 21 tests. |
-| `npm test -- tests/unit/markdownRenderer/markdownRenderer.test.ts` | Bloque apres affichage du header Vitest; interrompu manuellement avec Ctrl-C apres attente prolongee. |
+| `npm test -- tests/unit/markdownRenderer/markdownRenderer.test.ts` | Premier run bloque puis interrompu; rerun isole le 2026-06-22 passe: 1 fichier, 13 tests, duree Vitest 3.17 s. |
 
 Limites:
 
