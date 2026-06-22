@@ -27,7 +27,7 @@ Every rejection must use `RenderError` with a clear message and an action hint.
 
 ## 3. Implementation order
 
-1. Reject SVG and introduce an image format allowlist.
+1. Introduce an image format allowlist, including SVG deny-by-format.
 2. Replace syntactic image path checks with realpath-based containment checks.
 3. Add Markdown, line, image count, Mermaid, and code block limits.
 4. Validate image file size, total image size, magic signature, and dimensions.
@@ -35,11 +35,24 @@ Every rejection must use `RenderError` with a clear message and an action hint.
 6. Harden WebDriver/browser launch settings and preserve local-only rendering.
 7. Add hostile-input tests covering every policy boundary.
 
-## 4. SVG policy
+## 4. Image format and file validation
 
-Decision: reject all `.svg` images referenced from Markdown.
+Allow only known raster image formats:
 
-User-facing error:
+- `.png`
+- `.jpg`
+- `.jpeg`
+- `.webp`
+
+Reject all other referenced image formats, including:
+
+- `.svg`;
+- `.gif`;
+- files with no recognized extension;
+- `application/octet-stream`;
+- files whose extension disagrees with their content.
+
+SVG user-facing error:
 
 > SVG images are not supported for security reasons; use PNG/JPEG/WebP.
 
@@ -48,15 +61,43 @@ Required behavior:
 - simple SVG is rejected;
 - SVG containing `http:`, `https:`, `file:`, `<script>`, or `<foreignObject>` is
   rejected;
-- PNG, JPEG, and WebP remain accepted when they pass the other image checks.
+- PNG, JPEG, and WebP remain accepted when they pass the path, size, signature,
+  and dimension checks.
+
+Initial limits:
+
+| Item | Limit |
+| --- | ---: |
+| Single image file size | 20 MB |
+| Total embedded image bytes | 100 MB |
+| Single image pixels | 25 MP |
+
+Dimension examples inside 25 MP include `10000 x 2500` and `5000 x 5000`.
 
 Implementation notes:
 
+- check extension first for clear errors;
 - remove the current exception that accepts SVG unless it contains an external
   URL;
-- do not parse or sanitize SVG; the policy is deny-by-format;
+- do not parse or sanitize SVG; reject it by format before content handling;
+- check magic signature before embedding;
+- parse dimensions minimally for PNG, JPEG, and WebP without adding a heavy
+  dependency;
+- compare detected format to the extension allowlist;
+- track cumulative embedded image bytes per render;
 - keep Mermaid support separate, because Mermaid diagrams are rendered from
   escaped fenced code blocks under the inlined Mermaid engine.
+
+Required tests:
+
+- simple SVG and hostile SVG variants are rejected;
+- `.png` with non-PNG content is rejected;
+- `.jpg`/`.jpeg` with non-JPEG content is rejected;
+- `.webp` with non-WebP content is rejected;
+- an oversized single image is rejected;
+- an image over the pixel limit is rejected;
+- total image bytes over 100 MB is rejected;
+- valid PNG/JPEG/WebP fixtures are accepted.
 
 ## 5. Image path containment
 
@@ -119,53 +160,7 @@ Required tests:
 - oversized Mermaid block is rejected cleanly;
 - too many images or Mermaid blocks are rejected cleanly.
 
-## 7. Image file validation
-
-Allow only known raster image formats:
-
-- `.png`
-- `.jpg`
-- `.jpeg`
-- `.webp`
-
-Do not allow initially:
-
-- `.gif`
-- `.svg`
-- files with no recognized extension;
-- `application/octet-stream`;
-- files whose extension disagrees with their content.
-
-Initial limits:
-
-| Item | Limit |
-| --- | ---: |
-| Single image file size | 20 MB |
-| Total embedded image bytes | 100 MB |
-| Single image pixels | 25 MP |
-
-Dimension examples inside 25 MP include `10000 x 2500` and `5000 x 5000`.
-
-Implementation notes:
-
-- check extension first for clear errors;
-- check magic signature before embedding;
-- parse dimensions minimally for PNG, JPEG, and WebP without adding a heavy
-  dependency;
-- compare detected format to the extension allowlist;
-- track cumulative embedded image bytes per render.
-
-Required tests:
-
-- `.png` with non-PNG content is rejected;
-- `.jpg`/`.jpeg` with non-JPEG content is rejected;
-- `.webp` with non-WebP content is rejected;
-- an oversized single image is rejected;
-- an image over the pixel limit is rejected;
-- total image bytes over 100 MB is rejected;
-- valid PNG/JPEG/WebP fixtures are accepted.
-
-## 8. Link policy
+## 7. Link policy
 
 Change the current policy so safe external links stay clickable in the PDF.
 
@@ -202,7 +197,7 @@ Required tests:
   - no `<script src="https://...">`;
   - no `<link href="https://...">`.
 
-## 9. Browser and WebDriver hardening
+## 8. Browser and WebDriver hardening
 
 Keep the isolated temporary browser profile. Add conservative launch flags where
 supported by the browser family.
@@ -228,7 +223,7 @@ Required tests:
 - WebDriver transport rejects non-local endpoints;
 - WebDriver request paths cannot escape the local endpoint.
 
-## 10. Verification matrix
+## 9. Verification matrix
 
 | Area | Test coverage |
 | --- | --- |
@@ -244,7 +239,7 @@ Required tests:
 | Local-only HTML | no active network resource appears in generated HTML |
 | WebDriver hardening | local bind, isolated profile, conservative flags |
 
-## 11. Acceptance criteria
+## 10. Acceptance criteria
 
 The hardening is complete when:
 
