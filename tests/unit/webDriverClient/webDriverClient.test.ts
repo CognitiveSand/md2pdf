@@ -1,3 +1,5 @@
+import { stat } from "node:fs/promises";
+
 import { describe, expect, it } from "vitest";
 
 import type { LocatedBrowser } from "../../../src/browserLocator.js";
@@ -47,15 +49,33 @@ describe("printPdfWithWebDriver", () => {
             args: expect.arrayContaining([
               "--headless=new",
               "--remote-debugging-pipe",
+              "--disable-background-networking",
+              "--disable-client-side-phishing-detection",
+              "--disable-component-update",
               "--disable-dev-shm-usage",
+              "--disable-domain-reliability",
+              "--disable-extensions",
+              "--disable-features=AutofillServerCommunication,MediaRouter,OptimizationHints,Translate",
+              "--disable-notifications",
               "--no-sandbox",
+              "--no-first-run",
               "--no-proxy-server",
               "--proxy-server=direct://",
+              "--proxy-bypass-list=*",
+              "--deny-permission-prompts",
+              "--disable-sync",
+              "--disable-default-apps",
+              "--metrics-recording-only",
               expect.stringMatching(/^--user-data-dir=.+/u),
             ]),
           },
         },
       },
+    });
+    const profileArg = chromeArgs(transport.requests[0]).find((arg) => arg.startsWith("--user-data-dir="));
+    expect(profileArg).toBeDefined();
+    await expect(stat(profileArg?.slice("--user-data-dir=".length) ?? "")).rejects.toMatchObject({
+      code: "ENOENT",
     });
     expect(transport.requests[3]?.body).toEqual({
       background: true,
@@ -74,6 +94,49 @@ describe("printPdfWithWebDriver", () => {
       shrinkToFit: true,
     });
   });
+
+  it.each(["chrome", "chromium", "edge", "brave", "vivaldi"] as const)(
+    "@req FR-07 hardens %s Chromium-family browser capabilities",
+    async (kind) => {
+      const transport = new FakeTransport([
+        { value: { sessionId: `session-${kind}` } },
+        { value: null },
+        { value: true },
+        { value: Buffer.from("%PDF-1.7").toString("base64") },
+        { value: null },
+      ]);
+
+      await printPdfWithWebDriver({
+        browser: browser(kind),
+        htmlFileUrl: "file:///tmp/doc.html",
+        transport,
+        driverProcess: new FakeDriverProcess(),
+        renderTimeoutMs: 50,
+        mermaidPollMs: 1,
+      });
+
+      const capabilities = alwaysMatch(transport.requests[0]);
+      expect(capabilities.browserName).toBe(kind === "edge" ? "MicrosoftEdge" : "chrome");
+      expect(capabilities.proxy).toEqual({ proxyType: "direct" });
+      expect(chromeArgs(transport.requests[0])).toEqual(expect.arrayContaining([
+        "--disable-background-networking",
+        "--disable-client-side-phishing-detection",
+        "--disable-component-update",
+        "--disable-domain-reliability",
+        "--disable-extensions",
+        "--disable-features=AutofillServerCommunication,MediaRouter,OptimizationHints,Translate",
+        "--disable-notifications",
+        "--disable-sync",
+        "--disable-default-apps",
+        "--deny-permission-prompts",
+        "--no-first-run",
+        "--no-proxy-server",
+        "--proxy-server=direct://",
+        "--proxy-bypass-list=*",
+      ]));
+      expect(chromeArgs(transport.requests[0])).not.toContain("--disable-pdf-links");
+    },
+  );
 
   it("@req FR-07 starts Firefox with headless and offline flags", async () => {
     const transport = new FakeTransport([
@@ -97,11 +160,32 @@ describe("printPdfWithWebDriver", () => {
       capabilities: {
         alwaysMatch: {
           "moz:firefoxOptions": {
-            args: expect.arrayContaining(["-headless", "--offline"]),
+            args: expect.arrayContaining(["-headless", "--offline", "-profile"]),
+            prefs: expect.objectContaining({
+              "browser.safebrowsing.downloads.remote.enabled": false,
+              "datareporting.policy.dataSubmissionEnabled": false,
+              "dom.push.enabled": false,
+              "extensions.update.enabled": false,
+              "geo.enabled": false,
+              "identity.fxaccounts.enabled": false,
+              "media.navigator.enabled": false,
+              "network.captive-portal-service.enabled": false,
+              "network.connectivity-service.enabled": false,
+              "network.dns.disablePrefetch": true,
+              "network.http.speculative-parallel-limit": 0,
+              "network.predictor.enabled": false,
+              "network.prefetch-next": false,
+              "permissions.default.desktop-notification": 2,
+              "toolkit.telemetry.enabled": false,
+              "toolkit.telemetry.unified": false,
+            }),
           },
         },
       },
     });
+    const profileDir = firefoxProfileDir(transport.requests[0]);
+    expect(profileDir).toBeDefined();
+    await expect(stat(profileDir ?? "")).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("@req NFR-08 omits the binary capability for a snap Firefox so geckodriver auto-detects it", async () => {
@@ -507,6 +591,28 @@ describe("WebDriverHttpTransport", () => {
     });
   });
 
+  it.each(["../status", "/../status", "%2e%2e/status", "session\\status", "//example.invalid/session"])(
+    "@req NFR-02 rejects unsafe WebDriver request path %s",
+    async (path) => {
+      const transport = new WebDriverHttpTransport("http://127.0.0.1:9515/wd/hub/", {
+        fetch: async () => {
+          throw new Error("fetch should not be called");
+        },
+      });
+
+      await expect(
+        transport.request({
+          method: "POST",
+          path,
+          body: {},
+        }),
+      ).rejects.toMatchObject({
+        kind: "render",
+        context: { cause: "non-local-webdriver-path" },
+      });
+    },
+  );
+
   it("@req FR-07 wraps WebDriver HTTP errors with response context", async () => {
     const transport = new WebDriverHttpTransport("http://127.0.0.1:9515", {
       fetch: async () => new Response(JSON.stringify({ value: { error: "session not created" } }), {
@@ -568,11 +674,21 @@ function browser(kind: LocatedBrowser["kind"]): LocatedBrowser {
   };
 }
 
-function firefoxOptionsOf(request: WebDriverRequest | undefined): { binary?: string; args: string[] } {
-  const body = request?.body as {
-    capabilities: { alwaysMatch: { "moz:firefoxOptions": { binary?: string; args: string[] } } };
-  };
-  return body.capabilities.alwaysMatch["moz:firefoxOptions"];
+function alwaysMatch(request: WebDriverRequest | undefined): Record<string, unknown> {
+  const body = request?.body as { capabilities?: { alwaysMatch?: Record<string, unknown> } } | undefined;
+  return body?.capabilities?.alwaysMatch ?? {};
+}
+
+function chromeArgs(request: WebDriverRequest | undefined): string[] {
+  const chromeOptions = alwaysMatch(request)["goog:chromeOptions"] as { args?: string[] } | undefined;
+  return chromeOptions?.args ?? [];
+}
+
+function firefoxProfileDir(request: WebDriverRequest | undefined): string | undefined {
+  const firefoxOptions = alwaysMatch(request)["moz:firefoxOptions"] as { args?: string[] } | undefined;
+  const args = firefoxOptions?.args ?? [];
+  const profileFlagIndex = args.indexOf("-profile");
+  return profileFlagIndex === -1 ? undefined : args[profileFlagIndex + 1];
 }
 
 class FakeTransport implements WebDriverTransport {

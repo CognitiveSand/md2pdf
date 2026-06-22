@@ -17,8 +17,8 @@ freshness checks, and release validation paths.
 ## Requirements
 
 - Node.js 20 or later.
-- One supported browser installed locally: Google Chrome, Chromium, another
-  Chromium-family browser, or Firefox.
+- One supported browser installed locally: Google Chrome, Chromium, Microsoft
+  Edge, Brave, Vivaldi, or Firefox.
 - A matching WebDriver binary declared in `artifacts.json` and selected by the
   artifact freshness policy, or a fallback browser/driver provisioned by md2pdf
   into a per-user cache from an eligible declared artifact.
@@ -156,6 +156,22 @@ md2pdf supports Markdown features such as headings, paragraphs, lists, tables,
 task lists, footnotes, fenced code blocks, relative images, and Mermaid code
 fences. Browser-backed tests cover the rendered PDF behavior for the rich
 Markdown and Mermaid paths.
+
+Images must be local relative files under the Markdown source directory. The
+supported raster formats are PNG, JPEG, and WebP. SVG, GIF, remote image URLs,
+absolute image paths, file URLs, unknown extensions, mismatched image content,
+and symlinks that escape the source directory are rejected before rendering.
+
+Safe HTTPS links remain clickable in the generated PDF. Non-HTTPS, local, and
+active schemes such as `http:`, `javascript:`, `data:`, `file:`, `blob:`, and
+`ftp:` are rendered as text links without an `href`. Remote scripts,
+stylesheets, and images are not loaded from Markdown content.
+
+Initial safety limits are enforced during rendering: Markdown documents up to
+10 MB, individual lines up to 1 MB, up to 100 images, up to 50 Mermaid blocks,
+Mermaid blocks up to 256 KB, highlighted code fences up to 1 MB, individual
+images up to 20 MB, total embedded image bytes up to 100 MB, and image
+dimensions up to 25 megapixels.
 
 ## Development
 

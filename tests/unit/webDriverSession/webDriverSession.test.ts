@@ -3,7 +3,8 @@ import type { ChildProcess } from "node:child_process";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { SpawnedDriverProcess, waitForDriver } from "../../../src/webDriverSession.js";
+import type { LocatedBrowser } from "../../../src/browserLocator.js";
+import { driverArgs, SpawnedDriverProcess, waitForDriver } from "../../../src/webDriverSession.js";
 
 describe("SpawnedDriverProcess", () => {
   afterEach(() => {
@@ -35,6 +36,24 @@ describe("SpawnedDriverProcess", () => {
   });
 });
 
+describe("driverArgs", () => {
+  it("@req FR-07 binds geckodriver to loopback only", () => {
+    expect(driverArgs(browser("firefox"), 4567)).toEqual([
+      "--host",
+      "127.0.0.1",
+      "--port",
+      "4567",
+    ]);
+  });
+
+  it("@req FR-07 restricts chromedriver connections to loopback clients", () => {
+    expect(driverArgs(browser("chromium"), 4567)).toEqual([
+      "--port=4567",
+      "--allowed-ips=127.0.0.1,::1",
+    ]);
+  });
+});
+
 describe("waitForDriver", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -57,6 +76,16 @@ describe("waitForDriver", () => {
     expect(Date.now() - startedAt).toBeLessThan(1_000);
   });
 });
+
+function browser(kind: LocatedBrowser["kind"]): LocatedBrowser {
+  return {
+    kind,
+    displayName: kind,
+    browserPath: `/browsers/${kind}`,
+    driverPath: "/drivers/driver",
+    driverArtifactName: kind === "firefox" ? "geckodriver" : "chromedriver",
+  };
+}
 
 class FakeChildProcess extends EventEmitter {
   exitCode: number | null = null;

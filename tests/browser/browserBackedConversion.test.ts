@@ -11,6 +11,7 @@ import { main } from "../../src/cli.js";
 import { DocumentConverter } from "../../src/converter.js";
 import { provisionFallbackBrowser } from "../../src/fallbackBrowserProvisioner.js";
 import { JsonReleaseCatalog } from "../../src/releaseCatalog.js";
+import { tinyPng } from "../fixtures/imageFixtures.js";
 
 const skipRealBrowserTests = process.env.MD2PDF_SKIP_REAL_BROWSER_TESTS === "1";
 // When real browser tests are skipped, a sentinel test fails explicitly so the gate
@@ -263,11 +264,4 @@ function pdfContainsVisualObject(pdfText: string): boolean {
   return /\/XObject\b/u.test(pdfText) ||
     /\/Subtype\s*\/Image\b/u.test(pdfText) ||
     /\/Subtype\s*\/Form\b/u.test(pdfText);
-}
-
-function tinyPng(): Buffer {
-  return Buffer.from(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
-    "base64",
-  );
 }
