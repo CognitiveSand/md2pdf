@@ -1,173 +1,143 @@
-import { mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
-import type { Readable, Writable } from 'node:stream';
-import { convertFile, type ConvertOptions } from './converter.js';
-import { ConversionError, Md2PdfError, UsageError } from './errors.js';
 import {
-  defaultOutputPath,
-  outputExists,
-  outputPathInDirectory,
-  resolveEntrySources,
-  type ConversionWorkItem,
-} from './paths.js';
-import { confirmOverwrite, decideOverwrite } from './overwrite.js';
+  type ConversionJob,
+  type ConversionOutcome,
+  type ConvertOptions,
+} from "./contracts.js";
+import {
+  ArtifactFreshnessError,
+  BrowserNotFoundError,
+  ConversionError,
+  InputNotFoundError,
+  Md2PdfError,
+  RenderError,
+  UsageError,
+} from "./errors.js";
+import {
+  evaluateOverwrite,
+  type OverwriteMode,
+  type OverwritePromptIo,
+} from "./overwrite.js";
+import {
+  resolveConversionPlan,
+  type ResolveJobsOptions,
+} from "./paths.js";
 
-export interface ConversionOutcome {
-  sourcePath: string;
-  outputPath: string;
-  status: 'success' | 'failed' | 'skipped';
-  error?: Error;
-}
-
-export interface PipelineResult {
-  outcomes: ConversionOutcome[];
-  succeeded: number;
-  failed: number;
-  skipped: number;
-  exitCode: 0 | 1;
-}
-
-export type ConvertFn = (
+export type ConvertFile = (
   sourcePath: string,
   outputPath: string,
   options?: ConvertOptions,
 ) => Promise<void>;
 
-export interface PipelineOptions {
+export interface ConversionPipelineOptions extends ResolveJobsOptions {
   entries: string[];
-  outputPath?: string;
-  outputDir?: string;
-  forceOverwrite?: boolean;
-  interactive?: boolean;
-  stdin?: Readable;
-  stdout?: Writable;
-  stderr?: Writable;
-  converter?: ConvertFn;
   convertOptions?: ConvertOptions;
+  overwrite?: PipelineOverwriteOptions;
 }
 
-function writeLine(stream: Writable, message: string): void {
-  stream.write(`${message}\n`);
+export interface PipelineOverwriteOptions {
+  forceOverwrite: boolean;
+  mode: OverwriteMode;
+  promptIo: OverwritePromptIo;
 }
 
-function errorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  return String(err);
-}
+export class ConversionPipeline {
+  constructor(private readonly convertFile: ConvertFile) {}
 
-async function shouldConvert(
-  item: ConversionWorkItem,
-  options: Required<Pick<PipelineOptions, 'forceOverwrite' | 'interactive' | 'stdin' | 'stdout' | 'stderr'>>,
-): Promise<boolean> {
-  const decision = decideOverwrite({
-    outputExists: outputExists(item.outputPath),
-    forceOverwrite: options.forceOverwrite,
-    interactive: options.interactive,
-  });
+  async run(options: ConversionPipelineOptions): Promise<ConversionOutcome[]> {
+    const plan = await resolveConversionPlan(options.entries, options);
+    const outcomes = [...plan.failures];
 
-  if (decision === 'write') return true;
-  if (decision === 'skip') {
-    writeLine(options.stderr, `Skipped existing output: ${item.outputPath}`);
-    return false;
+    outcomes.push(...await this.convertJobs(plan.jobs, options));
+    return outcomes;
   }
 
-  const confirmed = await confirmOverwrite(item.outputPath, {
-    input: options.stdin,
-    output: options.stdout,
-  });
-  if (!confirmed) {
-    writeLine(options.stderr, `Skipped existing output: ${item.outputPath}`);
-  }
-  return confirmed;
-}
+  private async convertJobs(
+    jobs: ConversionJob[],
+    pipelineOptions: ConversionPipelineOptions,
+  ): Promise<ConversionOutcome[]> {
+    const outcomes: ConversionOutcome[] = [];
 
-export async function runConversionPipeline(
-  options: PipelineOptions,
-): Promise<PipelineResult> {
-  const stdout = options.stdout ?? process.stdout;
-  const stderr = options.stderr ?? process.stderr;
-  const stdin = options.stdin ?? process.stdin;
-  const interactive = options.interactive
-    ?? Boolean(process.stdin.isTTY && process.stdout.isTTY);
-  const forceOverwrite = options.forceOverwrite ?? false;
-  const converter = options.converter ?? convertFile;
-  const outcomes: ConversionOutcome[] = [];
-
-  if (options.entries.length === 0) {
-    throw new UsageError('At least one Markdown file or directory is required.');
-  }
-  if (options.outputPath !== undefined && options.outputDir !== undefined) {
-    throw new UsageError('--output and --output-dir are mutually exclusive.');
-  }
-
-  const sources: string[] = [];
-  for (const entry of options.entries) {
-    try {
-      sources.push(...resolveEntrySources(entry));
-    } catch (err) {
-      const conversionError = err instanceof ConversionError
-        ? err
-        : new ConversionError(errorMessage(err), entry);
-      outcomes.push({
-        sourcePath: conversionError.sourcePath ?? entry,
-        outputPath: '',
-        status: 'failed',
-        error: conversionError,
-      });
-      writeLine(stderr, conversionError.message);
+    for (const job of jobs) {
+      outcomes.push(await this.convertJob(job, pipelineOptions));
     }
+
+    return outcomes;
   }
 
-  if (options.outputPath !== undefined && sources.length > 1) {
-    throw new UsageError('--output can only be used when exactly one Markdown file is produced.');
-  }
+  private async convertJob(
+    job: ConversionJob,
+    pipelineOptions: ConversionPipelineOptions,
+  ): Promise<ConversionOutcome> {
+    const overwrite = pipelineOptions.overwrite;
 
-  if (options.outputDir !== undefined) mkdirSync(options.outputDir, { recursive: true });
+    if (overwrite !== undefined) {
+      const evaluation = await evaluateOverwrite(job, overwrite);
 
-  const workList = sources.map(sourcePath => ({
-    sourcePath,
-    outputPath: options.outputPath
-      ?? (options.outputDir !== undefined
-        ? outputPathInDirectory(sourcePath, options.outputDir)
-        : defaultOutputPath(sourcePath)),
-  }));
-
-  for (const item of workList) {
-    try {
-      const canWrite = await shouldConvert(item, {
-        forceOverwrite,
-        interactive,
-        stdin,
-        stdout,
-        stderr,
-      });
-      if (!canWrite) {
-        outcomes.push({ ...item, status: 'skipped' });
-        continue;
+      if (!evaluation.shouldConvert) {
+        return { ...job, status: "skipped" };
       }
-
-      mkdirSync(dirname(item.outputPath), { recursive: true });
-      await converter(item.sourcePath, item.outputPath, options.convertOptions);
-      outcomes.push({ ...item, status: 'success' });
-    } catch (err) {
-      const wrapped = err instanceof Md2PdfError || err instanceof Error
-        ? err
-        : new ConversionError(String(err), item.sourcePath);
-      outcomes.push({ ...item, status: 'failed', error: wrapped });
-      writeLine(stderr, errorMessage(wrapped));
     }
+
+    return this.runConverter(job, pipelineOptions.convertOptions);
   }
 
-  const succeeded = outcomes.filter(outcome => outcome.status === 'success').length;
-  const failed = outcomes.filter(outcome => outcome.status === 'failed').length;
-  const skipped = outcomes.filter(outcome => outcome.status === 'skipped').length;
-  writeLine(stdout, `Summary: ${succeeded} succeeded, ${failed} failed, ${skipped} skipped.`);
+  private async runConverter(
+    job: ConversionJob,
+    options: ConvertOptions | undefined,
+  ): Promise<ConversionOutcome> {
+    try {
+      await this.convertFile(job.sourcePath, job.outputPath, options);
+      return { ...job, status: "success" };
+    } catch (error) {
+      return {
+        ...job,
+        status: "failed",
+        error: toMd2PdfError(error, job),
+      };
+    }
+  }
+}
 
-  return {
-    outcomes,
-    succeeded,
-    failed,
-    skipped,
-    exitCode: failed > 0 ? 1 : 0,
+function toMd2PdfError(error: unknown, job: ConversionJob): Md2PdfError {
+  if (error instanceof Md2PdfError) {
+    return withJobContext(error, job);
+  }
+
+  return new ConversionError({
+    message: "conversion failed",
+    sourcePath: job.sourcePath,
+    outputPath: job.outputPath,
+    actionHint: "inspect the conversion error cause",
+    cause: error,
+  });
+}
+
+function withJobContext(error: Md2PdfError, job: ConversionJob): Md2PdfError {
+  const sourcePath = error.context.sourcePath ?? job.sourcePath;
+  const outputPath = error.context.outputPath ?? job.outputPath;
+
+  if (sourcePath === error.context.sourcePath && outputPath === error.context.outputPath) {
+    return error;
+  }
+
+  const context = {
+    ...error.context,
+    sourcePath,
+    outputPath,
   };
+
+  switch (error.kind) {
+    case "usage":
+      return new UsageError(context);
+    case "input":
+      return new InputNotFoundError(context);
+    case "conversion":
+      return new ConversionError(context);
+    case "render":
+      return new RenderError(context);
+    case "browser":
+      return new BrowserNotFoundError(context);
+    case "artifact":
+      return new ArtifactFreshnessError(context);
+  }
 }

@@ -1,5 +1,7 @@
 # Scratch / exploratory research — kept locally, never committed
 tmp/
+.tmp/
+tests/manual/
 
 # Node
 node_modules/
@@ -10,3 +12,7 @@ npm-debug.log*
 # OS
 .DS_Store
 Thumbs.db
+
+# Graphify
+
+graphify-out/

@@ -5,13 +5,18 @@ third-party workflow artifacts. Any future workflow implementation must satisfy
 `ARTIFACT_FRESHNESS_POLICY.md` before referencing external actions, runners, or
 tooling.
 
+Current Phase 9 status on 2026-06-15: `blocked` for global release evidence.
+The matrix below is the required release matrix, but no current Linux, macOS,
+and Windows CI run URL, logs, or committed CI result summary exists yet for the
+Phase 10 release candidate.
+
 ## Required Platforms
 
 | OS | Node.js | Fast Checks | Browser Checks |
 |---|---|---|---|
-| Linux | 20.x | `npm ci`, `npm run typecheck`, `npm test`, `npm run check:artifacts`, `npm run build`, `npm pack` | Chromium-family browser plus chromedriver; Firefox plus geckodriver |
-| macOS | 20.x | `npm ci`, `npm run typecheck`, `npm test`, `npm run check:artifacts`, `npm run build`, `npm pack` | Chrome or Chromium plus chromedriver; Firefox plus geckodriver |
-| Windows | 20.x | `npm ci`, `npm run typecheck`, `npm test`, `npm run check:artifacts`, `npm run build`, `npm pack` | Chrome or Chromium plus chromedriver; Firefox plus geckodriver |
+| Linux | 20.x | `npm ci`, `npm run release:verify` | Chromium-family browser plus chromedriver; Firefox plus geckodriver |
+| macOS | 20.x | `npm ci`, `npm run release:verify` | Chrome or Chromium plus chromedriver; Firefox plus geckodriver |
+| Windows | 20.x | `npm ci`, `npm run release:verify` | Chrome or Chromium plus chromedriver; Firefox plus geckodriver |
 
 ## Packaging Smoke
 
@@ -20,14 +25,19 @@ Each platform should run:
 ```bash
 npm run build
 npm pack
-npm install --global --prefix <temporary-user-prefix> ./md2pdf-0.1.0.tgz
+npm install --global --prefix <temporary-user-prefix> ./md2pdf-0.1.2.tgz
 <temporary-user-prefix>/bin/md2pdf --help
-npm install --global --prefix <temporary-user-prefix> ./md2pdf-0.1.0.tgz
+npm install --global --prefix <temporary-user-prefix> ./md2pdf-0.1.2.tgz
 <temporary-user-prefix>/bin/md2pdf --help
 ```
 
-On Windows, use the platform-specific npm bin path under the temporary prefix.
-The second install verifies idempotent convergence on the same package version.
+On Windows, use `md2pdf.cmd --help` through `cmd.exe` from the platform-specific
+npm bin path under the temporary prefix. The second install verifies idempotent
+convergence on the same package version.
+
+The local helper `npm run check:package` automates this smoke on the current
+host and verifies the POSIX symlink target or Windows command shim, but it is
+not a substitute for the full CI matrix above.
 
 ## Release Gate
 
