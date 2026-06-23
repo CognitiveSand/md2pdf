@@ -200,6 +200,11 @@ local libre, lance le binaire du driver, attend que `/status` reponde, puis
 retourne une session composee d'un transport HTTP local et d'un handle de
 processus.
 
+Le port est choisi par bind local temporaire puis fermeture avant le lancement
+du driver. Cette fenetre de rebind est une limite TOCTOU locale connue; le
+driver reste contraint a `127.0.0.1` et le transport client refuse les endpoints
+non loopback litteraux.
+
 Le module gere aussi l'arret du driver. Si le processus ne s'arrete pas
 normalement dans le delai prevu, il peut etre tue plus fermement. Cette logique
 protege les conversions qui echouent ou expirent.
@@ -216,14 +221,16 @@ charge le fichier HTML via une URL `file:`, attend que Mermaid signale son etat
 Le module verifie plusieurs invariants:
 
 - l'URL HTML doit etre locale et de schema `file:`;
-- l'endpoint WebDriver doit etre `localhost`, `127.0.0.1` ou `::1`;
+- l'endpoint WebDriver doit etre `127.0.0.1` ou `::1`;
 - les chemins de requete WebDriver ne doivent pas s'echapper de l'origin local;
 - les donnees retournees par `print` doivent etre un PDF valide commencant par
   `%PDF-`.
 
 Les navigateurs sont lances en mode headless avec des options visant a reduire
 les acces reseau et le bruit de premiere execution. Les profils temporaires
-Chromium sont nettoyes apres conversion.
+Chromium et Firefox sont crees par conversion puis nettoyes. Sur Linux, un
+Firefox snap utilise une racine de profil sous `$HOME`, comme son HTML
+temporaire, afin de rester lisible depuis le confinement snap.
 
 ### `src/browserLocator.ts`
 

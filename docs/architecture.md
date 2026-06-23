@@ -305,10 +305,10 @@ stylesheet styles the server-highlighted code. Theme selection is out of scope
   selected as `newest eligible`, compatible with the host platform, and verified
   by SHA-256 checksum and freshness policy. If no eligible artifact exists,
   md2pdf fails with `BrowserNotFoundError` whose cause states that no fallback
-  artifact is eligible. The current `artifacts.json` does not declare a
-  Chromium-for-Testing fallback artifact, so the fallback engine is implemented
-  and testable with fake catalogs, but not available from the real catalog until
-  a newest-eligible, checksummed, platform-specific artifact is added.
+  artifact is eligible. The current `artifacts.json` declares eligible
+  Chrome-for-Testing and matching ChromeDriver artifacts for Windows x64,
+  macOS arm64, macOS x64, and Linux x64, plus geckodriver entries for the same
+  host families where applicable.
 - **System-scope install (FR-20).** Installing the package into a system-shared
   location with elevation places the `md2pdf` entry point on every account's
   PATH; each user's browser/driver are resolved per-user on first run.

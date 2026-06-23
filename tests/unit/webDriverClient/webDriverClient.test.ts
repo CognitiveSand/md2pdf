@@ -1,6 +1,8 @@
 import { stat } from "node:fs/promises";
+import { homedir, tmpdir } from "node:os";
+import { join } from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import type { LocatedBrowser } from "../../../src/browserLocator.js";
 import { RenderError } from "../../../src/errors.js";
@@ -11,6 +13,20 @@ import {
   type WebDriverTransport,
   WebDriverHttpTransport,
 } from "../../../src/webDriverClient.js";
+
+const originalPlatform = process.platform;
+const originalHome = process.env.HOME;
+
+afterEach(() => {
+  Object.defineProperty(process, "platform", {
+    value: originalPlatform,
+  });
+  if (originalHome === undefined) {
+    delete process.env.HOME;
+  } else {
+    process.env.HOME = originalHome;
+  }
+});
 
 describe("printPdfWithWebDriver", () => {
   it("@req FR-07 opens a local file URL with offline browser flags and returns PDF bytes", async () => {
@@ -189,6 +205,10 @@ describe("printPdfWithWebDriver", () => {
   });
 
   it("@req NFR-08 omits the binary capability for a snap Firefox so geckodriver auto-detects it", async () => {
+    Object.defineProperty(process, "platform", {
+      value: "linux",
+    });
+    process.env.HOME = tmpdir();
     const transport = new FakeTransport([
       { value: { sessionId: "session-snap-firefox" } },
       { value: null },
@@ -215,6 +235,9 @@ describe("printPdfWithWebDriver", () => {
     const firefoxOptions = firefoxOptionsOf(transport.requests[0]);
     expect(firefoxOptions.binary).toBeUndefined();
     expect(firefoxOptions.args).toEqual(expect.arrayContaining(["-headless", "--offline"]));
+    const profileDir = firefoxProfileDir(transport.requests[0]);
+    expect(profileDir?.startsWith(join(homedir(), "md2pdf-browser-profile-"))).toBe(true);
+    await expect(stat(profileDir ?? "")).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("@req NFR-08 keeps the binary capability for a non-snap Firefox", async () => {
@@ -572,6 +595,10 @@ describe("WebDriverHttpTransport", () => {
     expect(() => new WebDriverHttpTransport("http://example.invalid:9515")).toThrow(RenderError);
   });
 
+  it("@req NFR-02 rejects localhost WebDriver endpoints to avoid DNS or hosts-file ambiguity", () => {
+    expect(() => new WebDriverHttpTransport("http://localhost:9515")).toThrow(RenderError);
+  });
+
   it("@req NFR-02 rejects absolute request paths that would escape localhost", async () => {
     const transport = new WebDriverHttpTransport("http://127.0.0.1:9515/wd/hub/", {
       fetch: async () => {
@@ -689,6 +716,10 @@ function firefoxProfileDir(request: WebDriverRequest | undefined): string | unde
   const args = firefoxOptions?.args ?? [];
   const profileFlagIndex = args.indexOf("-profile");
   return profileFlagIndex === -1 ? undefined : args[profileFlagIndex + 1];
+}
+
+function firefoxOptionsOf(request: WebDriverRequest | undefined): Record<string, unknown> {
+  return (alwaysMatch(request)["moz:firefoxOptions"] as Record<string, unknown> | undefined) ?? {};
 }
 
 class FakeTransport implements WebDriverTransport {

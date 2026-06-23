@@ -266,7 +266,9 @@ npm test -- tests/unit/markdownRenderer/markdownRenderer.test.ts
 
 1. Verifier `src/webDriverSession.ts`:
    - le driver doit rester bind sur `127.0.0.1`;
-   - aucune configuration ne doit exposer le driver sur une interface externe.
+   - aucune configuration ne doit exposer le driver sur une interface externe;
+   - la selection du port par bind temporaire puis lancement du driver garde une
+     petite fenetre TOCTOU locale connue, contrainte par le bind loopback.
 2. Completer `browserCapabilities` dans `src/webDriverClient.ts` pour Chrome,
    Chromium, Edge, Brave et Vivaldi:
    - conserver profil temporaire par run;
@@ -277,10 +279,12 @@ npm test -- tests/unit/markdownRenderer/markdownRenderer.test.ts
    - ne pas desactiver les liens PDF.
 3. Completer Firefox:
    - conserver `-headless` et `--offline`;
+   - conserver un profil temporaire par run, sous `$HOME` pour Firefox snap
+     Linux afin de rester lisible depuis le confinement;
    - ajouter les preferences supportees pour limiter reseau, permissions,
      telemetry, sync et services de fond, si WebDriver les accepte.
 4. Garder `WebDriverHttpTransport` strictement local:
-   - endpoints uniquement `localhost`, `127.0.0.1`, `::1`;
+   - endpoints uniquement `127.0.0.1`, `::1`;
    - chemins de requete incapables de sortir de l'origine locale.
 5. Ajouter ou renforcer les tests:
    - capabilities Chrome/Chromium/Edge contiennent les flags durcis;
@@ -376,4 +380,3 @@ Le hardening est termine quand:
 - les suites de tests ciblees et les gates finaux passent;
 - aucun artifact tiers nouveau ou modifie n'a ete introduit sans passer par
   `ARTIFACT_FRESHNESS_POLICY.md`.
-

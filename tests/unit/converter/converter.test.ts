@@ -14,12 +14,27 @@ import {
 import { RenderError } from "../../../src/errors.js";
 
 let tempRoot: string;
+let tempHomeRoot: string | undefined;
+const originalPlatform = process.platform;
+const originalHome = process.env.HOME;
 
 beforeEach(async () => {
   tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "md2pdf-converter-"));
 });
 
 afterEach(async () => {
+  Object.defineProperty(process, "platform", {
+    value: originalPlatform,
+  });
+  if (originalHome === undefined) {
+    delete process.env.HOME;
+  } else {
+    process.env.HOME = originalHome;
+  }
+  if (tempHomeRoot !== undefined) {
+    await fs.rm(tempHomeRoot, { recursive: true, force: true });
+    tempHomeRoot = undefined;
+  }
   await fs.rm(tempRoot, { recursive: true, force: true });
 });
 
@@ -114,45 +129,47 @@ describe("Stream A P3 runtime converter boundary", () => {
     expect(locatorCalled).toBe(false);
   });
 
-  (process.platform === "linux" ? it : it.skip)(
-    "@req NFR-08 writes the temporary HTML under $HOME for a snap browser",
-    async () => {
-      const sourcePath = path.join(tempRoot, "snap.md");
-      const outputPath = path.join(tempRoot, "snap.pdf");
-      await fs.writeFile(sourcePath, "# Snap\n", "utf8");
-      let htmlPath = "";
+  it("@req NFR-08 writes the temporary HTML under $HOME for a snap browser", async () => {
+    Object.defineProperty(process, "platform", {
+      value: "linux",
+    });
+    tempHomeRoot = await fs.mkdtemp(path.join(process.cwd(), "md2pdf-test-home-"));
+    process.env.HOME = tempHomeRoot;
+    const sourcePath = path.join(tempRoot, "snap.md");
+    const outputPath = path.join(tempRoot, "snap.pdf");
+    await fs.writeFile(sourcePath, "# Snap\n", "utf8");
+    let htmlPath = "";
 
-      const convertFile = createConverter({
-        browserLocatorFactory: () => ({
-          async locate(): Promise<LocatedBrowser> {
-            return {
-              browserPath: "/snap/firefox/current/usr/lib/firefox/firefox",
-              displayName: "Firefox",
-              driverArtifactName: "geckodriver",
-              driverPath: "/snap/bin/geckodriver",
-              kind: "firefox",
-            };
-          },
-        }),
-        webdriverSessionFactory: fakeSessionFactory(),
-        printPdf: async ({ htmlFileUrl, driverProcess }) => {
-          htmlPath = fileURLToPath(htmlFileUrl);
-          await driverProcess.stop();
-          return Buffer.from("%PDF-1.7\n", "utf8");
+    const convertFile = createConverter({
+      browserLocatorFactory: () => ({
+        async locate(): Promise<LocatedBrowser> {
+          return {
+            browserPath: "/snap/firefox/current/usr/lib/firefox/firefox",
+            displayName: "Firefox",
+            driverArtifactName: "geckodriver",
+            driverPath: "/snap/bin/geckodriver",
+            kind: "firefox",
+          };
         },
-      });
+      }),
+      webdriverSessionFactory: fakeSessionFactory(),
+      printPdf: async ({ htmlFileUrl, driverProcess }) => {
+        htmlPath = fileURLToPath(htmlFileUrl);
+        await driverProcess.stop();
+        return Buffer.from("%PDF-1.7\n", "utf8");
+      },
+    });
 
-      await expect(
-        convertFile(sourcePath, outputPath, { renderTimeoutMs: 5000 }),
-      ).resolves.toBeUndefined();
+    await expect(
+      convertFile(sourcePath, outputPath, { renderTimeoutMs: 5000 }),
+    ).resolves.toBeUndefined();
 
-      const homeTemp = path.join(os.homedir(), "md2pdf-tmp");
-      expect(htmlPath.startsWith(homeTemp)).toBe(true);
-      expect(htmlPath.startsWith(os.tmpdir())).toBe(false);
-      // withTempHtml removes the per-run dir; drop the now-empty root (only if empty).
-      await fs.rmdir(homeTemp).catch(() => {});
-    },
-  );
+    const homeTemp = path.join(os.homedir(), "md2pdf-tmp");
+    expect(htmlPath.startsWith(homeTemp)).toBe(true);
+    expect(htmlPath.startsWith(os.tmpdir())).toBe(false);
+    // withTempHtml removes the per-run dir; drop the now-empty root (only if empty).
+    await fs.rmdir(homeTemp).catch(() => {});
+  });
 
   it("@req NFR-08 falls back to the provisioned browser when the installed browser cannot render", async () => {
     const sourcePath = path.join(tempRoot, "fallback.md");

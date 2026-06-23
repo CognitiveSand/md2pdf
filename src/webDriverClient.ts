@@ -1,5 +1,5 @@
 import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
@@ -248,7 +248,7 @@ function localWebDriverUrl(value: string | URL): URL {
   if (url.protocol !== "http:" || !isLocalHost(url.hostname)) {
     throw new RenderError({
       message: "WebDriver transport only accepts local HTTP endpoints",
-      actionHint: "Start the WebDriver process on localhost or 127.0.0.1.",
+      actionHint: "Start the WebDriver process on 127.0.0.1 or [::1].",
       cause: "non-local-webdriver",
     });
   }
@@ -261,7 +261,7 @@ function localWebDriverUrl(value: string | URL): URL {
 }
 
 function isLocalHost(hostname: string): boolean {
-  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1" || hostname === "[::1]";
+  return hostname === "127.0.0.1" || hostname === "::1" || hostname === "[::1]";
 }
 
 function parseJson(raw: string, path: string): unknown {
@@ -388,7 +388,9 @@ async function handleCleanup(
 }
 
 async function createBrowserProfileDir(browser: LocatedBrowser): Promise<string | undefined> {
-  return mkdtemp(join(tmpdir(), "md2pdf-browser-profile-"));
+  const profileRoot =
+    process.platform === "linux" && isSnapBrowser(browser.browserPath) ? homedir() : tmpdir();
+  return mkdtemp(join(profileRoot, "md2pdf-browser-profile-"));
 }
 
 function browserCapabilities(
@@ -403,7 +405,12 @@ function browserCapabilities(
     // launches the snap launcher. Passing the snap path fails with
     // "binary is not a Firefox executable".
     const firefoxOptions: Record<string, unknown> = {
-      args: ["-headless", "--offline"],
+      args: [
+        "-headless",
+        "--offline",
+        ...(browserProfileDir === undefined ? [] : ["-profile", browserProfileDir]),
+      ],
+      prefs: firefoxHardeningPreferences(),
     };
     if (!isSnapBrowser(browserPath)) {
       firefoxOptions.binary = browserPath;
@@ -412,15 +419,7 @@ function browserCapabilities(
     return {
       browserName: "firefox",
       proxy,
-      "moz:firefoxOptions": {
-        binary: browserPath,
-        args: [
-          "-headless",
-          "--offline",
-          ...(browserProfileDir === undefined ? [] : ["-profile", browserProfileDir]),
-        ],
-        prefs: firefoxHardeningPreferences(),
-      },
+      "moz:firefoxOptions": firefoxOptions,
     };
   }
 
