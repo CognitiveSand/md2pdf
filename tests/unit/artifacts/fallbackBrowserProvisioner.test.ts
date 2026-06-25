@@ -428,8 +428,10 @@ describe("fallback browser provisioning", () => {
 
   it("@req NFR-05 reports cache-not-writable for artifact subtree write failures", async () => {
     const cacheDir = await tempRoot();
+    const blockedPath = join(cacheDir, "artifact.zip");
     const permissionError = Object.assign(new Error("read-only cache subtree"), {
       code: "EACCES",
+      path: blockedPath,
     });
 
     await expect(
@@ -446,6 +448,32 @@ describe("fallback browser provisioning", () => {
     ).rejects.toMatchObject({
       kind: "artifact",
       context: { cause: "cache-not-writable" },
+    });
+  });
+
+  it("@req NFR-05 preserves network permission failures as provisioning failures", async () => {
+    const cacheDir = await tempRoot();
+    const networkError = Object.assign(new Error("network blocked"), {
+      code: "EACCES",
+    });
+
+    await expect(
+      provisionFallbackBrowser(policy(), catalog([release("120.0.0")]), {
+        cacheDir,
+        downloader: {
+          async download(): Promise<void> {
+            throw networkError;
+          },
+        },
+        extractor: new FixtureExtractor(),
+        now,
+      }),
+    ).rejects.toMatchObject({
+      kind: "artifact",
+      context: {
+        message: "Fallback browser could not be provisioned",
+        cause: networkError,
+      },
     });
   });
 });

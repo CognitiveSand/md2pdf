@@ -315,8 +315,8 @@ describe("BrowserLocator installed browser scan", () => {
   });
 
   it("@req NFR-03 detects Vivaldi from the POSIX PATH", async () => {
-    const binDir = absoluteTestPath("usr", "local", "bin");
-    const vivaldiPath = path.join(binDir, "vivaldi");
+    const binDir = "/usr/local/bin";
+    const vivaldiPath = path.posix.join(binDir, "vivaldi");
     const locator = new BrowserLocator({
       env: { PATH: binDir },
       platform: "linux",

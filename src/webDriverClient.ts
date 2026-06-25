@@ -437,7 +437,6 @@ function browserCapabilities(
         "--disable-dev-shm-usage",
         "--disable-domain-reliability",
         "--disable-extensions",
-        "--disable-features=AutofillServerCommunication,MediaRouter,OptimizationHints,Translate",
         "--disable-notifications",
         "--no-sandbox",
         "--no-first-run",

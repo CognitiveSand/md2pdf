@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import { access, readFile, realpath as fsRealpath, stat } from "node:fs/promises";
-import { basename, delimiter, extname, join, resolve } from "node:path";
+import path from "node:path";
 
 import {
   type ArtifactPolicy,
@@ -83,6 +83,8 @@ export interface ArtifactPolicyDriverResolverOptions {
   fileSystem?: BrowserLocatorFileSystem;
 }
 
+type BrowserPathApi = Pick<typeof path.posix, "basename" | "delimiter" | "extname" | "join" | "resolve">;
+
 const supportedBrowsers = ["Chrome", "Chromium", "Edge", "Brave", "Firefox", "Vivaldi"];
 const envBrowserVariable = "MD2PDF_BROWSER";
 const snapGeckodriverPath = "/snap/bin/geckodriver";
@@ -120,6 +122,7 @@ const POSIX_BROWSER_NAMES = [
 export class BrowserLocator {
   private readonly env: Record<string, string | undefined>;
   private readonly platform: NodeJS.Platform;
+  private readonly pathApi: BrowserPathApi;
   private readonly candidatePaths: string[];
   private readonly fileSystem: BrowserLocatorFileSystem;
   private readonly driverResolver: BrowserDriverResolver;
@@ -130,13 +133,14 @@ export class BrowserLocator {
   constructor(options: BrowserLocatorOptions = {}) {
     this.env = options.env ?? process.env;
     this.platform = options.platform ?? process.platform;
+    this.pathApi = pathApiForPlatform(this.platform);
     this.fileSystem = options.fileSystem ?? nodeFileSystem;
     this.driverResolver = options.driverResolver ?? new NullDriverResolver();
     this.fallbackBrowserResolver = options.fallbackBrowserResolver;
     this.browserProbe = options.browserProbe ?? nodeBrowserProbe;
     this.systemDriverProbe = options.systemDriverProbe ?? nodeSystemDriverProbe;
     this.candidatePaths =
-      options.candidatePaths ?? defaultBrowserCandidates(this.platform, this.env);
+      options.candidatePaths ?? defaultBrowserCandidates(this.platform, this.env, this.pathApi);
   }
 
   async locate(): Promise<LocatedBrowser> {
@@ -246,7 +250,7 @@ export class BrowserLocator {
   }
 
   private async validateExplicitBrowser(browserPath: string): Promise<BrowserCandidate> {
-    const resolvedPath = resolve(browserPath);
+    const resolvedPath = this.pathApi.resolve(browserPath);
 
     let exists: boolean;
     try {
@@ -279,7 +283,7 @@ export class BrowserLocator {
       await this.fileSystem.realpath(resolvedPath),
       this.fileSystem,
     );
-    const candidate = browserKindFromPath(realBrowserPath);
+    const candidate = browserKindFromPath(realBrowserPath, this.pathApi);
     if (candidate === null) {
       throw browserError({
         message: "Pinned browser path is not a supported browser",
@@ -302,7 +306,7 @@ export class BrowserLocator {
   }
 
   private async candidateFromPath(candidatePath: string): Promise<BrowserCandidate | null> {
-    const resolvedPath = resolve(candidatePath);
+    const resolvedPath = this.pathApi.resolve(candidatePath);
     try {
       if (!(await this.fileSystem.exists(resolvedPath))) {
         return null;
@@ -319,7 +323,7 @@ export class BrowserLocator {
       await this.fileSystem.realpath(resolvedPath),
       this.fileSystem,
     );
-    const candidate = browserKindFromPath(realBrowserPath);
+    const candidate = browserKindFromPath(realBrowserPath, this.pathApi);
     if (candidate === null) {
       return null;
     }
@@ -376,7 +380,7 @@ export class ArtifactPolicyDriverResolver implements BrowserDriverResolver {
       return null;
     }
 
-    const driverPath = resolve(release.path);
+    const driverPath = path.resolve(release.path);
     if (!(await this.fileSystem.exists(driverPath)) || !(await this.fileSystem.isExecutable(driverPath))) {
       return null;
     }
@@ -578,9 +582,9 @@ function browserVersionMatchesKind(output: string, kind: BrowserKind): boolean {
   return normalized.includes("firefox");
 }
 
-function browserKindFromPath(path: string): Omit<BrowserCandidate, "browserPath"> | null {
-  const normalized = path.toLowerCase();
-  const name = basename(normalized);
+function browserKindFromPath(browserPath: string, pathApi: BrowserPathApi): Omit<BrowserCandidate, "browserPath"> | null {
+  const normalized = browserPath.toLowerCase();
+  const name = pathApi.basename(normalized);
 
   if (
     normalized.includes("google chrome") ||
@@ -689,6 +693,7 @@ function isGeckodriverVersion(output: string): boolean {
 function defaultBrowserCandidates(
   platform: NodeJS.Platform,
   env: Record<string, string | undefined>,
+  pathApi: BrowserPathApi = pathApiForPlatform(platform),
 ): string[] {
   if (platform === "darwin") {
     return [
@@ -703,20 +708,20 @@ function defaultBrowserCandidates(
 
   if (platform === "win32") {
     return [
-      ...windowsRoots(env).map((root) => join(root, "Google", "Chrome", "Application", "chrome.exe")),
-      ...windowsRoots(env).map((root) => join(root, "Chromium", "Application", "chromium.exe")),
-      ...windowsRoots(env).map((root) => join(root, "Microsoft", "Edge", "Application", "msedge.exe")),
+      ...windowsRoots(env).map((root) => pathApi.join(root, "Google", "Chrome", "Application", "chrome.exe")),
+      ...windowsRoots(env).map((root) => pathApi.join(root, "Chromium", "Application", "chromium.exe")),
+      ...windowsRoots(env).map((root) => pathApi.join(root, "Microsoft", "Edge", "Application", "msedge.exe")),
       ...windowsRoots(env).map((root) =>
-        join(root, "BraveSoftware", "Brave-Browser", "Application", "brave.exe"),
+        pathApi.join(root, "BraveSoftware", "Brave-Browser", "Application", "brave.exe"),
       ),
-      ...windowsRoots(env).map((root) => join(root, "Mozilla Firefox", "firefox.exe")),
-      ...windowsRoots(env).map((root) => join(root, "Vivaldi", "Application", "vivaldi.exe")),
-      ...pathExecutablesForEnv(env, platform, "msedge.exe", "chrome.exe", "chromium.exe", "brave.exe", "vivaldi.exe"),
+      ...windowsRoots(env).map((root) => pathApi.join(root, "Mozilla Firefox", "firefox.exe")),
+      ...windowsRoots(env).map((root) => pathApi.join(root, "Vivaldi", "Application", "vivaldi.exe")),
+      ...pathExecutablesForEnv(env, platform, pathApi, "msedge.exe", "chrome.exe", "chromium.exe", "brave.exe", "vivaldi.exe"),
     ];
   }
 
   return [
-    ...pathExecutablesForEnv(env, platform, ...POSIX_BROWSER_NAMES),
+    ...pathExecutablesForEnv(env, platform, pathApi, ...POSIX_BROWSER_NAMES),
     "/snap/firefox/current/usr/lib/firefox/firefox",
     "/usr/bin/firefox",
   ];
@@ -735,6 +740,7 @@ function windowsRoots(env: Record<string, string | undefined>): string[] {
 function pathExecutablesForEnv(
   env: Record<string, string | undefined>,
   platform: NodeJS.Platform,
+  pathApi: BrowserPathApi,
   ...names: string[]
 ): string[] {
   const suffixes = platform === "win32"
@@ -744,17 +750,21 @@ function pathExecutablesForEnv(
     : [""];
 
   return (env.PATH ?? "")
-    .split(delimiter)
+    .split(pathApi.delimiter)
     .filter((path) => path !== "")
     .flatMap((path) =>
       names.flatMap((name) => {
-        if (platform !== "win32" || extname(name) !== "") {
-          return [join(path, name)];
+        if (platform !== "win32" || pathApi.extname(name) !== "") {
+          return [pathApi.join(path, name)];
         }
 
-        return suffixes.map((suffix) => join(path, `${name}${suffix}`));
+        return suffixes.map((suffix) => pathApi.join(path, `${name}${suffix}`));
       })
     );
+}
+
+function pathApiForPlatform(platform: NodeJS.Platform): BrowserPathApi {
+  return platform === "win32" ? path.win32 : path.posix;
 }
 
 async function resolveBrowserPath(

@@ -215,8 +215,12 @@ async function provisionIntoCache(
       throw cause;
     }
 
-    if (isPermissionError(cause) || isPermissionError(cleanupError)) {
-      throw cacheNotWritableError(artifactName, releaseCacheDir);
+    if (isFileSystemPermissionError(cause) || isFileSystemPermissionError(cleanupError)) {
+      throw cacheNotWritableError(
+        artifactName,
+        releaseCacheDir,
+        isFileSystemPermissionError(cause) ? cause : cleanupError,
+      );
     }
 
     throw new ArtifactFreshnessError({
@@ -243,7 +247,7 @@ async function ensureCacheRoot(cacheRoot: string, artifactName: string): Promise
     await writeFile(join(cacheRoot, ".write-test"), "");
     await rm(join(cacheRoot, ".write-test"), { force: true });
   } catch (cause) {
-    throw cacheNotWritableError(artifactName, cacheRoot);
+    throw cacheNotWritableError(artifactName, cacheRoot, cause);
   }
 }
 
@@ -270,8 +274,8 @@ async function purgeStaleCaches(
       }
     }
   } catch (cause) {
-    if (isPermissionError(cause)) {
-      throw cacheNotWritableError(artifactName, artifactRoot);
+    if (isFileSystemPermissionError(cause)) {
+      throw cacheNotWritableError(artifactName, artifactRoot, cause);
     }
 
     throw cause;
@@ -282,8 +286,8 @@ async function removeCacheEntry(releaseCacheDir: string, artifactName: string): 
   try {
     await rm(releaseCacheDir, { recursive: true, force: true });
   } catch (cause) {
-    if (isPermissionError(cause)) {
-      throw cacheNotWritableError(artifactName, releaseCacheDir);
+    if (isFileSystemPermissionError(cause)) {
+      throw cacheNotWritableError(artifactName, releaseCacheDir, cause);
     }
 
     throw cause;
@@ -350,6 +354,10 @@ async function makeExecutablePaths(
   cacheDir: string,
   artifactName: string,
 ): Promise<void> {
+  if (!usesPosixExecutableBits()) {
+    return;
+  }
+
   const { browserPath, driverPath } = executablePaths(release, cacheDir);
   try {
     await chmod(browserPath, 0o755);
@@ -358,8 +366,8 @@ async function makeExecutablePaths(
     // (e.g. chrome_crashpad_handler), so restore it across the whole browser bundle.
     await restoreBundleExecutableBits(browserPath);
   } catch (cause) {
-    if (isPermissionError(cause)) {
-      throw cacheNotWritableError(artifactName, cacheDir);
+    if (isFileSystemPermissionError(cause)) {
+      throw cacheNotWritableError(artifactName, cacheDir, cause);
     }
 
     throw missingExecutableError(artifactName);
@@ -679,11 +687,15 @@ async function isExecutableFile(path: string): Promise<boolean> {
       return false;
     }
 
-    await access(path, constants.X_OK);
+    await access(path, usesPosixExecutableBits() ? constants.X_OK : constants.F_OK);
     return true;
   } catch {
     return false;
   }
+}
+
+function usesPosixExecutableBits(): boolean {
+  return process.platform !== "win32";
 }
 
 async function sha256File(path: string): Promise<string> {
@@ -718,22 +730,47 @@ function missingExecutableError(artifactName: string): ArtifactFreshnessError {
   });
 }
 
-function cacheNotWritableError(artifactName: string, cachePath: string): ArtifactFreshnessError {
+function cacheNotWritableError(
+  artifactName: string,
+  cachePath: string,
+  cause?: unknown,
+): ArtifactFreshnessError {
   return new ArtifactFreshnessError({
     message: "Fallback browser cache is not writable",
     artifactName,
-    actionHint: `Make the md2pdf artifact cache writable: ${cachePath}`,
+    actionHint: `Make the md2pdf artifact cache writable: ${cachePath}${formatCacheFailureCause(cause)}`,
     cause: "cache-not-writable",
   });
 }
 
-function isPermissionError(cause: unknown): boolean {
+function formatCacheFailureCause(cause: unknown): string {
+  if (typeof cause !== "object" || cause === null) {
+    return "";
+  }
+
+  const code = (cause as { code?: unknown }).code;
+  const syscall = (cause as { syscall?: unknown }).syscall;
+  const path = (cause as { path?: unknown }).path;
+  const parts = [
+    typeof code === "string" ? code : undefined,
+    typeof syscall === "string" ? syscall : undefined,
+    typeof path === "string" ? path : undefined,
+  ].filter((part): part is string => part !== undefined);
+
+  return parts.length === 0 ? "" : ` (${parts.join(" ")})`;
+}
+
+function isFileSystemPermissionError(cause: unknown): boolean {
   if (typeof cause !== "object" || cause === null) {
     return false;
   }
 
   const code = (cause as { code?: unknown }).code;
-  return code === "EACCES" || code === "EPERM" || code === "EROFS";
+  const path = (cause as { path?: unknown }).path;
+  return (
+    (code === "EACCES" || code === "EPERM" || code === "EROFS") &&
+    typeof path === "string"
+  );
 }
 
 function currentArtifactPlatform(): string {
