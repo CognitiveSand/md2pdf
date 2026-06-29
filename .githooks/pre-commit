@@ -1,0 +1,3 @@
+#!/bin/sh
+
+node scripts/checkArtifactFreshness.mjs --pre-commit

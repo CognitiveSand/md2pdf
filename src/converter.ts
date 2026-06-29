@@ -1,0 +1,365 @@
+import { randomUUID } from "node:crypto";
+import { homedir } from "node:os";
+import { basename, dirname, join, resolve } from "node:path";
+import { access, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+
+import { ArtifactPolicy } from "./artifactPolicy.js";
+import {
+  ArtifactPolicyDriverResolver,
+  BrowserLocator,
+  isSnapBrowser,
+  type FallbackBrowserResolver,
+  type LocatedBrowser,
+} from "./browserLocator.js";
+import type { ConvertOptions } from "./contracts.js";
+import { ConversionError, RenderError } from "./errors.js";
+import { provisionFallbackBrowser } from "./fallbackBrowserProvisioner.js";
+import { withTempHtml, type MarkdownRenderContext } from "./markdownRenderer.js";
+import { JsonReleaseCatalog } from "./releaseCatalog.js";
+import {
+  printPdfWithWebDriver,
+  type DriverProcessHandle,
+  type WebDriverPrintOptions,
+} from "./webDriverClient.js";
+import {
+  SpawnedWebDriverSessionFactory,
+  type WebDriverSessionFactory,
+} from "./webDriverSession.js";
+
+export type { WebDriverSession, WebDriverSessionFactory } from "./webDriverSession.js";
+
+export interface BrowserLocatorLike {
+  locate(): Promise<LocatedBrowser>;
+  locateProvisionedFallbackBrowser?(): Promise<LocatedBrowser | null>;
+}
+
+export interface ConverterFileSystem {
+  access(path: string): Promise<void>;
+  mkdir(path: string, options: { recursive: true }): Promise<unknown>;
+  readFile(path: string, encoding: BufferEncoding): Promise<string>;
+  rename(oldPath: string, newPath: string): Promise<void>;
+  rm(path: string, options: { force: true }): Promise<void>;
+  writeFile(path: string, data: Buffer): Promise<void>;
+}
+
+export interface DocumentConverterDependencies {
+  browserLocatorFactory?: (options: ConvertOptions) => BrowserLocatorLike;
+  fileSystem?: ConverterFileSystem;
+  printPdf?: (options: WebDriverPrintOptions) => Promise<Buffer>;
+  tempDir?: string;
+  webdriverSessionFactory?: WebDriverSessionFactory;
+}
+
+export type ConvertFile = (
+  sourcePath: string,
+  outputPath: string,
+  options?: ConvertOptions,
+) => Promise<void>;
+
+const defaultRenderTimeoutMs = 30_000;
+
+const nodeFileSystem: ConverterFileSystem = {
+  access,
+  mkdir,
+  readFile,
+  rename,
+  rm,
+  writeFile,
+};
+
+export function createConverter(dependencies: DocumentConverterDependencies = {}): ConvertFile {
+  const converter = new DocumentConverter(dependencies);
+
+  return (sourcePath, outputPath, options) =>
+    converter.convertFile(sourcePath, outputPath, options);
+}
+
+export async function convertFile(
+  sourcePath: string,
+  outputPath: string,
+  options: ConvertOptions = {},
+): Promise<void> {
+  await new DocumentConverter().convertFile(sourcePath, outputPath, options);
+}
+
+export class DocumentConverter {
+  private readonly browserLocatorFactory: (options: ConvertOptions) => BrowserLocatorLike;
+  private readonly fileSystem: ConverterFileSystem;
+  private readonly printPdf: (options: WebDriverPrintOptions) => Promise<Buffer>;
+  private readonly tempDir: string | undefined;
+  private readonly webdriverSessionFactory: WebDriverSessionFactory;
+
+  constructor(dependencies: DocumentConverterDependencies = {}) {
+    this.browserLocatorFactory = dependencies.browserLocatorFactory ?? defaultBrowserLocatorFactory;
+    this.fileSystem = dependencies.fileSystem ?? nodeFileSystem;
+    this.printPdf = dependencies.printPdf ?? printPdfWithWebDriver;
+    this.tempDir = dependencies.tempDir;
+    this.webdriverSessionFactory = dependencies.webdriverSessionFactory ?? new SpawnedWebDriverSessionFactory();
+  }
+
+  async convertFile(
+    sourcePath: string,
+    outputPath: string,
+    options: ConvertOptions = {},
+  ): Promise<void> {
+    const absoluteSourcePath = resolve(sourcePath);
+    const absoluteOutputPath = resolve(outputPath);
+    const renderTimeoutMs = options.renderTimeoutMs ?? defaultRenderTimeoutMs;
+    await this.assertSourceAccessible(absoluteSourcePath, absoluteOutputPath);
+    const locator = this.browserLocatorFactory(options);
+    const browser = await locator.locate();
+    let markdown: string;
+    try {
+      markdown = await this.fileSystem.readFile(absoluteSourcePath, "utf8");
+    } catch (cause) {
+      throw new ConversionError({
+        message: "Markdown source could not be read during conversion",
+        sourcePath: absoluteSourcePath,
+        outputPath: absoluteOutputPath,
+        actionHint: "Check that the Markdown source still exists and is readable.",
+        cause,
+      });
+    }
+
+    const renderContext: MarkdownRenderContext = {
+      sourcePath: absoluteSourcePath,
+      baseDir: dirname(absoluteSourcePath),
+      documentTitle: basename(absoluteSourcePath),
+    };
+
+    const pdf = await this.renderWithFallback(
+      locator,
+      browser,
+      options,
+      markdown,
+      renderContext,
+      renderTimeoutMs,
+    );
+
+    await this.writePdfAtomically(absoluteOutputPath, pdf, sourcePath);
+  }
+
+  private async assertSourceAccessible(sourcePath: string, outputPath: string): Promise<void> {
+    try {
+      await this.fileSystem.access(sourcePath);
+    } catch (cause) {
+      throw new ConversionError({
+        message: "Markdown source does not exist or is not accessible",
+        sourcePath,
+        outputPath,
+        actionHint: "Check that the Markdown source file exists at the specified path.",
+        cause,
+      });
+    }
+  }
+
+  private async renderWithFallback(
+    locator: BrowserLocatorLike,
+    browser: LocatedBrowser,
+    options: ConvertOptions,
+    markdown: string,
+    renderContext: MarkdownRenderContext,
+    renderTimeoutMs: number,
+  ): Promise<Buffer> {
+    try {
+      return await this.renderWithBrowser(browser, options, markdown, renderContext, renderTimeoutMs);
+    } catch (cause) {
+      // NFR-08: a locally installed browser was preferred but could not render
+      // ("broken"). Fall back to the policy-governed provisioned browser when one
+      // is available and the failed browser was not already that fallback.
+      if (browser.provisioned === true || locator.locateProvisionedFallbackBrowser === undefined) {
+        throw cause;
+      }
+
+      const fallback = await locator.locateProvisionedFallbackBrowser();
+      if (fallback === null) {
+        throw cause;
+      }
+
+      return this.renderWithBrowser(fallback, options, markdown, renderContext, renderTimeoutMs);
+    }
+  }
+
+  private async renderWithBrowser(
+    browser: LocatedBrowser,
+    options: ConvertOptions,
+    markdown: string,
+    renderContext: MarkdownRenderContext,
+    renderTimeoutMs: number,
+  ): Promise<Buffer> {
+    // renderTimeoutMs bounds two clocks that start at different instants: the
+    // outer withTempHtml budget covers the whole callback including WebDriver
+    // session startup, while the same value caps each WebDriver request after
+    // the session exists. The outer timeout aborts the inner work via the
+    // callback signal, so the conversion never outlives the outer budget.
+    return withTempHtml(
+      markdown,
+      { ...renderContext, tempDir: this.resolveTempDir(browser) },
+      (_htmlPath, htmlFileUrl, signal) =>
+        this.printWithSpawnedDriver(browser, options, htmlFileUrl, signal, renderTimeoutMs),
+      renderTimeoutMs,
+    );
+  }
+
+  private resolveTempDir(browser: LocatedBrowser): string | undefined {
+    if (this.tempDir !== undefined) {
+      return this.tempDir;
+    }
+
+    // Snap-confined browsers cannot read host /tmp; they can read a non-hidden
+    // directory under the user's home. macOS/Windows keep the OS temp dir.
+    if (process.platform === "linux" && isSnapBrowser(browser.browserPath)) {
+      return join(homedir(), "md2pdf-tmp");
+    }
+
+    return undefined;
+  }
+
+  private async printWithSpawnedDriver(
+    browser: LocatedBrowser,
+    options: ConvertOptions,
+    htmlFileUrl: string,
+    signal: AbortSignal,
+    renderTimeoutMs: number,
+  ): Promise<Buffer> {
+    let driverProcess: ManagedDriverProcess | undefined;
+    let primaryFailure: unknown;
+    const onAbort = (): void => { void driverProcess?.stop().catch(() => undefined); };
+    signal.addEventListener("abort", onAbort, { once: true });
+
+    try {
+      const session = await this.webdriverSessionFactory.start(browser, options);
+      driverProcess = new ManagedDriverProcess(session.driverProcess);
+      if (signal.aborted) {
+        await driverProcess.stop().catch(() => undefined);
+        throw new RenderError({
+          message: "WebDriver session startup was cancelled",
+          actionHint: "Increase the render timeout or check that the WebDriver process starts promptly.",
+          cause: signal.reason ?? "conversion-aborted",
+        });
+      }
+      const pdf = await this.printPdf({
+        browser,
+        htmlFileUrl,
+        transport: session.transport,
+        driverProcess,
+        renderTimeoutMs,
+      });
+      return pdf;
+    } catch (cause) {
+      primaryFailure = cause;
+      throw cause;
+    } finally {
+      signal.removeEventListener("abort", onAbort);
+      await cleanupDriverProcess(driverProcess, primaryFailure);
+    }
+  }
+
+  private async writePdfAtomically(
+    outputPath: string,
+    pdf: Buffer,
+    originalSourcePath: string,
+  ): Promise<void> {
+    const outputDirectory = dirname(outputPath);
+    const temporaryOutputPath = join(
+      outputDirectory,
+      `.${basename(outputPath)}.${randomUUID()}.tmp`,
+    );
+
+    try {
+      await this.fileSystem.mkdir(outputDirectory, { recursive: true });
+      await this.fileSystem.writeFile(temporaryOutputPath, pdf);
+      await this.fileSystem.rename(temporaryOutputPath, outputPath);
+    } catch (cause) {
+      await this.removeTemporaryOutput(temporaryOutputPath);
+      throw new ConversionError({
+        message: "Failed to write rendered PDF output",
+        sourcePath: originalSourcePath,
+        outputPath,
+        actionHint: "Check that the output directory is writable and has enough free space.",
+        cause,
+      });
+    }
+  }
+
+  private async removeTemporaryOutput(temporaryOutputPath: string): Promise<void> {
+    try {
+      await this.fileSystem.rm(temporaryOutputPath, { force: true });
+    } catch {
+      // Best effort cleanup: the conversion has already failed.
+    }
+  }
+}
+
+class ManagedDriverProcess implements DriverProcessHandle {
+  private stopped = false;
+
+  constructor(private readonly driverProcess: DriverProcessHandle) {}
+
+  async stop(signal?: AbortSignal): Promise<void> {
+    if (this.stopped) {
+      return;
+    }
+
+    this.stopped = true;
+    await this.driverProcess.stop(signal);
+  }
+}
+
+async function cleanupDriverProcess(
+  driverProcess: DriverProcessHandle | undefined,
+  primaryFailure: unknown,
+): Promise<void> {
+  if (driverProcess === undefined) {
+    return;
+  }
+
+  try {
+    await driverProcess.stop();
+  } catch (cause) {
+    if (primaryFailure !== undefined) {
+      return;
+    }
+
+    throw new RenderError({
+      message: "WebDriver driver process cleanup failed",
+      actionHint: "Ensure WebDriver can stop the driver process after rendering.",
+      cause,
+    });
+  }
+}
+
+function defaultBrowserLocatorFactory(options: ConvertOptions): BrowserLocatorLike {
+  const env = options.browserPath === undefined
+    ? process.env
+    : { ...process.env, MD2PDF_BROWSER: options.browserPath };
+  const policy = new ArtifactPolicy();
+  const catalog = new JsonReleaseCatalog();
+
+  return new BrowserLocator({
+    env,
+    driverResolver: new ArtifactPolicyDriverResolver({ policy, catalog, platform: `${process.platform}-${process.arch}` }),
+    fallbackBrowserResolver: new ArtifactPolicyFallbackBrowserResolver(policy, catalog),
+  });
+}
+
+class ArtifactPolicyFallbackBrowserResolver implements FallbackBrowserResolver {
+  constructor(
+    private readonly policy: ArtifactPolicy,
+    private readonly catalog: JsonReleaseCatalog,
+  ) {}
+
+  async resolveFallbackBrowser(): Promise<LocatedBrowser | null> {
+    const fallback = await provisionFallbackBrowser(this.policy, this.catalog);
+
+    return {
+      browserPath: fallback.browserPath,
+      displayName: "Chromium",
+      driverArtifactName: "chromedriver",
+      driverPath: fallback.driverPath,
+      kind: "chromium",
+      provisioned: true,
+      version: fallback.release.version,
+    };
+  }
+}

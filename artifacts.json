@@ -1,0 +1,209 @@
+{
+  "schemaVersion": 1,
+  "quarantineDays": 7,
+  "policy": "ARTIFACT_FRESHNESS_POLICY.md",
+  "artifacts": [
+    {
+      "name": "md2pdf default stylesheet",
+      "kind": "bundled-stylesheet",
+      "path": "assets/default.css",
+      "source": "md2pdf",
+      "version": "0.1.2",
+      "publishedAt": "2026-06-02T13:11:14.000Z",
+      "url": "https://registry.npmjs.org/md2pdf/-/md2pdf-0.1.2.tgz",
+      "sha256": "35f43f4190fcd9a6b891f84aff4e4b439552ba48ffe60b56718062c95c55172a",
+      "size": 3200,
+      "provenance": "First-party project stylesheet bundled into the npm package tarball"
+    },
+    {
+      "name": "highlight.js GitHub Light theme stylesheet",
+      "kind": "bundled-stylesheet",
+      "path": "assets/highlight.css",
+      "source": "highlight.js",
+      "version": "11.11.1",
+      "publishedAt": "2024-12-25T17:53:19.490Z",
+      "url": "https://registry.npmjs.org/highlight.js/-/highlight.js-11.11.1.tgz",
+      "sha256": "c3c4ac152532aa6d9cfdeb8fd9562c13c432e5685ac58bf02d5a72e58760be1e",
+      "size": 1419,
+      "provenance": "Vendored highlight.js GitHub Light theme adapted from locked npm package highlight.js@11.11.1"
+    },
+    {
+      "name": "chromium-for-testing",
+      "kind": "runtime-provisioned-browser",
+      "source": "Chrome for Testing",
+      "provenance": "Chrome for Testing known-good-versions-with-downloads catalog and immutable Google Cloud Storage archive",
+      "comparisonSource": "https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json checked on 2026-06-23; 151.0.7893.0 is the newest version available for win64, mac-arm64, mac-x64, and linux64 that completed quarantine.",
+      "releases": [
+        {
+          "version": "151.0.7893.0",
+          "publishedAt": "2026-06-15T16:00:41.000Z",
+          "platform": "win32-x64",
+          "url": "https://storage.googleapis.com/chrome-for-testing-public/151.0.7893.0/win64/chrome-win64.zip",
+          "sha256": "8d89a722d7e16c9149d98c3987b888b5696be7dee66e3bd44b8373405857b33c",
+          "size": 198440471,
+          "browserPath": "chrome-win64/chrome.exe",
+          "driverPath": "chromedriver-win64/chromedriver.exe"
+        },
+        {
+          "version": "151.0.7893.0",
+          "publishedAt": "2026-06-15T16:00:52.000Z",
+          "platform": "darwin-arm64",
+          "url": "https://storage.googleapis.com/chrome-for-testing-public/151.0.7893.0/mac-arm64/chrome-mac-arm64.zip",
+          "sha256": "7c678f5b230fd8c808dc68feccb31c92c3a89807e7a49b2df56f7759d8b432c0",
+          "size": 184606671,
+          "browserPath": "chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
+          "driverPath": "chromedriver-mac-arm64/chromedriver"
+        },
+        {
+          "version": "151.0.7893.0",
+          "publishedAt": "2026-06-15T17:29:55.000Z",
+          "platform": "darwin-x64",
+          "url": "https://storage.googleapis.com/chrome-for-testing-public/151.0.7893.0/mac-x64/chrome-mac-x64.zip",
+          "sha256": "947f449e017f6eb075315967f9bb2d95aa55b14930b3176b50839e7f01fed8da",
+          "size": 193711335,
+          "browserPath": "chrome-mac-x64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
+          "driverPath": "chromedriver-mac-x64/chromedriver"
+        },
+        {
+          "version": "151.0.7893.0",
+          "publishedAt": "2026-06-15T15:21:06.000Z",
+          "platform": "linux-x64",
+          "url": "https://storage.googleapis.com/chrome-for-testing-public/151.0.7893.0/linux64/chrome-linux64.zip",
+          "sha256": "38176ca6c98ffaa61cbbeecc78a2bd342223843ee51d89558d65591c602a13eb",
+          "size": 189537282,
+          "browserPath": "chrome-linux64/chrome",
+          "driverPath": "chromedriver-linux64/chromedriver"
+        }
+      ]
+    },
+    {
+      "name": "chromedriver",
+      "kind": "runtime-provisioned-webdriver",
+      "source": "Chrome for Testing",
+      "provenance": "Chrome for Testing known-good-versions-with-downloads catalog and immutable Google Cloud Storage archive",
+      "comparisonSource": "https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json checked on 2026-06-23; 151.0.7893.0 is the newest eligible ChromeDriver matching the fallback browser for win64, mac-arm64, mac-x64, and linux64.",
+      "releases": [
+        {
+          "version": "151.0.7893.0",
+          "compatibleWith": "151.0.7893.0",
+          "publishedAt": "2026-06-15T16:00:50.000Z",
+          "platform": "win32-x64",
+          "url": "https://storage.googleapis.com/chrome-for-testing-public/151.0.7893.0/win64/chromedriver-win64.zip",
+          "sha256": "9239b4b01e05b5e0d66afeac3a21b74207d68a9baa3f166318d7fbafb1862347",
+          "size": 19205697
+        },
+        {
+          "version": "151.0.7893.0",
+          "compatibleWith": "151.0.7893.0",
+          "publishedAt": "2026-06-15T16:00:53.000Z",
+          "platform": "darwin-arm64",
+          "url": "https://storage.googleapis.com/chrome-for-testing-public/151.0.7893.0/mac-arm64/chromedriver-mac-arm64.zip",
+          "sha256": "73e704d1ffe0a5bedab83f544c898b167544a4339ed7495531c908a5cf1cf813",
+          "size": 8920040
+        },
+        {
+          "version": "151.0.7893.0",
+          "compatibleWith": "151.0.7893.0",
+          "publishedAt": "2026-06-15T17:29:56.000Z",
+          "platform": "darwin-x64",
+          "url": "https://storage.googleapis.com/chrome-for-testing-public/151.0.7893.0/mac-x64/chromedriver-mac-x64.zip",
+          "sha256": "1da6e237a8e98138a2ba4d232654f837e077c9635b313d9bb4fc02b21e1d96f0",
+          "size": 9874250
+        },
+        {
+          "version": "151.0.7893.0",
+          "compatibleWith": "151.0.7893.0",
+          "publishedAt": "2026-06-15T15:21:09.000Z",
+          "platform": "linux-x64",
+          "url": "https://storage.googleapis.com/chrome-for-testing-public/151.0.7893.0/linux64/chromedriver-linux64.zip",
+          "sha256": "53c8798a9b9499a01ed0381193659ad5b39e0f7a4049ce8f5f28221af2f31670",
+          "size": 11054957
+        }
+      ]
+    },
+    {
+      "name": "geckodriver",
+      "kind": "runtime-provisioned-webdriver",
+      "source": "Mozilla geckodriver",
+      "provenance": "GitHub releases API for mozilla/geckodriver and immutable release asset URL",
+      "comparisonSource": "https://api.github.com/repos/mozilla/geckodriver/releases/tags/v0.37.0 checked on 2026-06-15; v0.37.0 was published on 2026-06-03 and had completed quarantine. Checksums sourced from GitHub release asset metadata.",
+      "releases": [
+        {
+          "version": "0.37.0",
+          "publishedAt": "2026-06-03T11:15:15.000Z",
+          "platform": "win32-x64",
+          "url": "https://github.com/mozilla/geckodriver/releases/download/v0.37.0/geckodriver-v0.37.0-win64.zip",
+          "sha256": "9ae5cb90ea9364cd385bb8313b57699e090bbec7c92af4bd65a79d6d8bbc3036",
+          "size": 1808312
+        },
+        {
+          "version": "0.37.0",
+          "publishedAt": "2026-06-03T11:15:15.000Z",
+          "platform": "darwin-arm64",
+          "url": "https://github.com/mozilla/geckodriver/releases/download/v0.37.0/geckodriver-v0.37.0-macos-aarch64.tar.gz",
+          "sha256": "369165b614164f8adc43d8e017f55fe1ced208afe474be2f0cc1c01fc6529725",
+          "size": 4274460
+        },
+        {
+          "version": "0.37.0",
+          "publishedAt": "2026-06-03T11:15:15.000Z",
+          "platform": "darwin-x64",
+          "url": "https://github.com/mozilla/geckodriver/releases/download/v0.37.0/geckodriver-v0.37.0-macos.tar.gz",
+          "sha256": "369165b614164f8adc43d8e017f55fe1ced208afe474be2f0cc1c01fc6529725",
+          "size": 4274460
+        },
+        {
+          "version": "0.37.0",
+          "publishedAt": "2026-06-03T11:15:15.000Z",
+          "platform": "linux-x64",
+          "url": "https://github.com/mozilla/geckodriver/releases/download/v0.37.0/geckodriver-v0.37.0-linux64.tar.gz",
+          "sha256": "90d4e33bd9816684400c160d1309aaffec23a3f65103511d5a62d8501062e548",
+          "size": 2377632
+        }
+      ]
+    }
+  ],
+  "waivers": [],
+  "trackedLocations": [
+    {
+      "path": "package.json",
+      "kind": "npm-manifest"
+    },
+    {
+      "path": "package-lock.json",
+      "kind": "npm-lockfile"
+    },
+    {
+      "path": "assets/",
+      "kind": "bundled-assets"
+    },
+    {
+      "path": "src/browserLocator.ts",
+      "kind": "runtime-provisioning"
+    },
+    {
+      "path": "src/converter.ts",
+      "kind": "runtime-provisioning"
+    },
+    {
+      "path": "src/fallbackBrowserProvisioner.ts",
+      "kind": "runtime-provisioning"
+    },
+    {
+      "path": "src/releaseCatalog.ts",
+      "kind": "runtime-provisioning"
+    },
+    {
+      "path": "src/artifactPolicy.ts",
+      "kind": "artifact-policy"
+    }
+  ],
+  "plannedArtifactClasses": [
+    "npm direct dependencies",
+    "npm transitive dependencies",
+    "bundled Mermaid engine",
+    "bundled highlight.js stylesheet",
+    "bundled fonts",
+    "Chromium-for-Testing fallback build"
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "name": "md2pdf",
+  "version": "0.1.2",
+  "description": "Convert Markdown to PDF locally, without TeX/LaTeX",
+  "type": "module",
+  "license": "MIT",
+  "homepage": "https://github.com/CognitiveSand/md2pdf#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CognitiveSand/md2pdf.git"
+  },
+  "bugs": {
+    "url": "https://github.com/CognitiveSand/md2pdf/issues"
+  },
+  "keywords": [
+    "markdown",
+    "pdf",
+    "mermaid",
+    "webdriver",
+    "cli"
+  ],
+  "bin": {
+    "md2pdf": "./dist/cli.js"
+  },
+  "files": [
+    "dist/",
+    "assets/",
+    "README.md",
+    "ARTIFACT_FRESHNESS_POLICY.md",
+    "artifacts.json"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "clean": "node scripts/cleanDist.mjs",
+    "build": "npm run clean && tsc",
+    "prepare": "tsc",
+    "prepack": "npm run test:all",
+    "test": "vitest run --reporter=verbose",
+    "test:contracts": "vitest run tests/unit/contracts --reporter=verbose",
+    "test:artifacts": "vitest run tests/unit/artifacts --reporter=verbose",
+    "test:watch": "vitest",
+    "test:browser": "vitest run --config vitest.browser.config.ts",
+    "test:real-browser": "vitest run --config vitest.real-browser.config.ts",
+    "test:all": "npm run typecheck && npm test && npm run test:artifacts && npm run check:artifacts && npm run build && npm run test:browser && npm run test:real-browser",
+    "check:artifacts": "node scripts/checkArtifactFreshness.mjs",
+    "check:package": "node scripts/checkPackage.mjs",
+    "release:verify": "npm run test:all && npm run check:package",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "fflate": "0.8.3",
+    "highlight.js": "11.11.1",
+    "markdown-it": "14.2.0",
+    "markdown-it-footnote": "4.0.0",
+    "markdown-it-task-lists": "2.1.1",
+    "mermaid": "11.15.0"
+  },
+  "devDependencies": {
+    "@types/markdown-it": "14.1.2",
+    "@types/markdown-it-footnote": "3.0.4",
+    "@types/node": "25.9.1",
+    "typescript": "6.0.3",
+    "vitest": "4.1.7"
+  }
+}

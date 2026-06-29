@@ -1,0 +1,21 @@
+# Scratch / exploratory research — kept locally, never committed
+audit/
+docs/plan_implemantation/
+docs/plan_implementation/
+tmp/
+.tmp/
+tests/manual/
+
+# Node
+node_modules/
+dist/
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Graphify
+
+graphify-out/

@@ -1,0 +1,192 @@
+/* md2pdf default stylesheet — print-optimised Markdown rendering */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 10px;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background: #fff;
+  color: #24292e;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial,
+    sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  font-size: 1rem;
+  line-height: 1.6;
+  word-wrap: break-word;
+}
+
+.markdown-body {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 2rem 2.5rem;
+}
+
+/* Headings */
+h1, h2, h3, h4, h5, h6 {
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  font-weight: 600;
+  line-height: 1.25;
+  color: #1a1a1a;
+  break-after: avoid-page;
+}
+
+h1 { font-size: 2em; border-bottom: 1px solid #e1e4e8; padding-bottom: 0.3em; }
+h2 { font-size: 1.5em; border-bottom: 1px solid #e1e4e8; padding-bottom: 0.3em; }
+h3 { font-size: 1.25em; }
+h4 { font-size: 1em; }
+h5 { font-size: 0.875em; }
+h6 { font-size: 0.85em; color: #6a737d; }
+
+/* Paragraphs and spacing */
+p {
+  margin-top: 0;
+  margin-bottom: 1em;
+}
+
+/* Links */
+a {
+  color: #0366d6;
+  text-decoration: none;
+}
+a:hover { text-decoration: underline; }
+
+/* Lists */
+ul, ol {
+  margin-top: 0;
+  margin-bottom: 1em;
+  padding-left: 2em;
+}
+
+li { margin-top: 0.25em; }
+li + li { margin-top: 0.25em; }
+li > p { margin-top: 0.5em; }
+li > ul, li > ol { margin-top: 0.25em; margin-bottom: 0; }
+
+/* Task lists */
+.contains-task-list {
+  list-style: none;
+  padding-left: 0;
+}
+
+.task-list-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5em;
+}
+
+.task-list-item input[type="checkbox"] {
+  margin-top: 0.2em;
+  flex-shrink: 0;
+}
+
+/* Code */
+code {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.875em;
+  background: #f6f8fa;
+  border: 1px solid #e1e4e8;
+  border-radius: 3px;
+  padding: 0.2em 0.4em;
+}
+
+pre {
+  margin: 0 0 1em 0;
+  overflow: auto;
+  border-radius: 6px;
+}
+
+pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-size: 0.875em;
+  line-height: 1.45;
+  word-break: normal;
+  white-space: pre;
+}
+
+pre.hljs {
+  padding: 1em 1.25em;
+  overflow-x: auto;
+}
+
+/* Blockquotes */
+blockquote {
+  margin: 0 0 1em 0;
+  padding: 0 1em;
+  color: #6a737d;
+  border-left: 4px solid #dfe2e5;
+}
+
+blockquote > :first-child { margin-top: 0; }
+blockquote > :last-child { margin-bottom: 0; }
+
+/* Tables */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1em;
+  overflow: auto;
+  font-size: 0.9em;
+}
+
+th, td {
+  padding: 0.5em 0.75em;
+  border: 1px solid #dfe2e5;
+  text-align: left;
+}
+
+th {
+  background: #f6f8fa;
+  font-weight: 600;
+}
+
+tr:nth-child(even) td {
+  background: #fafbfc;
+}
+
+/* Images */
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0.5em 0;
+}
+
+/* Horizontal rule */
+hr {
+  height: 2px;
+  padding: 0;
+  margin: 1.5em 0;
+  background-color: #e1e4e8;
+  border: 0;
+}
+
+/* Footnotes */
+.footnotes {
+  font-size: 0.875em;
+  color: #6a737d;
+  border-top: 1px solid #e1e4e8;
+  margin-top: 2em;
+  padding-top: 1em;
+}
+
+.footnotes ol { padding-left: 1.5em; }
+
+/* Mermaid diagrams */
+.mermaid {
+  display: block;
+  margin: 1em 0;
+  text-align: center;
+}
+
+.mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
