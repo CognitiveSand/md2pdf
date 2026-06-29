@@ -8,11 +8,46 @@ Convert Markdown files into PDFs locally, without a TeX or LaTeX toolchain.
 
 ## Quick Start
 
-Once installed, convert a Markdown file with one command:
+Before you start, make sure you have:
+
+- Node.js 20 or later installed.
+- npm available in your terminal. npm is installed with Node.js.
+- A supported browser installed, such as Google Chrome, Chromium, Microsoft
+  Edge, Brave, Vivaldi, or Firefox.
+
+Install md2pdf from npm:
 
 ```bash
-md2pdf report.md
-# creates report.pdf beside report.md
+npm install --global md2pdf
+```
+
+Check that the command is available:
+
+```bash
+md2pdf --help
+```
+
+Convert your first Markdown file:
+
+```bash
+md2pdf README.md
+# creates README.pdf beside README.md
+```
+
+If your file is in another folder, go to that folder first:
+
+```bash
+cd path/to/your/folder
+md2pdf README.md
+```
+
+To install from the GitHub source instead of npm:
+
+```bash
+git clone https://github.com/CognitiveSand/md2pdf.git
+cd md2pdf
+npm install --global .
+md2pdf --help
 ```
 
 ## Install
