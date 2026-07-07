@@ -230,3 +230,17 @@ vendor files, runtime provisioning paths, and any future external artifact.
 
 There is no emergency bypass or force mode. See
 [`ARTIFACT_FRESHNESS_POLICY.md`](ARTIFACT_FRESHNESS_POLICY.md).
+
+---
+
+<p align="center">
+  <a href="https://cognitivesand.ai">
+    <img src="docs/images/cognitivesand-logo-light.png" alt="CognitiveSand" width="280">
+  </a>
+</p>
+
+<p align="center">
+  md2pdf is built by <strong>CognitiveSand</strong>.<br>
+  Discover our work on secure, useful, and auditable AI —
+  <a href="https://cognitivesand.ai">visit cognitivesand.ai&nbsp;→</a>
+</p>
