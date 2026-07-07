@@ -241,6 +241,6 @@ There is no emergency bypass or force mode. See
 
 <p align="center">
   md2pdf is built by <strong>CognitiveSand</strong>.<br>
-  Discover our work on secure, useful, and auditable AI —
+  Discover our work at 
   <a href="https://cognitivesand.ai">visit cognitivesand.ai&nbsp;→</a>
 </p>
