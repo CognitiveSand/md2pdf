@@ -15,13 +15,13 @@ Before you start, make sure you have:
 - A supported browser installed, such as Google Chrome, Chromium, Microsoft
   Edge, Brave, Vivaldi, or Firefox.
 
-Install md2pdf from npm:
+Install the scoped md2pdf package from npm:
 
 ```bash
-npm install --global md2pdf
+npm install --global @cognitivesand/md2pdf
 ```
 
-Check that the command is available:
+Check that the `md2pdf` command is available:
 
 ```bash
 md2pdf --help
@@ -55,8 +55,8 @@ md2pdf --help
 After publication, the package can be used without administrator privileges:
 
 ```bash
-npx md2pdf notes.md
-npm install --global md2pdf
+npx @cognitivesand/md2pdf notes.md
+npm install --global @cognitivesand/md2pdf
 md2pdf --help
 ```
 

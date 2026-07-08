@@ -25,9 +25,9 @@ Each platform should run:
 ```bash
 npm run build
 npm pack
-npm install --global --prefix <temporary-user-prefix> ./md2pdf-0.1.2.tgz
+npm install --global --prefix <temporary-user-prefix> ./cognitivesand-md2pdf-0.1.2.tgz
 <temporary-user-prefix>/bin/md2pdf --help
-npm install --global --prefix <temporary-user-prefix> ./md2pdf-0.1.2.tgz
+npm install --global --prefix <temporary-user-prefix> ./cognitivesand-md2pdf-0.1.2.tgz
 <temporary-user-prefix>/bin/md2pdf --help
 ```
 
