@@ -4,89 +4,64 @@
 
 <h1 align="center">md2pdf</h1>
 
-Convert Markdown files into PDFs locally, without a TeX or LaTeX toolchain.
+<p align="center">
+  Convert Markdown to clean PDFs with one command.<br>
+  Fully local, no LaTeX toolchain, no bundled browser.
+</p>
 
 ## Quick Start
 
-Before you start, make sure you have:
-
-- Node.js 20 or later installed.
-- npm available in your terminal. npm is installed with Node.js.
-- A supported browser installed, such as Google Chrome, Chromium, Microsoft
-  Edge, Brave, Vivaldi, or Firefox.
-
-Install the scoped md2pdf package from npm:
-
-```bash
-npm install --global @cognitivesand/md2pdf
-```
-
-Check that the `md2pdf` command is available:
-
-```bash
-md2pdf --help
-```
-
-Convert your first Markdown file:
-
-```bash
-md2pdf README.md
-# creates README.pdf beside README.md
-```
-
-If your file is in another folder, go to that folder first:
-
-```bash
-cd path/to/your/folder
-md2pdf README.md
-```
-
-To install from the GitHub source instead of npm:
-
-```bash
-git clone https://github.com/CognitiveSand/md2pdf.git
-cd md2pdf
-npm install --global .
-md2pdf --help
-```
-
-## Install
-
-After publication, the package can be used without administrator privileges:
+You need Node.js 20 or later and one installed browser: Google Chrome,
+Chromium, Microsoft Edge, Brave, Vivaldi, or Firefox.
 
 ```bash
 npx @cognitivesand/md2pdf notes.md
-npm install --global @cognitivesand/md2pdf
-md2pdf --help
+# creates notes.pdf beside notes.md
 ```
 
-To run the CLI from a source checkout, one command builds and installs it:
+Or install the command globally:
 
 ```bash
-npm install --global .
+npm install --global @cognitivesand/md2pdf
+md2pdf notes.md
 ```
 
-The `prepare` script compiles `dist/` during install, so `md2pdf` lands on your
-`PATH` in one step -- no separate build or link, on Linux, macOS, or Windows.
-Re-run the same command after pulling changes; `md2pdf --help` confirms it.
+Works with Bun: `bunx @cognitivesand/md2pdf notes.md` resolves the same npm
+package.
 
-### Windows PowerShell Shim
+## Why md2pdf
 
-On Windows, npm can generate both `md2pdf.cmd` and `md2pdf.ps1` shims. PowerShell
-may resolve `md2pdf` to the `.ps1` shim first, and the local ExecutionPolicy can
-block that script even when the `.cmd` shim is available.
+AI assistants and coding agents write Markdown by default. Chat exports,
+generated reports, design documents, meeting summaries, project documentation:
+the volume of Markdown produced every day has grown with every model release,
+and most of it eventually needs to reach someone who does not read Markdown.
+PDF is how that document lands in an inbox, a review, or an archive.
 
-Use the command shim directly when PowerShell blocks the script shim:
+The existing routes to a PDF each ask for a trade-off. A TeX/LaTeX toolchain
+means a multi-gigabyte install to convert a two-page note. Converters built on
+a bundled headless browser download hundreds of megabytes of Chromium per
+project. Online converters are the worst trade: your document leaves your
+machine for a server you do not control.
 
-```powershell
-md2pdf.cmd --help
-```
+md2pdf takes none of those trades. It renders your Markdown in the browser you
+already have, entirely on your machine.
 
-Or invoke the command from `cmd.exe`:
+## Objectives
 
-```cmd
-md2pdf --help
-```
+- **Fully local.** Your documents never leave your machine. No telemetry, no
+  remote rendering, no network calls with your content.
+- **Open source.** MIT-licensed, developed in the open at
+  [CognitiveSand/md2pdf](https://github.com/CognitiveSand/md2pdf).
+- **Complete Markdown support.** Tables, task lists, footnotes,
+  syntax-highlighted code fences, local raster images (PNG, JPEG, WebP), and
+  Mermaid diagrams rendered to vector graphics in the PDF.
+- **Lightweight.** The npm package is under 100 kB. md2pdf drives the browser
+  already installed on your system instead of shipping one.
+- **Minimal attack surface.** Remote scripts, stylesheets, and images are never
+  loaded. Non-HTTPS and active link schemes (`javascript:`, `data:`, `file:`,
+  ...) are neutralized to plain text. Inputs are bounded by safety limits, and
+  every dependency passes a 7-day quarantine before adoption (see the
+  [Artifact Freshness Policy](ARTIFACT_FRESHNESS_POLICY.md)).
 
 ## Usage
 
@@ -108,14 +83,13 @@ md2pdf notes.md --output out/report.pdf
 md2pdf a.md b.md --output-dir build
 md2pdf ./notes-folder
 md2pdf notes.md --force-overwrite
-md2pdf --help
 ```
 
 Directory conversion is non-recursive for v0.1: only top-level `.md` files in
 the named directory are converted. The `.md` extension is matched
 case-insensitively.
 
-## Behavior Notes
+### Behavior Notes
 
 - By default, `notes.md` writes `notes.pdf` beside the source.
 - `--output` is valid only when exactly one Markdown file is produced. The
@@ -136,62 +110,87 @@ Exit codes:
 - `1`: at least one conversion failed.
 - `2`: invalid command-line usage.
 
-## Markdown Scope
+### Markdown Scope
 
-md2pdf supports Markdown features such as headings, paragraphs, lists, tables,
-task lists, footnotes, fenced code blocks, relative raster images (PNG, JPEG,
-and WebP), and Mermaid code fences. Browser-backed tests cover the rendered PDF
-behavior for the rich Markdown and Mermaid paths.
+md2pdf supports headings, paragraphs, lists, tables, task lists, footnotes,
+fenced code blocks, relative raster images (PNG, JPEG, and WebP), and Mermaid
+code fences. Browser-backed tests cover the rendered PDF behavior for the rich
+Markdown and Mermaid paths.
 
-Images must be local relative files under the Markdown source directory. The
-supported raster formats are PNG, JPEG, and WebP. SVG, GIF, remote image URLs,
-absolute image paths, file URLs, unknown extensions, mismatched image content,
-and symlinks that escape the source directory are rejected before rendering.
+Images must be local relative files under the Markdown source directory. SVG,
+GIF, remote image URLs, absolute image paths, file URLs, unknown extensions,
+mismatched image content, and symlinks that escape the source directory are
+rejected before rendering.
 
 Safe HTTPS links remain clickable in the generated PDF. Non-HTTPS, local, and
 active schemes such as `http:`, `javascript:`, `data:`, `file:`, `blob:`, and
-`ftp:` are rendered as text links without an `href`. Remote scripts,
-stylesheets, and images are not loaded from Markdown content.
+`ftp:` are rendered as text links without an `href`.
 
-Initial safety limits are enforced during rendering: Markdown documents up to
-10 MB, individual lines up to 1 MB, up to 100 images, up to 50 Mermaid blocks,
-Mermaid blocks up to 256 KB, highlighted code fences up to 1 MB, individual
-images up to 20 MB, total embedded image bytes up to 100 MB, and image
-dimensions up to 25 megapixels.
+Safety limits enforced during rendering: Markdown documents up to 10 MB,
+individual lines up to 1 MB, up to 100 images, up to 50 Mermaid blocks, Mermaid
+blocks up to 256 KB, highlighted code fences up to 1 MB, individual images up
+to 20 MB, total embedded image bytes up to 100 MB, and image dimensions up to
+25 megapixels.
 
-## Requirements
+### Browser and Driver Selection
 
-- Node.js 20 or later.
-- One supported browser installed locally: Google Chrome, Chromium, Microsoft
-  Edge, Brave, Vivaldi, or Firefox.
-- A matching WebDriver binary declared in `artifacts.json` and selected by the
-  artifact freshness policy, or a fallback browser/driver provisioned by md2pdf
-  into a per-user cache from an eligible declared artifact.
-- For a browser whose WebDriver ships bundled with it (such as the Firefox
-  snap), md2pdf uses that bundled driver to drive that browser, validated by a
-  compatibility check rather than the freshness policy.
+md2pdf detects an installed browser on first run and resolves a matching
+WebDriver from the artifacts declared in `artifacts.json`, provisioned into a
+per-user cache. It does not select arbitrary drivers from `PATH`. For a browser
+whose WebDriver ships bundled with it (such as the Firefox snap), md2pdf uses
+that bundled driver after a compatibility check.
 
-`MD2PDF_BROWSER` may point the runtime converter at a specific browser
-executable. It is an environment variable, not a CLI option:
+`MD2PDF_BROWSER` may point the converter at a specific browser executable. It
+is an environment variable, not a CLI option:
 
 ```bash
 MD2PDF_BROWSER=/usr/bin/chromium md2pdf notes.md
 ```
 
-WebDriver binaries md2pdf provisions are runtime artifacts declared in
-`artifacts.json`; md2pdf does not select arbitrary drivers from `PATH`. The sole
-exception is a WebDriver bundled inside a user-installed browser (see the
-Artifact Freshness Policy, "System-Bundled WebDriver"), used only to drive that
-same browser and only after a compatibility check.
+### Windows PowerShell Shim
 
-## Project Status
+On Windows, npm can generate both `md2pdf.cmd` and `md2pdf.ps1` shims.
+PowerShell may resolve `md2pdf` to the `.ps1` shim first, and the local
+ExecutionPolicy can block that script even when the `.cmd` shim is available.
+Use the command shim directly when that happens:
 
-v0.1.2 is the current implementation. It covers the user-visible CLI surface,
-browser-backed Markdown rendering, Mermaid diagrams, local WebDriver printing,
-overwrite/skip behavior, batch summaries, npm packaging, artifact freshness
-checks, and release validation paths.
+```powershell
+md2pdf.cmd --help
+```
 
-## Development
+## Project Structure
+
+```
+src/          TypeScript sources: CLI, converter pipeline, Markdown renderer,
+              browser locator, WebDriver client, artifact policy
+tests/        unit, integration, and browser-backed test suites plus fixtures
+docs/         architecture, requirements, user stories, CI matrix, research
+scripts/      artifact freshness, package, and build check scripts
+assets/       default and highlight stylesheets bundled into the PDF
+security/     security audit records
+artifacts.json           declared runtime artifacts (browsers, drivers)
+ARTIFACT_FRESHNESS_POLICY.md  the dependency quarantine policy
+```
+
+## Contributing
+
+Issues and pull requests are welcome at
+[CognitiveSand/md2pdf](https://github.com/CognitiveSand/md2pdf).
+
+To install from source:
+
+```bash
+git clone https://github.com/CognitiveSand/md2pdf.git
+cd md2pdf
+npm install --global .
+md2pdf --help
+```
+
+The `prepare` script compiles `dist/` during install, so `md2pdf` lands on your
+`PATH` in one step on Linux, macOS, or Windows. Re-run the same command after
+pulling changes.
+
+### Development
 
 ```bash
 npm ci
@@ -202,10 +201,11 @@ npm run check:artifacts
 npm run build
 ```
 
-`npm test` runs fast unit and contract coverage. `npm run test:browser` runs the
-browser-backed integration tests and requires a local browser plus an eligible
-WebDriver declared in `artifacts.json`, or an eligible declared fallback
-browser/driver artifact.
+`npm test` runs fast unit and contract coverage. `npm run test:browser` runs
+the browser-backed integration tests and requires a local browser plus an
+eligible WebDriver declared in `artifacts.json`. `npm run test:all` is the full
+release gate; it runs automatically before every publish.
+
 Local development may set `MD2PDF_SKIP_REAL_BROWSER_TESTS=1` to skip the real
 browser proof explicitly; release evidence must run without that skip.
 
@@ -214,22 +214,26 @@ To smoke-test the exact tarball that would be published:
 ```bash
 npm ci
 npm pack
-npm install --global --prefix /tmp/md2pdf-user ./<tarball-from-npm-pack>.tgz
+npm install --global --prefix /tmp/md2pdf-user ./cognitivesand-md2pdf-<version>.tgz
 /tmp/md2pdf-user/bin/md2pdf --help
 ```
 
-Re-running the same install command converges on the same package version and
-exits successfully.
-
-## Artifact Freshness Policy
+### Artifact Freshness Policy
 
 Every artifact in md2pdf must be the newest eligible version available after a
 7-day quarantine period. The policy applies to npm dependencies, transitive
 lockfile entries, bundled assets, drivers, browser fallback builds, generated
-vendor files, runtime provisioning paths, and any future external artifact.
+vendor files, and runtime provisioning paths. There is no emergency bypass or
+force mode. See [`ARTIFACT_FRESHNESS_POLICY.md`](ARTIFACT_FRESHNESS_POLICY.md).
 
-There is no emergency bypass or force mode. See
-[`ARTIFACT_FRESHNESS_POLICY.md`](ARTIFACT_FRESHNESS_POLICY.md).
+## Project Status
+
+v0.1.3 is the current release, published as
+[`@cognitivesand/md2pdf`](https://www.npmjs.com/package/@cognitivesand/md2pdf).
+It covers the user-visible CLI surface, browser-backed Markdown rendering,
+Mermaid diagrams, local WebDriver printing, overwrite/skip behavior, batch
+summaries, npm packaging, artifact freshness checks, and release validation
+paths.
 
 ---
 
@@ -241,6 +245,6 @@ There is no emergency bypass or force mode. See
 
 <p align="center">
   md2pdf is built by <strong>CognitiveSand</strong>.<br>
-  Discover our work at 
+  Discover our work at
   <a href="https://cognitivesand.ai">visit cognitivesand.ai&nbsp;→</a>
 </p>
