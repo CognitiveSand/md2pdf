@@ -6,7 +6,7 @@
 
 <p align="center">
   Convert Markdown to clean PDFs with one command.<br>
-  Fully local, no LaTeX toolchain, no bundled browser.
+  Lightweight and fully local.
 </p>
 
 ## Quick Start
