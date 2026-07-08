@@ -53,8 +53,11 @@ describe("Stream A P3 real browser Mermaid smoke", () => {
     async () => {
       const sourcePath = path.join(tempRoot, "mermaid.md");
       const outputPath = path.join(tempRoot, "mermaid.pdf");
+      const baselineSourcePath = path.join(tempRoot, "baseline.md");
+      const baselineOutputPath = path.join(tempRoot, "baseline.pdf");
+      const heading = "# Mermaid smoke";
       const markdown = [
-        "# Mermaid smoke",
+        heading,
         "",
         "```mermaid",
         "flowchart TD",
@@ -64,18 +67,29 @@ describe("Stream A P3 real browser Mermaid smoke", () => {
       ].join("\n");
 
       await fs.writeFile(sourcePath, markdown, "utf8");
+      await fs.writeFile(baselineSourcePath, `${heading}\n`, "utf8");
 
       await convertFile(sourcePath, outputPath, {
         renderTimeoutMs: 30_000,
       });
+      await convertFile(baselineSourcePath, baselineOutputPath, {
+        renderTimeoutMs: 30_000,
+      });
 
       const pdf = await fs.readFile(outputPath);
+      const baselinePdf = await fs.readFile(baselineOutputPath);
       const pdfText = pdf.toString("latin1");
       expect(pdf.subarray(0, 5).toString("ascii")).toBe("%PDF-");
-      // A Mermaid diagram rendered as a visual object produces a substantially
-      // larger PDF than a blank or text-only document. 15 KB is a conservative
-      // lower bound for an installed-browser smoke (observed: ~25 KB on Chromium).
-      expect(pdf.byteLength).toBeGreaterThan(15_000);
+      // A rendered Mermaid diagram adds vector content that makes the PDF
+      // substantially larger than the same document without the diagram.
+      // Absolute byte bounds are browser-dependent (Chromium emits ~25 KB where
+      // Firefox/cairo emits ~11 KB for this document), so compare against a
+      // text-only baseline rendered by the same browser instead. Observed
+      // diagram-to-baseline ratios: ~1.96x on Firefox 152, ~2.5x on Chromium.
+      const MIN_DIAGRAM_TO_BASELINE_RATIO = 1.4;
+      expect(pdf.byteLength).toBeGreaterThan(
+        baselinePdf.byteLength * MIN_DIAGRAM_TO_BASELINE_RATIO,
+      );
       expect(pdfText).not.toContain("flowchart TD");
       expect(pdfText).not.toContain("A[Start]");
     },
