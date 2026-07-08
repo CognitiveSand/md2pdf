@@ -26,6 +26,7 @@ const taskListPlugin = require("markdown-it-task-lists") as PluginWithOptions<{
 const moduleDirectory = dirname(fileURLToPath(import.meta.url));
 const defaultCssPath = resolve(moduleDirectory, "../assets/default.css");
 const highlightCssPath = resolve(moduleDirectory, "../assets/highlight.css");
+const mermaidBundleAssetPath = resolve(moduleDirectory, "../assets/mermaid.min.js");
 const tempHtmlMarkerFileName = ".md2pdf-temp-html";
 const tempHtmlFileName = "document.html";
 const tempHtmlDirectoryPrefix = "md2pdf-html-";
@@ -479,7 +480,7 @@ function readTextAsset(path: string): string {
 }
 
 function mermaidBundlePath(): string {
-  return require.resolve(["mermaid", "dist", "mermaid.min.js"].join("/"));
+  return mermaidBundleAssetPath;
 }
 
 function mermaidRunnerScript(): string {

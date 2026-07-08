@@ -55,13 +55,15 @@ already have, entirely on your machine.
 - **Complete Markdown support.** Tables, task lists, footnotes,
   syntax-highlighted code fences, local raster images (PNG, JPEG, WebP), and
   Mermaid diagrams rendered to vector graphics in the PDF.
-- **Lightweight.** The npm package is under 100 kB. md2pdf drives the browser
-  already installed on your system instead of shipping one.
+- **Lightweight.** Five small, actively maintained runtime dependencies. The
+  Mermaid renderer ships inside the package as a single pinned, checksummed
+  asset instead of pulling in its ~100-package dependency tree, and md2pdf
+  drives the browser already installed on your system instead of shipping one.
 - **Minimal attack surface.** Remote scripts, stylesheets, and images are never
   loaded. Non-HTTPS and active link schemes (`javascript:`, `data:`, `file:`,
   ...) are neutralized to plain text. Inputs are bounded by safety limits, and
-  every dependency passes a 7-day quarantine before adoption (see the
-  [Artifact Freshness Policy](ARTIFACT_FRESHNESS_POLICY.md)).
+  every dependency and vendored asset passes a 7-day quarantine before adoption
+  (see the [Artifact Freshness Policy](ARTIFACT_FRESHNESS_POLICY.md)).
 
 ## Usage
 

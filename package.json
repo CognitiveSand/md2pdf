@@ -54,13 +54,13 @@
     "highlight.js": "11.11.1",
     "markdown-it": "14.2.0",
     "markdown-it-footnote": "4.0.0",
-    "markdown-it-task-lists": "2.1.1",
-    "mermaid": "11.15.0"
+    "markdown-it-task-lists": "2.1.1"
   },
   "devDependencies": {
     "@types/markdown-it": "14.1.2",
     "@types/markdown-it-footnote": "3.0.4",
     "@types/node": "25.9.1",
+    "mermaid": "11.16.0",
     "typescript": "6.0.3",
     "vitest": "4.1.7"
   }

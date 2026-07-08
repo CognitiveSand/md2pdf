@@ -16,6 +16,18 @@
       "provenance": "First-party project stylesheet bundled into the npm package tarball"
     },
     {
+      "name": "Mermaid browser rendering bundle",
+      "kind": "bundled-script",
+      "path": "assets/mermaid.min.js",
+      "source": "mermaid",
+      "version": "11.16.0",
+      "publishedAt": "2026-06-25T11:30:40.280Z",
+      "url": "https://registry.npmjs.org/mermaid/-/mermaid-11.16.0.tgz",
+      "sha256": "74d7c46dabca328c2294733910a8aa1ed0c37451776e8d5295da38a2b758fb9b",
+      "size": 3565102,
+      "provenance": "Vendored prebuilt dist/mermaid.min.js from locked npm package mermaid@11.16.0 (devDependency); inlined into generated HTML, executes only in the rendering browser"
+    },
+    {
       "name": "highlight.js GitHub Light theme stylesheet",
       "kind": "bundled-stylesheet",
       "path": "assets/highlight.css",
