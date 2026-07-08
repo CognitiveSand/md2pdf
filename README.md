@@ -85,7 +85,7 @@ md2pdf ./notes-folder
 md2pdf notes.md --force-overwrite
 ```
 
-Directory conversion is non-recursive for v0.1: only top-level `.md` files in
+Directory conversion is non-recursive: only top-level `.md` files in
 the named directory are converted. The `.md` extension is matched
 case-insensitively.
 
@@ -228,9 +228,12 @@ force mode. See [`ARTIFACT_FRESHNESS_POLICY.md`](ARTIFACT_FRESHNESS_POLICY.md).
 
 ## Project Status
 
-v0.1.3 is the current release, published as
-[`@cognitivesand/md2pdf`](https://www.npmjs.com/package/@cognitivesand/md2pdf).
-It covers the user-visible CLI surface, browser-backed Markdown rendering,
+The current release is published as
+[`@cognitivesand/md2pdf`](https://www.npmjs.com/package/@cognitivesand/md2pdf)
+on npm; see the
+[GitHub releases](https://github.com/CognitiveSand/md2pdf/releases) for
+version history. The release covers the user-visible CLI surface,
+browser-backed Markdown rendering,
 Mermaid diagrams, local WebDriver printing, overwrite/skip behavior, batch
 summaries, npm packaging, artifact freshness checks, and release validation
 paths.
