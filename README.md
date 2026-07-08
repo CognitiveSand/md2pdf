@@ -206,6 +206,10 @@ the browser-backed integration tests and requires a local browser plus an
 eligible WebDriver declared in `artifacts.json`. `npm run test:all` is the full
 release gate; it runs automatically before every publish.
 
+Publishing is automated: creating a GitHub release triggers
+[`publish.yml`](.github/workflows/publish.yml), which runs the full release
+gate and publishes to npm via trusted publishing (OIDC) with provenance.
+
 Local development may set `MD2PDF_SKIP_REAL_BROWSER_TESTS=1` to skip the real
 browser proof explicitly; release evidence must run without that skip.
 
