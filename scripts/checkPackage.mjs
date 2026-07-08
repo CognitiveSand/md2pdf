@@ -7,7 +7,7 @@ import { spawnSync } from "node:child_process";
 const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 const packageName = packageJson.name;
 const packageVersion = packageJson.version;
-const tarballName = `${packageName}-${packageVersion}.tgz`;
+const tarballName = `${packageName.replace(/^@/u, "").replace("/", "-")}-${packageVersion}.tgz`;
 const npmCommand = process.platform === "win32" ? process.execPath : "npm";
 const npmArgsPrefix = process.platform === "win32"
   ? [join(dirname(process.execPath), "node_modules", "npm", "bin", "npm-cli.js")]

@@ -1,5 +1,5 @@
 {
-  "name": "md2pdf",
+  "name": "@cognitivesand/md2pdf",
   "version": "0.1.2",
   "description": "Convert Markdown to PDF locally, without TeX/LaTeX",
   "type": "module",

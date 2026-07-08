@@ -18,7 +18,7 @@ Before you start, make sure you have:
 Install md2pdf from npm:
 
 ```bash
-npm install --global md2pdf
+npm install --global @cognitivesand/md2pdf
 ```
 
 Check that the command is available:
@@ -55,8 +55,8 @@ md2pdf --help
 After publication, the package can be used without administrator privileges:
 
 ```bash
-npx md2pdf notes.md
-npm install --global md2pdf
+npx @cognitivesand/md2pdf notes.md
+npm install --global @cognitivesand/md2pdf
 md2pdf --help
 ```
 
