@@ -286,8 +286,8 @@ stylesheet styles the server-highlighted code. Theme selection is out of scope
 - md2pdf ships as an npm package with a `bin` entry named `md2pdf`.
   `package.json` is the single source of truth; the lockfile is committed.
   TypeScript compiles to `dist/`; the `bin` points at `dist/cli.js`.
-- **Zero-install and no-sudo use (FR-19).** `npx md2pdf file.md` runs without any
-  prior global install; `npm i -g md2pdf` installs a per-user global on the PATH
+- **Zero-install and no-sudo use (FR-19).** `npx @cognitivesand/md2pdf file.md` runs without any
+  prior global install; `npm i -g @cognitivesand/md2pdf` installs a per-user global on the PATH
   without elevation. Validated: installing the npm packages required no sudo.
 - **Browser and driver provisioning (ADR-05).** On first run `BrowserLocator`
   detects an installed Chromium-family or Firefox browser and resolves a matching
@@ -314,7 +314,7 @@ stylesheet styles the server-highlighted code. Theme selection is out of scope
   PATH; each user's browser/driver are resolved per-user on first run.
 - **Idempotency (FR-21).** Install and upgrade are npm operations that converge
   on the target version and exit `0` whether or not md2pdf is already present
-  (`npm i -g md2pdf@<version>`); re-running never errors on an installed host.
+  (`npm i -g @cognitivesand/md2pdf@<version>`); re-running never errors on an installed host.
 
 ## 12. Project structure
 

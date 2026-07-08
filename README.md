@@ -15,13 +15,13 @@ Before you start, make sure you have:
 - A supported browser installed, such as Google Chrome, Chromium, Microsoft
   Edge, Brave, Vivaldi, or Firefox.
 
-Install md2pdf from npm:
+Install the scoped md2pdf package from npm:
 
 ```bash
 npm install --global @cognitivesand/md2pdf
 ```
 
-Check that the command is available:
+Check that the `md2pdf` command is available:
 
 ```bash
 md2pdf --help
