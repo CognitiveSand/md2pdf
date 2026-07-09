@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { realpathSync } from "node:fs";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
@@ -31,6 +32,7 @@ export interface CliCommand {
   outputDir?: string;
   forceOverwrite: boolean;
   help: boolean;
+  version: boolean;
   browserPath?: string;
 }
 
@@ -46,6 +48,17 @@ export const HELP_TEXT = [
   "    --output-dir DIR      write every output PDF into DIR",
   "-f, --force-overwrite     overwrite existing output PDFs without prompting",
   "-h, --help                list options with one-line descriptions",
+  "    --version             print the version, license, and publisher",
+].join("\n");
+
+const packageMetadata = createRequire(import.meta.url)("../package.json") as {
+  version: string;
+  license: string;
+};
+
+export const VERSION_TEXT = [
+  `md2pdf ${packageMetadata.version}`,
+  `${packageMetadata.license} license. Built by CognitiveSand: https://cognitivesand.ai`,
 ].join("\n");
 
 export async function main(
@@ -58,6 +71,11 @@ export async function main(
 
     if (command.help) {
       io.stdout.write(`${HELP_TEXT}\n`);
+      return 0;
+    }
+
+    if (command.version) {
+      io.stdout.write(`${VERSION_TEXT}\n`);
       return 0;
     }
 
@@ -77,10 +95,11 @@ export function parseCommandLine(argv: string[], env: NodeJS.ProcessEnv): CliCom
     outputDir: valueAsString(parsed.values["output-dir"]),
     forceOverwrite: parsed.values["force-overwrite"] === true,
     help: parsed.values.help === true,
+    version: parsed.values.version === true,
     browserPath: emptyToUndefined(env.MD2PDF_BROWSER),
   };
 
-  if (command.help) {
+  if (command.help || command.version) {
     return command;
   }
 
@@ -128,6 +147,10 @@ function parseCliArgs(argv: string[]): ReturnType<typeof parseArgs> {
         help: {
           type: "boolean",
           short: "h",
+          default: false,
+        },
+        version: {
+          type: "boolean",
           default: false,
         },
       },

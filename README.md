@@ -75,6 +75,7 @@ ENTRY                     a Markdown file or a directory of Markdown files
     --output-dir DIR      write every output PDF into DIR
 -f, --force-overwrite     overwrite existing output PDFs without prompting
 -h, --help                list options with one-line descriptions
+    --version             print the version, license, and publisher
 ```
 
 Examples:

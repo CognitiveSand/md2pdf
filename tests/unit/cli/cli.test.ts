@@ -10,6 +10,7 @@ import {
   isPromptInteractive,
   isDirectEntrypoint,
   HELP_TEXT,
+  VERSION_TEXT,
   type CliIo,
   main,
   parseCommandLine,
@@ -55,6 +56,25 @@ describe("Stream A P1 CLI", () => {
     expect(stdout.toString()).toContain("    --output-dir DIR");
     expect(stdout.toString()).toContain("-f, --force-overwrite");
     expect(stdout.toString()).toContain("-h, --help");
+    expect(stdout.toString()).toContain("    --version");
+    expect(stderr.toString()).toBe("");
+  });
+
+  it("@req NFR-04 prints the package version, license, and publisher for --version", async () => {
+    const packageJson = JSON.parse(
+      await fs.readFile(new URL("../../../package.json", import.meta.url), "utf8"),
+    ) as { version: string; license: string };
+    const stdout = new MemoryWriter();
+    const stderr = new MemoryWriter();
+
+    const exitCode = await main(["--version"], fakeIo(stdout, stderr));
+
+    expect(exitCode).toBe(0);
+    expect(stdout.toString()).toBe(`${VERSION_TEXT}\n`);
+    expect(stdout.toString()).toContain(`md2pdf ${packageJson.version}`);
+    expect(stdout.toString()).toContain(`${packageJson.license} license`);
+    expect(stdout.toString()).toContain("CognitiveSand");
+    expect(stdout.toString()).toContain("https://cognitivesand.ai");
     expect(stderr.toString()).toBe("");
   });
 
@@ -95,6 +115,7 @@ describe("Stream A P1 CLI", () => {
       outputDir: undefined,
       forceOverwrite: true,
       help: false,
+      version: false,
       browserPath: "/browser",
     });
   });
