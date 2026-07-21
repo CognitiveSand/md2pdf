@@ -5,7 +5,7 @@
 }
 
 html {
-  font-size: 10pt;
+  font-size: 9pt; /* default; the --size CLI option overrides via an injected style */
 }
 
 body {

@@ -117,7 +117,26 @@ describe("Stream A P1 CLI", () => {
       help: false,
       version: false,
       browserPath: "/browser",
+      baseFontSizePt: undefined,
     });
+  });
+
+  it("parses --size as a base font size in points", () => {
+    expect(parseCommandLine(["--size", "10.5", "doc.md"], {}).baseFontSizePt).toBe(10.5);
+    expect(parseCommandLine(["doc.md"], {}).baseFontSizePt).toBeUndefined();
+  });
+
+  it("rejects a non-numeric or out-of-range --size as a usage error", async () => {
+    for (const sizeValue of ["abc", "0", "-9", "100"]) {
+      const stdout = new MemoryWriter();
+      const stderr = new MemoryWriter();
+
+      const exitCode = await main([`--size=${sizeValue}`, "doc.md"], fakeIo(stdout, stderr));
+
+      expect(exitCode).toBe(2);
+      expect(stderr.toString()).toContain("[usage]");
+      expect(stderr.toString()).toContain("--size must be a number between 4 and 72");
+    }
   });
 
   it("@req FR-01 @req FR-18 uses the runtime converter when no converter is injected", async () => {

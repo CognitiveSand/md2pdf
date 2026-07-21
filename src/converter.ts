@@ -125,6 +125,7 @@ export class DocumentConverter {
       sourcePath: absoluteSourcePath,
       baseDir: dirname(absoluteSourcePath),
       documentTitle: basename(absoluteSourcePath),
+      baseFontSizePt: options.baseFontSizePt,
     };
 
     const pdf = await this.renderWithFallback(

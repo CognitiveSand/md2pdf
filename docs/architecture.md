@@ -186,6 +186,7 @@ ENTRY                     a Markdown file or a directory of Markdown files
 -o, --output PATH         output path for a single-file conversion (FR-03)
     --output-dir DIR      write every output PDF into DIR (FR-23)
 -f, --force-overwrite     overwrite existing output PDFs without prompting (FR-13)
+    --size PT             base font size in points, 4–72 (default: 9)
 -h, --help                list options with one-line descriptions (NFR-04)
 ```
 
@@ -277,9 +278,11 @@ h1, h2, h3, h4, h5, h6 { break-after: avoid-page; }
 Both Chromium and Firefox honor CSS paged-media break rules in their print
 engines, so the same stylesheet works across browser families. The stylesheet
 uses system UI fonts (`-apple-system`, `BlinkMacSystemFont`, `Segoe UI`, etc.),
-so output appearance depends on the host's installed fonts. A highlight.js theme
-stylesheet styles the server-highlighted code. Theme selection is out of scope
-(OOS-03); the stylesheet is fixed for the MVP.
+so output appearance depends on the host's installed fonts. The base font size
+defaults to 9pt in `default.css`; the `--size` CLI option overrides it through a
+`<style>` element the renderer injects after the default stylesheet. A
+highlight.js theme stylesheet styles the server-highlighted code. Theme
+selection is out of scope (OOS-03); the stylesheet is fixed for the MVP.
 
 ## 11. Packaging, installation, and distribution
 

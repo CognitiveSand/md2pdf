@@ -55,6 +55,30 @@ describe("markdownRenderer renderToHtml", () => {
     expect(html).toContain("answer");
   });
 
+  it("@req NFR-01 injects a base font size override after the default stylesheet", () => {
+    const html = renderToHtml("# Title", { ...context(), baseFontSizePt: 11.5 });
+
+    expect(html).toContain('data-md2pdf-asset="base-font-size"');
+    expect(html).toContain("html { font-size: 11.5pt; }");
+    expect(html.indexOf('data-md2pdf-asset="default.css"')).toBeLessThan(
+      html.indexOf('data-md2pdf-asset="base-font-size"'),
+    );
+  });
+
+  it("@req NFR-01 omits the base font size override when no size is requested", () => {
+    const html = renderToHtml("# Title", context());
+
+    expect(html).not.toContain('data-md2pdf-asset="base-font-size"');
+  });
+
+  it("@req NFR-01 rejects a base font size outside the supported range", () => {
+    for (const sizePt of [3.9, 72.1, Number.NaN]) {
+      expect(() => renderToHtml("# Title", { ...context(), baseFontSizePt: sizePt })).toThrowError(
+        RenderError,
+      );
+    }
+  });
+
   it("@req NFR-02 rejects oversized Markdown before parsing", () => {
     expectRenderError("a".repeat(10 * 1024 * 1024 + 1), (error) => {
       expect(error.message).toContain("Markdown document is too large");

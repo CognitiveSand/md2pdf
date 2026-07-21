@@ -13,6 +13,10 @@ import {
   UsageError,
 } from "./errors.js";
 import {
+  MAX_BASE_FONT_SIZE_PT,
+  MIN_BASE_FONT_SIZE_PT,
+} from "./markdownRenderer.js";
+import {
   type ConvertFile,
   ConversionPipeline,
 } from "./pipeline.js";
@@ -34,6 +38,7 @@ export interface CliCommand {
   help: boolean;
   version: boolean;
   browserPath?: string;
+  baseFontSizePt?: number;
 }
 
 export interface CliDependencies {
@@ -47,6 +52,7 @@ export const HELP_TEXT = [
   "-o, --output PATH         output path for a single-file conversion",
   "    --output-dir DIR      write every output PDF into DIR",
   "-f, --force-overwrite     overwrite existing output PDFs without prompting",
+  "    --size PT             base font size in points (default: 9)",
   "-h, --help                list options with one-line descriptions",
   "    --version             print the version, license, and publisher",
 ].join("\n");
@@ -97,6 +103,7 @@ export function parseCommandLine(argv: string[], env: NodeJS.ProcessEnv): CliCom
     help: parsed.values.help === true,
     version: parsed.values.version === true,
     browserPath: emptyToUndefined(env.MD2PDF_BROWSER),
+    baseFontSizePt: parseBaseFontSize(valueAsString(parsed.values.size)),
   };
 
   if (command.help || command.version) {
@@ -144,6 +151,9 @@ function parseCliArgs(argv: string[]): ReturnType<typeof parseArgs> {
           short: "f",
           default: false,
         },
+        size: {
+          type: "string",
+        },
         help: {
           type: "boolean",
           short: "h",
@@ -162,6 +172,22 @@ function parseCliArgs(argv: string[]): ReturnType<typeof parseArgs> {
       cause: error,
     });
   }
+}
+
+function parseBaseFontSize(value: string | undefined): number | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const sizePt = Number(value.trim());
+  if (!Number.isFinite(sizePt) || sizePt < MIN_BASE_FONT_SIZE_PT || sizePt > MAX_BASE_FONT_SIZE_PT) {
+    throw new UsageError({
+      message: `--size must be a number between ${MIN_BASE_FONT_SIZE_PT} and ${MAX_BASE_FONT_SIZE_PT} (points), got: ${value}`,
+      actionHint: "run md2pdf --help",
+    });
+  }
+
+  return sizePt;
 }
 
 function validateCommand(command: CliCommand): void {
@@ -193,6 +219,7 @@ async function executeCommand(
     outputDir: command.outputDir,
     convertOptions: {
       browserPath: command.browserPath,
+      baseFontSizePt: command.baseFontSizePt,
     },
     overwrite: {
       forceOverwrite: command.forceOverwrite,

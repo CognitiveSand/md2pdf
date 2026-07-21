@@ -41,11 +41,14 @@ const MAX_TOTAL_IMAGE_BYTES = 100 * 1024 * 1024;
 const MAX_IMAGE_PIXELS = 25_000_000;
 const REMOVE_HIDDEN_FORMATTING_HINT =
   "Remove hidden formatting characters from the Markdown source before converting it.";
+export const MIN_BASE_FONT_SIZE_PT = 4;
+export const MAX_BASE_FONT_SIZE_PT = 72;
 
 export interface MarkdownRenderContext {
   sourcePath: string;
   baseDir?: string;
   documentTitle?: string;
+  baseFontSizePt?: number;
 }
 
 export interface TempMarkdownRenderContext extends MarkdownRenderContext {
@@ -457,6 +460,7 @@ function assembleHtml(body: string, context: MarkdownRenderContext): string {
     '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; img-src data:; style-src \'unsafe-inline\'; script-src \'unsafe-inline\';">',
     `<title>${title}</title>`,
     `<style data-md2pdf-asset="default.css">\n${defaultCss}\n</style>`,
+    baseFontSizeStyle(context),
     `<style data-md2pdf-asset="highlight.css">\n${highlightCss}\n</style>`,
     "</head>",
     "<body>",
@@ -473,6 +477,23 @@ function assembleHtml(body: string, context: MarkdownRenderContext): string {
     "</html>",
     "",
   ].join("\n");
+}
+
+function baseFontSizeStyle(context: MarkdownRenderContext): string {
+  const sizePt = context.baseFontSizePt;
+  if (sizePt === undefined) {
+    return "";
+  }
+
+  if (!Number.isFinite(sizePt) || sizePt < MIN_BASE_FONT_SIZE_PT || sizePt > MAX_BASE_FONT_SIZE_PT) {
+    throw new RenderError({
+      message: `base font size must be between ${MIN_BASE_FONT_SIZE_PT} and ${MAX_BASE_FONT_SIZE_PT} points`,
+      sourcePath: context.sourcePath,
+      actionHint: "Pass --size with a point value inside the supported range.",
+    });
+  }
+
+  return `<style data-md2pdf-asset="base-font-size">\nhtml { font-size: ${sizePt}pt; }\n</style>`;
 }
 
 function readTextAsset(path: string): string {

@@ -3,6 +3,7 @@ import { type Md2PdfError } from "./errors.js";
 export interface ConvertOptions {
   browserPath?: string;
   renderTimeoutMs?: number;
+  baseFontSizePt?: number;
 }
 
 export interface ConversionJob {

@@ -74,6 +74,7 @@ ENTRY                     a Markdown file or a directory of Markdown files
 -o, --output PATH         output path for a single-file conversion
     --output-dir DIR      write every output PDF into DIR
 -f, --force-overwrite     overwrite existing output PDFs without prompting
+    --size PT             base font size in points (default: 9)
 -h, --help                list options with one-line descriptions
     --version             print the version, license, and publisher
 ```
@@ -86,6 +87,7 @@ md2pdf notes.md --output out/report.pdf
 md2pdf a.md b.md --output-dir build
 md2pdf ./notes-folder
 md2pdf notes.md --force-overwrite
+md2pdf notes.md --size 11
 ```
 
 Directory conversion is non-recursive: only top-level `.md` files in
