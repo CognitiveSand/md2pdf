@@ -5,7 +5,7 @@
 }
 
 html {
-  font-size: 10px;
+  font-size: 10pt;
 }
 
 body {
@@ -151,12 +151,14 @@ tr:nth-child(even) td {
   background: #fafbfc;
 }
 
-/* Images */
+/* Images: never split across pages; move whole to the next page instead */
 img {
   max-width: 100%;
   height: auto;
   display: block;
   margin: 0.5em 0;
+  break-inside: avoid-page;
+  page-break-inside: avoid;
 }
 
 /* Horizontal rule */
@@ -179,11 +181,13 @@ hr {
 
 .footnotes ol { padding-left: 1.5em; }
 
-/* Mermaid diagrams */
+/* Mermaid diagrams: same page-break protection as images */
 .mermaid {
   display: block;
   margin: 1em 0;
   text-align: center;
+  break-inside: avoid-page;
+  page-break-inside: avoid;
 }
 
 .mermaid svg {
