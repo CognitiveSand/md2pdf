@@ -95,15 +95,15 @@ describe("printPdfWithWebDriver", () => {
     expect(transport.requests[3]?.body).toEqual({
       background: true,
       margin: {
-        top: 0.4,
-        bottom: 0.4,
-        left: 0.4,
-        right: 0.4,
+        top: 1,
+        bottom: 1,
+        left: 1,
+        right: 1,
       },
       orientation: "portrait",
       page: {
-        width: 8.27,
-        height: 11.69,
+        width: 21,
+        height: 29.7,
       },
       scale: 1,
       shrinkToFit: true,
@@ -290,9 +290,9 @@ describe("printPdfWithWebDriver", () => {
       background: false,
       margin: {
         top: 0.2,
-        bottom: 0.4,
-        left: 0.4,
-        right: 0.4,
+        bottom: 1,
+        left: 1,
+        right: 1,
       },
       orientation: "landscape",
       page: {

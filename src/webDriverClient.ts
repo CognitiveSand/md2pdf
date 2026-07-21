@@ -74,18 +74,19 @@ interface PrintResponse {
 const defaultRenderTimeoutMs = 30_000;
 const defaultMermaidPollMs = 100;
 const defaultCleanupTimeoutMs = 5_000;
+// W3C WebDriver print units are centimeters: A4 page, 1 cm margins.
 const defaultPrintSettings: Required<WebDriverPrintSettings> = {
   background: true,
   margin: {
-    top: 0.4,
-    bottom: 0.4,
-    left: 0.4,
-    right: 0.4,
+    top: 1,
+    bottom: 1,
+    left: 1,
+    right: 1,
   },
   orientation: "portrait",
   page: {
-    width: 8.27,
-    height: 11.69,
+    width: 21,
+    height: 29.7,
   },
   scale: 1,
   shrinkToFit: true,
